@@ -6,7 +6,7 @@
 declare(strict_types=1);
 
 const RECIPIENT = 'rouvresmathis@gmail.com';
-const FROM_ADDRESS = 'no-reply@mathis-rvrs.fr';
+const FROM_ADDRESS = 'contact@mathis-rvrs.fr';
 const FROM_NAME = 'mathis-rvrs.fr';
 const SUBJECT = 'Nouveau message depuis mathis-rvrs.fr';
 const MIN_SUBMIT_MS = 3000;
