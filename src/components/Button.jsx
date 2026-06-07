@@ -8,7 +8,7 @@ export default function Button({
   ...props
 }) {
   const base =
-    'inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold transition-all duration-200 focus-visible:outline-offset-4 active:scale-[0.98]'
+    'inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold transition-all duration-200 focus-visible:outline-offset-4 active:scale-[0.98] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-60'
 
   const variants = {
     primary:

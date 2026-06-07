@@ -29,6 +29,7 @@ jobs:
       - name: Verify build output
         run: |
           test -f dist/index.html
+          test -f dist/contact.php
           test -d dist/assets
           ls -la dist
 

@@ -1,10 +1,124 @@
+import { useEffect, useRef, useState } from 'react'
 import { site } from '../data/site'
 import { useInView } from '../hooks/useInView'
 import AnimatedSection from './AnimatedSection'
 import Button from './Button'
+import { CONTACT_ENDPOINT, CONTACT_LIMITS } from '../config/contact'
+import { hasValidationErrors, validateContactForm } from '../lib/contactValidation'
+
+const INITIAL_FORM = {
+  name: '',
+  email: '',
+  message: '',
+  website: '',
+}
+
+const inputClass =
+  'w-full rounded-xl border bg-[var(--bg-primary)] px-4 py-3 text-sm text-[var(--text-primary)] transition-colors focus:outline-none'
+const inputValidClass = 'border-[var(--border-color)] focus:border-[var(--accent)]'
+const inputInvalidClass = 'border-red-400 focus:border-red-500 dark:border-red-500/70'
 
 export default function Contact() {
   const [ref, inView] = useInView()
+  const [form, setForm] = useState(INITIAL_FORM)
+  const [fieldErrors, setFieldErrors] = useState({})
+  const [status, setStatus] = useState('idle')
+  const [feedback, setFeedback] = useState('')
+  const formStartedAt = useRef(0)
+
+  useEffect(() => {
+    formStartedAt.current = Date.now()
+  }, [])
+
+  const updateField = (field) => (e) => {
+    setForm((prev) => ({ ...prev, [field]: e.target.value }))
+    if (fieldErrors[field]) {
+      setFieldErrors((prev) => {
+        const next = { ...prev }
+        delete next[field]
+        return next
+      })
+    }
+    if (status !== 'idle') {
+      setStatus('idle')
+      setFeedback('')
+    }
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+
+    const errors = validateContactForm(form)
+    if (hasValidationErrors(errors)) {
+      setFieldErrors(errors)
+      setStatus('error')
+      setFeedback('Vérifiez les champs du formulaire.')
+      return
+    }
+
+    setFieldErrors({})
+    setStatus('loading')
+    setFeedback('')
+
+    try {
+      const response = await fetch(CONTACT_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({
+          name: form.name.trim(),
+          email: form.email.trim(),
+          message: form.message.trim(),
+          website: form.website,
+          formStartedAt: formStartedAt.current,
+        }),
+      })
+
+      let data = null
+      const contentType = response.headers.get('content-type') ?? ''
+      let isNonJsonResponse = false
+      try {
+        if (!contentType.includes('application/json')) {
+          isNonJsonResponse = true
+        } else {
+          data = await response.json()
+        }
+      } catch {
+        data = null
+      }
+
+      if (isNonJsonResponse) {
+        throw new Error(
+          'Le service contact n\'est pas disponible sur ce serveur. Vérifiez que contact.php est déployé sur OVH.',
+        )
+      }
+
+      if (!response.ok || !data?.success) {
+        const message =
+          data?.message ||
+          (response.status === 404
+            ? 'Service contact indisponible en local. Déployez sur OVH ou lancez un serveur PHP.'
+            : 'Une erreur est survenue. Réessayez plus tard.')
+        throw new Error(message)
+      }
+
+      setStatus('success')
+      setFeedback('Message envoyé avec succès. Je vous répondrai rapidement.')
+      setForm(INITIAL_FORM)
+      formStartedAt.current = Date.now()
+    } catch (err) {
+      setStatus('error')
+      setFeedback(
+        err instanceof Error
+          ? err.message
+          : 'Impossible d\'envoyer le message. Vérifiez votre connexion.',
+      )
+    }
+  }
+
+  const isLoading = status === 'loading'
 
   return (
     <AnimatedSection id="contact" inView={inView} className="section-padding">
@@ -29,18 +143,35 @@ export default function Contact() {
               transform: inView ? 'translateY(0)' : 'translateY(20px)',
             }}
           >
-            <form
-              className="space-y-5"
-              onSubmit={(e) => {
-                e.preventDefault()
-                const data = new FormData(e.target)
-                const subject = encodeURIComponent(`Contact depuis ${site.domain}`)
-                const body = encodeURIComponent(
-                  `Nom: ${data.get('name')}\nEmail: ${data.get('email')}\n\n${data.get('message')}`,
-                )
-                window.location.href = `mailto:${site.email}?subject=${subject}&body=${body}`
-              }}
-            >
+            {(status === 'success' || status === 'error') && feedback && (
+              <div
+                role="alert"
+                aria-live="polite"
+                className={`mb-6 rounded-xl border px-4 py-3 text-sm ${
+                  status === 'success'
+                    ? 'border-green-200 bg-green-50 text-green-800 dark:border-green-500/30 dark:bg-green-500/10 dark:text-green-300'
+                    : 'border-red-200 bg-red-50 text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300'
+                }`}
+              >
+                {feedback}
+              </div>
+            )}
+
+            <form className="relative space-y-5" onSubmit={handleSubmit} noValidate>
+              {/* Honeypot anti-spam */}
+              <div className="absolute -left-[9999px] h-0 w-0 overflow-hidden" aria-hidden="true">
+                <label htmlFor="website">Website</label>
+                <input
+                  id="website"
+                  name="website"
+                  type="text"
+                  tabIndex={-1}
+                  autoComplete="off"
+                  value={form.website}
+                  onChange={updateField('website')}
+                />
+              </div>
+
               <div className="grid gap-5 sm:grid-cols-2">
                 <div>
                   <label htmlFor="name" className="mb-1.5 block text-sm font-medium text-[var(--text-primary)]">
@@ -52,9 +183,20 @@ export default function Contact() {
                     type="text"
                     required
                     autoComplete="name"
-                    className="w-full rounded-xl border border-[var(--border-color)] bg-[var(--bg-primary)] px-4 py-3 text-sm text-[var(--text-primary)] transition-colors focus:border-[var(--accent)] focus:outline-none"
+                    maxLength={CONTACT_LIMITS.nameMax}
+                    value={form.name}
+                    onChange={updateField('name')}
+                    disabled={isLoading}
+                    aria-invalid={Boolean(fieldErrors.name)}
+                    aria-describedby={fieldErrors.name ? 'name-error' : undefined}
+                    className={`${inputClass} ${fieldErrors.name ? inputInvalidClass : inputValidClass}`}
                     placeholder="Votre nom"
                   />
+                  {fieldErrors.name && (
+                    <p id="name-error" className="mt-1.5 text-xs text-red-600 dark:text-red-400">
+                      {fieldErrors.name}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-[var(--text-primary)]">
@@ -66,26 +208,69 @@ export default function Contact() {
                     type="email"
                     required
                     autoComplete="email"
-                    className="w-full rounded-xl border border-[var(--border-color)] bg-[var(--bg-primary)] px-4 py-3 text-sm text-[var(--text-primary)] transition-colors focus:border-[var(--accent)] focus:outline-none"
+                    maxLength={CONTACT_LIMITS.emailMax}
+                    value={form.email}
+                    onChange={updateField('email')}
+                    disabled={isLoading}
+                    aria-invalid={Boolean(fieldErrors.email)}
+                    aria-describedby={fieldErrors.email ? 'email-error' : undefined}
+                    className={`${inputClass} ${fieldErrors.email ? inputInvalidClass : inputValidClass}`}
                     placeholder="vous@exemple.com"
                   />
+                  {fieldErrors.email && (
+                    <p id="email-error" className="mt-1.5 text-xs text-red-600 dark:text-red-400">
+                      {fieldErrors.email}
+                    </p>
+                  )}
                 </div>
               </div>
               <div>
-                <label htmlFor="message" className="mb-1.5 block text-sm font-medium text-[var(--text-primary)]">
-                  Message
-                </label>
+                <div className="mb-1.5 flex items-center justify-between gap-2">
+                  <label htmlFor="message" className="text-sm font-medium text-[var(--text-primary)]">
+                    Message
+                  </label>
+                  <span className="text-xs text-[var(--text-muted)]" aria-live="polite">
+                    {form.message.length}/{CONTACT_LIMITS.messageMax}
+                  </span>
+                </div>
                 <textarea
                   id="message"
                   name="message"
                   required
                   rows={4}
-                  className="w-full resize-y rounded-xl border border-[var(--border-color)] bg-[var(--bg-primary)] px-4 py-3 text-sm text-[var(--text-primary)] transition-colors focus:border-[var(--accent)] focus:outline-none"
+                  maxLength={CONTACT_LIMITS.messageMax}
+                  value={form.message}
+                  onChange={updateField('message')}
+                  disabled={isLoading}
+                  aria-invalid={Boolean(fieldErrors.message)}
+                  aria-describedby={fieldErrors.message ? 'message-error' : undefined}
+                  className={`${inputClass} resize-y ${fieldErrors.message ? inputInvalidClass : inputValidClass}`}
                   placeholder="Parlez-moi de votre projet..."
                 />
+                {fieldErrors.message && (
+                  <p id="message-error" className="mt-1.5 text-xs text-red-600 dark:text-red-400">
+                    {fieldErrors.message}
+                  </p>
+                )}
               </div>
-              <Button type="submit" variant="primary" className="w-full sm:w-auto">
-                Envoyer par email
+              <Button
+                type="submit"
+                variant="primary"
+                className="w-full disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                disabled={isLoading}
+                aria-busy={isLoading}
+              >
+                {isLoading ? (
+                  <>
+                    <span
+                      className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
+                      aria-hidden="true"
+                    />
+                    Envoi en cours…
+                  </>
+                ) : (
+                  'Envoyer le message'
+                )}
               </Button>
             </form>
 

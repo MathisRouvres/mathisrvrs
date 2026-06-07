@@ -17,7 +17,36 @@ npm run lint
 ## Déploiement
 
 Le dossier `dist/` est servi sur **https://mathis-rvrs.fr** via Apache/OVH.  
-Le fichier `public/.htaccess` gère le HTTPS, le fallback SPA et les fichiers statiques (`robots.txt`, `sitemap.xml`).
+Le fichier `public/.htaccess` gère le HTTPS, le fallback SPA et les fichiers statiques (`robots.txt`, `sitemap.xml`, `contact.php`).
+
+## Formulaire de contact
+
+Le formulaire envoie les messages via **`public/contact.php`** (copié dans `dist/contact.php` au build).
+
+- Destinataire : `rouvresmathis@gmail.com`
+- Expéditeur serveur : `no-reply@mathis-rvrs.fr`
+- Honeypot + délai minimum anti-spam côté PHP
+
+**Variable d'environnement (optionnelle) :**
+
+```bash
+# .env.local — ex. proxy vers un serveur PHP local
+VITE_CONTACT_ENDPOINT=http://localhost:8080/contact.php
+```
+
+**Test local PHP :**
+
+```bash
+npm run build
+php -S localhost:8080 -t dist
+# Ouvrir http://localhost:8080 et tester le formulaire
+```
+
+**Configuration OVH :**
+
+- Vérifier que PHP est activé sur l'hébergement.
+- Configurer l'adresse `no-reply@mathis-rvrs.fr` (alias ou boîte) pour l'envoi `mail()`.
+- Vérifier les enregistrements SPF/DMARC du domaine si les emails arrivent en spam.
 
 ---
 
