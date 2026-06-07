@@ -1,0 +1,23 @@
+---
+description: Frontend quality rules
+globs:
+  - "**/*.tsx"
+  - "**/*.jsx"
+  - "**/*.js"
+  - "**/*.vue"
+  - "**/*.blade.php"
+  - "**/*.tpl.php"
+  - "**/*.css"
+  - "**/*.scss"
+---
+
+# Frontend Quality
+
+- Use semantic markup.
+- Avoid duplicated UI logic.
+- Protect JS against missing DOM nodes.
+- Avoid duplicate initializations.
+- Keep selectors stable.
+- Handle mobile layout.
+- Add clear empty/loading/error states.
+- Preserve existing backend field contracts.

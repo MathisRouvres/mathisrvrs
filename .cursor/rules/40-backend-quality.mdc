@@ -1,0 +1,25 @@
+---
+description: Backend quality rules
+globs:
+  - "**/*.php"
+  - "**/*.ts"
+  - "**/*.js"
+  - "**/*.sql"
+---
+
+# Backend Quality
+
+Always:
+- validate inputs;
+- authorize sensitive actions;
+- avoid unsafe SQL;
+- escape output where needed;
+- handle errors gracefully;
+- preserve response formats;
+- avoid leaking internals.
+
+For uploads:
+- validate extension, MIME type and size;
+- generate safe filenames;
+- prevent path traversal;
+- never trust original filenames.

@@ -1,0 +1,83 @@
+/* Setup hero — écran centré, sans personnage */
+.scene-setup {
+  aspect-ratio: 480 / 348;
+}
+
+.scene-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.scene-z-bg     { z-index: 0; }
+.scene-z-desk   { z-index: 10; }
+.scene-z-mon    { z-index: 20; }
+.scene-z-periph { z-index: 30; }
+.scene-z-fx     { z-index: 40; }
+
+@media (min-width: 768px) {
+  .scene-setup-wrap {
+    transform: scale(1.02);
+    transform-origin: center center;
+  }
+}
+
+@media (max-width: 639px) {
+  .scene-detail {
+    display: none;
+  }
+}
+
+/* Animations internes écran */
+@keyframes scene-bar-pulse {
+  0%, 100% { transform: scaleY(0.55); }
+  50% { transform: scaleY(1); }
+}
+
+@keyframes scene-card-pop {
+  0%, 15% { opacity: 0; transform: translateY(6px); }
+  25%, 85% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0.85; transform: translateY(0); }
+}
+
+@keyframes scene-metric-fill {
+  0% { width: 0; }
+  100% { width: var(--bar-w, 40px); }
+}
+
+@keyframes scene-scan-sweep {
+  0% { transform: translateY(-120%); opacity: 0; }
+  15% { opacity: 0.06; }
+  85% { opacity: 0.06; }
+  100% { transform: translateY(120%); opacity: 0; }
+}
+
+@keyframes scene-typing-dot {
+  0%, 20% { opacity: 0; }
+  40% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.scene-bar-anim {
+  animation: scene-bar-pulse 2.8s var(--ease-in-out, ease-in-out) infinite;
+  transform-origin: bottom center;
+  transform-box: fill-box;
+}
+
+.scene-card-anim-1 { animation: scene-card-pop 5s var(--ease-out, ease-out) 0s infinite; }
+.scene-card-anim-2 { animation: scene-card-pop 5s var(--ease-out, ease-out) 0.8s infinite; }
+.scene-card-anim-3 { animation: scene-card-pop 5s var(--ease-out, ease-out) 1.6s infinite; }
+
+.scene-scan-sweep {
+  animation: scene-scan-sweep 5s linear infinite;
+}
+
+.scene-typing-dot-1 { animation: scene-typing-dot 1.4s step-end infinite; }
+.scene-typing-dot-2 { animation: scene-typing-dot 1.4s step-end 0.2s infinite; }
+.scene-typing-dot-3 { animation: scene-typing-dot 1.4s step-end 0.4s infinite; }
+
+.scene-halo-pulse {
+  animation: screen-glow-pulse 4s var(--ease-in-out, ease-in-out) infinite;
+}

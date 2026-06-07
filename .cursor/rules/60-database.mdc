@@ -1,0 +1,17 @@
+---
+description: Database safety rules
+globs:
+  - "**/*.sql"
+  - "**/*.php"
+  - "**/*.ts"
+  - "**/*.js"
+---
+
+# Database Rules
+
+- Understand existing schema before changing queries.
+- Preserve data ownership and tenant isolation.
+- Avoid destructive queries without explicit confirmation.
+- Avoid N+1 queries.
+- Keep indexes in mind for frequent filters.
+- Do not add migrations if the project explicitly does not use migrations.

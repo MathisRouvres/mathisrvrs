@@ -1,0 +1,105 @@
+/* Timeline — parcours vertical */
+.timeline-track {
+  --timeline-dot: 0.875rem;
+  --timeline-gap: 2.5rem;
+}
+
+.timeline-line {
+  transform-origin: top center;
+  transform: scaleY(0);
+  transition: transform 1.2s var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1));
+}
+
+.timeline--visible .timeline-line {
+  transform: scaleY(1);
+}
+
+.timeline-item {
+  opacity: 0;
+  transform: translateY(1.25rem);
+  transition:
+    opacity 700ms var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1)),
+    transform 700ms var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1));
+}
+
+.timeline--visible .timeline-item {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.timeline-dot {
+  transition:
+    box-shadow 400ms ease,
+    transform 400ms var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1)),
+    background-color 400ms ease;
+}
+
+.timeline--visible .timeline-dot {
+  animation: timeline-dot-pulse 2.8s var(--ease-in-out, ease-in-out) infinite;
+}
+
+.timeline--visible .timeline-item:hover .timeline-dot,
+.timeline--visible .timeline-item:focus-within .timeline-dot {
+  transform: scale(1.2);
+}
+
+@keyframes timeline-dot-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 var(--timeline-dot-glow, transparent); }
+  50% { box-shadow: 0 0 0 6px var(--timeline-dot-glow, transparent); }
+}
+
+.timeline-card {
+  transition:
+    transform 300ms var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1)),
+    box-shadow 300ms ease,
+    border-color 300ms ease;
+}
+
+.timeline-card:hover {
+  transform: translateY(-3px);
+}
+
+.timeline-card--highlight {
+  position: relative;
+  overflow: hidden;
+}
+
+.timeline-card--highlight::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    var(--timeline-highlight-from, rgba(59, 91, 219, 0.06)),
+    transparent 55%
+  );
+  pointer-events: none;
+}
+
+.dark .timeline-card--highlight::before {
+  background: linear-gradient(
+    135deg,
+    rgba(34, 211, 238, 0.08),
+    rgba(168, 85, 247, 0.04) 50%,
+    transparent 70%
+  );
+}
+
+.timeline-tag {
+  transition: background-color 200ms ease, color 200ms ease;
+}
+
+.timeline-card:hover .timeline-tag {
+  transform: translateY(-1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .timeline-line,
+  .timeline-item,
+  .timeline-dot {
+    transition: none !important;
+    animation: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+  }
+}

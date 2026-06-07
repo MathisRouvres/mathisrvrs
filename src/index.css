@@ -1,0 +1,165 @@
+@import "tailwindcss";
+@import "./styles/motion.css";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  --color-pro-50: #f0f4ff;
+  --color-pro-100: #e0e9ff;
+  --color-pro-500: #3b5bdb;
+  --color-pro-600: #364fc7;
+  --color-pro-700: #2b3fa0;
+
+  --color-neon-cyan: #22d3ee;
+  --color-neon-purple: #a855f7;
+  --color-neon-pink: #ec4899;
+  --color-neon-green: #4ade80;
+}
+
+@layer base {
+  :root {
+    --theme-duration: 720ms;
+    --ease-theme: cubic-bezier(0.65, 0, 0.35, 1);
+    --hero-gradient-light: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(59, 91, 219, 0.08), transparent);
+    --hero-gradient-dark: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(168, 85, 247, 0.12), transparent);
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  html.theme-transitioning,
+  html.theme-transitioning *,
+  html.theme-transitioning *::before,
+  html.theme-transitioning *::after {
+    transition:
+      background-color var(--theme-duration) var(--ease-theme),
+      border-color var(--theme-duration) var(--ease-theme),
+      color calc(var(--theme-duration) * 0.9) var(--ease-theme),
+      opacity var(--theme-duration) var(--ease-theme),
+      box-shadow var(--theme-duration) var(--ease-theme),
+      fill var(--theme-duration) var(--ease-theme),
+      stroke var(--theme-duration) var(--ease-theme),
+      filter var(--theme-duration) var(--ease-theme) !important;
+  }
+
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: var(--theme-duration);
+    animation-timing-function: var(--ease-theme);
+  }
+
+  ::view-transition-old(root) {
+    animation-name: theme-view-fade-out;
+  }
+
+  ::view-transition-new(root) {
+    animation-name: theme-view-fade-in;
+  }
+
+  @keyframes theme-view-fade-out {
+    from { opacity: 1; }
+    to { opacity: 0; }
+  }
+
+  @keyframes theme-view-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    ::view-transition-old(root),
+    ::view-transition-new(root) {
+      animation: none !important;
+    }
+  }
+
+  body {
+    @apply font-sans antialiased;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    transition:
+      background-color var(--theme-duration) var(--ease-theme),
+      color calc(var(--theme-duration) * 0.9) var(--ease-theme);
+  }
+
+  :root {
+    --bg-primary: #f8fafc;
+    --bg-secondary: #ffffff;
+    --bg-elevated: #ffffff;
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-muted: #94a3b8;
+    --border-color: #e2e8f0;
+    --accent: #3b5bdb;
+    --accent-soft: rgba(59, 91, 219, 0.12);
+    --glow: transparent;
+    --card-shadow: 0 4px 24px rgba(15, 23, 42, 0.06);
+  }
+
+  .dark {
+    --bg-primary: #070b14;
+    --bg-secondary: #0d1321;
+    --bg-elevated: #131b2e;
+    --text-primary: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --border-color: #1e293b;
+    --accent: #22d3ee;
+    --accent-soft: rgba(34, 211, 238, 0.12);
+    --glow: rgba(34, 211, 238, 0.15);
+    --card-shadow: 0 4px 32px rgba(0, 0, 0, 0.4);
+  }
+
+  ::selection {
+    background: var(--accent-soft);
+    color: var(--text-primary);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+  }
+}
+
+@layer utilities {
+  .text-gradient-pro {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, #3b5bdb 0%, #6366f1 50%, #818cf8 100%);
+  }
+
+  .dark .text-gradient-pro {
+    background-image: linear-gradient(135deg, #22d3ee 0%, #a855f7 50%, #ec4899 100%);
+  }
+
+  .glass-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-color);
+    box-shadow: var(--card-shadow);
+  }
+
+  .glow-neon {
+    box-shadow: 0 0 20px var(--glow), 0 0 40px var(--glow);
+  }
+
+  .section-padding {
+    @apply px-4 py-20 sm:px-6 lg:px-8 lg:py-28;
+  }
+
+  .hero-gradient-layer {
+    transition: opacity var(--theme-duration) var(--ease-theme);
+  }
+
+  .theme-mode-label {
+    transition: opacity calc(var(--theme-duration) * 0.75) var(--ease-theme);
+  }
+
+  .container-site {
+    @apply mx-auto w-full max-w-6xl;
+  }
+}

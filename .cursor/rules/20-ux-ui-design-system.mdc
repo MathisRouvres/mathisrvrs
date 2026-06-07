@@ -1,0 +1,33 @@
+---
+description: Modern UX/UI design system rules
+alwaysApply: true
+---
+
+# UX/UI Design System
+
+Every interface must feel modern, calm, premium, clear, responsive and accessible.
+
+Prefer:
+- strong visual hierarchy;
+- generous spacing;
+- readable typography;
+- clear CTAs;
+- subtle borders and shadows;
+- rounded corners;
+- consistent states;
+- mobile-first layouts.
+
+Avoid:
+- crowded screens;
+- weak contrast;
+- unclear labels;
+- inconsistent spacing;
+- too many colors;
+- generic admin UI when a better SaaS UI is possible.
+
+Every UI task must check:
+- default, hover, focus-visible, active, disabled states;
+- loading, empty, error and success states;
+- accessibility and keyboard navigation;
+- responsive behavior;
+- clarity of the primary action.

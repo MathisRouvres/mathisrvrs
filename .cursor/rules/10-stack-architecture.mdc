@@ -1,0 +1,29 @@
+---
+description: Stack and architecture conventions
+alwaysApply: true
+---
+
+# Stack and Architecture
+
+Follow existing stack and conventions.
+
+For Laravel:
+- respect Laravel conventions;
+- keep controllers thin when possible;
+- validate input before writing data;
+- authorize sensitive actions;
+- avoid N+1 queries;
+- use services/actions for complex business logic.
+
+For React:
+- prefer functional components;
+- keep state minimal;
+- handle loading, empty, error and success states;
+- keep components reusable and accessible.
+
+For legacy PHP:
+- preserve compatibility with the current PHP version;
+- keep changes localized;
+- avoid dependencies;
+- sanitize inputs and escape outputs;
+- preserve existing form field names and backend contracts.

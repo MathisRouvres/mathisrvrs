@@ -1,0 +1,20 @@
+---
+description: Security review rules
+alwaysApply: true
+---
+
+# Security Rules
+
+Before finalizing changes, check:
+- authentication;
+- authorization;
+- CSRF;
+- XSS;
+- SQL injection;
+- file upload validation;
+- path traversal;
+- open redirects;
+- secrets exposure;
+- destructive action confirmation.
+
+Never hardcode API keys, tokens, passwords or credentials.

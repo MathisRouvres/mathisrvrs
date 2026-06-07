@@ -1,0 +1,15 @@
+---
+description: Testing and review checklist
+alwaysApply: true
+---
+
+# Testing and Review
+
+After any implementation, provide:
+1. Files changed.
+2. Summary of changes.
+3. Manual test steps.
+4. Edge cases.
+5. Regression risks.
+
+When possible, run lint, build, tests or safe equivalent commands.
