@@ -5,7 +5,7 @@ import AnimatedSection from './AnimatedSection'
 function SkillBar({ name, level, delay, visible }) {
   return (
     <div
-      className="transition-all duration-500"
+      className="transition-all duration-300"
       style={{
         transitionDelay: visible ? `${delay}ms` : '0ms',
         opacity: visible ? 1 : 0,
@@ -18,7 +18,7 @@ function SkillBar({ name, level, delay, visible }) {
       </div>
       <div className="h-2 overflow-hidden rounded-full bg-[var(--bg-primary)]">
         <div
-          className="h-full rounded-full bg-gradient-to-r from-[var(--accent)] to-indigo-400 transition-all duration-1000 ease-out dark:from-neon-cyan dark:to-neon-purple"
+          className="h-full rounded-full bg-gradient-to-r from-[var(--accent)] to-indigo-400 transition-all duration-500 ease-out dark:from-neon-cyan dark:to-neon-purple"
           style={{ width: visible ? `${level}%` : '0%' }}
         />
       </div>
@@ -30,13 +30,13 @@ export default function SkillsGrid() {
   const [ref, inView] = useInView()
 
   return (
-    <AnimatedSection id="skills" inView={inView} className="section-padding">
+    <AnimatedSection id="competences" inView={inView} className="section-padding">
       <div ref={ref} className="container-site">
         <div className="mx-auto max-w-3xl text-center">
           <span className="text-sm font-semibold uppercase tracking-widest text-[var(--accent)]">
             Expertise
           </span>
-          <h2 className="mt-3 font-display text-3xl font-bold text-[var(--text-primary)] sm:text-4xl">
+          <h2 id="competences-heading" className="mt-3 font-display text-3xl font-bold text-[var(--text-primary)] sm:text-4xl">
             Compétences
           </h2>
           <p className="mt-4 text-[var(--text-secondary)]">
@@ -48,9 +48,9 @@ export default function SkillsGrid() {
           {skillCategories.map((cat, catIndex) => (
             <div
               key={cat.id}
-              className="glass-card rounded-2xl p-6 transition-all duration-500 hover:-translate-y-1 hover:shadow-lg"
+              className="glass-card rounded-2xl p-6 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg"
               style={{
-                transitionDelay: inView ? `${catIndex * 100}ms` : '0ms',
+                transitionDelay: inView ? `${catIndex * 55}ms` : '0ms',
                 opacity: inView ? 1 : 0,
                 transform: inView ? 'translateY(0)' : 'translateY(16px)',
               }}

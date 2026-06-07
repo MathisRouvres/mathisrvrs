@@ -1,0 +1,18 @@
+{
+  "name": "Mathis Rouvres — Développeur Web & Product Builder",
+  "short_name": "Mathis Rouvres",
+  "description": "Portfolio de Mathis Rouvres, développeur web full-stack React, Laravel, UX/UI, SaaS et automatisation IA.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#3b5bdb",
+  "lang": "fr",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

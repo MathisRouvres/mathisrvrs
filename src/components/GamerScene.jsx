@@ -198,7 +198,7 @@ function LayerMonitor({ isDark, layout, animate, codeIndex, termIndex }) {
   return (
     <LayerSvg className="scene-z-mon">
       <ellipse cx={CX} cy={layout.deskY - 4} rx={mon.w / 2 + 20} ry={10} fill="#000" opacity={isDark ? 0.35 : 0.1} />
-      <g filter={isDark ? 'url(#gs-neon)' : 'url(#gs-shadow)'} className="transition-all duration-700">
+      <g filter={isDark ? 'url(#gs-neon)' : 'url(#gs-shadow)'} className="transition-all duration-[400ms]">
         <rect x={CX - 12} y={monBottom} width={24} height={standBot - monBottom} rx={3} fill={isDark ? '#1e293b' : '#a1a1aa'} />
         <rect x={CX - 36} y={layout.deskY - 14} width={72} height={7} rx={3} fill={isDark ? '#334155' : '#71717a'} />
 
@@ -314,7 +314,7 @@ export default function GamerScene({ className = '' }) {
   return (
     <div className={`relative mx-auto w-full max-w-xl sm:max-w-2xl md:max-w-[620px] ${className}`} aria-hidden="true" role="presentation">
       <div
-        className={`scene-layer scene-z-bg rounded-3xl transition-opacity duration-700 ${isDark ? 'opacity-100' : 'opacity-25'}`}
+        className={`scene-layer scene-z-bg rounded-3xl transition-opacity duration-[400ms] ${isDark ? 'opacity-100' : 'opacity-25'}`}
         style={{
           background: isDark
             ? 'radial-gradient(ellipse at 50% 38%, rgba(34,211,238,0.14), transparent 65%)'
@@ -323,7 +323,7 @@ export default function GamerScene({ className = '' }) {
       />
 
       <div
-        className={`scene-setup-wrap transition-opacity duration-[720ms] ease-[cubic-bezier(0.65,0,0.35,1)] ${animate ? 'animate-float-soft' : ''}`}
+        className={`scene-setup-wrap transition-opacity duration-[var(--theme-duration)] ease-[cubic-bezier(0.65,0,0.35,1)] ${animate ? 'animate-float-soft' : ''}`}
       >
         <div className="scene-setup relative w-full">
           <SceneLayers isDark={isDark} layout={layout} animate={animate} />

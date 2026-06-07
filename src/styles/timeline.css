@@ -7,7 +7,7 @@
 .timeline-line {
   transform-origin: top center;
   transform: scaleY(0);
-  transition: transform 1.2s var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1));
+  transition: transform 0.55s var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1));
 }
 
 .timeline--visible .timeline-line {
@@ -18,8 +18,8 @@
   opacity: 0;
   transform: translateY(1.25rem);
   transition:
-    opacity 700ms var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1)),
-    transform 700ms var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1));
+    opacity 400ms var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1)),
+    transform 400ms var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1));
 }
 
 .timeline--visible .timeline-item {
@@ -29,9 +29,9 @@
 
 .timeline-dot {
   transition:
-    box-shadow 400ms ease,
-    transform 400ms var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1)),
-    background-color 400ms ease;
+    box-shadow 250ms ease,
+    transform 250ms var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1)),
+    background-color 250ms ease;
 }
 
 .timeline--visible .timeline-dot {

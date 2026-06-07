@@ -1,8 +1,8 @@
 :root {
-  --motion-fast: 120ms;
-  --motion-base: 200ms;
-  --motion-slow: 320ms;
-  --motion-hero: 800ms;
+  --motion-fast: 100ms;
+  --motion-base: 160ms;
+  --motion-slow: 220ms;
+  --motion-hero: 480ms;
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
@@ -178,7 +178,7 @@
 }
 
 .theme-transition-overlay {
-  animation: theme-crossfade var(--theme-duration, 720ms) var(--ease-theme, cubic-bezier(0.65, 0, 0.35, 1)) forwards;
+  animation: theme-crossfade var(--theme-duration, 400ms) var(--ease-theme, cubic-bezier(0.65, 0, 0.35, 1)) forwards;
   background: var(--bg-primary);
   pointer-events: none;
 }

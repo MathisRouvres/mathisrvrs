@@ -14,7 +14,7 @@ export default function Contact() {
             <span className="text-sm font-semibold uppercase tracking-widest text-[var(--accent)]">
               Contact
             </span>
-            <h2 className="mt-3 font-display text-3xl font-bold text-[var(--text-primary)] sm:text-4xl">
+            <h2 id="contact-heading" className="mt-3 font-display text-3xl font-bold text-[var(--text-primary)] sm:text-4xl">
               Travaillons ensemble
             </h2>
             <p className="mt-4 text-[var(--text-secondary)]">
@@ -23,7 +23,7 @@ export default function Contact() {
           </div>
 
           <div
-            className="mt-12 glass-card rounded-2xl p-8 transition-all duration-500 sm:p-10"
+            className="mt-12 glass-card rounded-2xl p-8 transition-all duration-300 sm:p-10"
             style={{
               opacity: inView ? 1 : 0,
               transform: inView ? 'translateY(0)' : 'translateY(20px)',

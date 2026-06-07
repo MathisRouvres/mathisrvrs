@@ -22,7 +22,7 @@
 
 @layer base {
   :root {
-    --theme-duration: 720ms;
+    --theme-duration: 400ms;
     --ease-theme: cubic-bezier(0.65, 0, 0.35, 1);
     --hero-gradient-light: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(59, 91, 219, 0.08), transparent);
     --hero-gradient-dark: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(168, 85, 247, 0.12), transparent);

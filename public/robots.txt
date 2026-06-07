@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://mathis-rvrs.fr/sitemap.xml

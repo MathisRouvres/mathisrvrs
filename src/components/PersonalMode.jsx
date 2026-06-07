@@ -11,7 +11,7 @@ export default function PersonalMode() {
     <AnimatedSection
       id="passions"
       inView={inView}
-      className={`section-padding relative overflow-hidden transition-opacity duration-[720ms] ease-[cubic-bezier(0.65,0,0.35,1)] ${
+      className={`section-padding relative overflow-hidden transition-opacity duration-[var(--theme-duration)] ease-[cubic-bezier(0.65,0,0.35,1)] ${
         isDark ? 'opacity-100' : 'opacity-70'
       }`}
     >
@@ -28,7 +28,7 @@ export default function PersonalMode() {
           <span className="text-sm font-semibold uppercase tracking-widest text-[var(--accent)]">
             Mode personnel
           </span>
-          <h2 className="mt-3 font-display text-3xl font-bold text-[var(--text-primary)] sm:text-4xl">
+          <h2 id="passions-heading" className="mt-3 font-display text-3xl font-bold text-[var(--text-primary)] sm:text-4xl">
             Passions &amp; univers créatif
           </h2>
           <p className="mt-4 text-[var(--text-secondary)]">
@@ -41,11 +41,11 @@ export default function PersonalMode() {
           {passions.map((passion, i) => (
             <article
               key={passion.id}
-              className={`group rounded-2xl border p-6 transition-all duration-500 hover:-translate-y-1 hover:shadow-lg dark:hover:glow-neon ${accentClasses[passion.accent]} ${
+              className={`group rounded-2xl border p-6 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg dark:hover:glow-neon ${accentClasses[passion.accent]} ${
                 isDark ? '' : 'bg-[var(--bg-elevated)] border-[var(--border-color)]'
               }`}
               style={{
-                transitionDelay: inView ? `${i * 80}ms` : '0ms',
+                transitionDelay: inView ? `${i * 45}ms` : '0ms',
                 opacity: inView ? 1 : 0,
                 transform: inView ? 'translateY(0)' : 'translateY(20px)',
               }}

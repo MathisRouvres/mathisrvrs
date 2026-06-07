@@ -11,7 +11,7 @@ function TimelineCard({ item, isDark, index, inView }) {
   return (
     <li
       className="timeline-item relative pb-10 last:pb-0 sm:pb-12"
-      style={{ transitionDelay: inView ? `${index * 90 + 120}ms` : '0ms' }}
+      style={{ transitionDelay: inView ? `${index * 45 + 50}ms` : '0ms' }}
     >
       {/* Dot on track */}
       <span
@@ -153,13 +153,13 @@ export default function Timeline() {
   const { isDark } = useThemeContext()
 
   return (
-    <AnimatedSection id="timeline" inView={inView} className="section-padding bg-[var(--bg-secondary)]">
+    <AnimatedSection id="parcours" inView={inView} className="section-padding bg-[var(--bg-secondary)]">
       <div ref={ref} className={`container-site ${inView ? 'timeline--visible' : ''}`}>
         <div className="mx-auto max-w-3xl text-center">
           <span className="text-sm font-semibold uppercase tracking-widest text-[var(--accent)]">
             Parcours
           </span>
-          <h2 className="mt-3 font-display text-3xl font-bold text-[var(--text-primary)] sm:text-4xl">
+          <h2 id="parcours-heading" className="mt-3 font-display text-3xl font-bold text-[var(--text-primary)] sm:text-4xl">
             Mon évolution
           </h2>
           <p className="mt-4 text-[var(--text-secondary)]">

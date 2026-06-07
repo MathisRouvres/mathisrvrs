@@ -3,7 +3,7 @@ export const site = {
   domain: 'mathis-rvrs.fr',
   title: 'Mathis Rouvres — Développeur Web & Product Builder',
   description:
-    'Développeur web full-stack, UX/UI et product builder. React, Laravel, SaaS, automatisation IA et univers gaming.',
+    'Développeur web full-stack spécialisé en React, Laravel, PHP, UX/UI, SaaS et automatisation IA. Découvrez mon parcours, mes projets et mon univers tech.',
   email: 'contact@mathis-rvrs.fr',
   github: 'https://github.com/mathisrvrs',
   linkedin: 'https://linkedin.com/in/mathisrvrs',
@@ -28,9 +28,9 @@ export const proSkills = [
 
 export const navLinks = [
   { href: '#pro', label: 'Pro' },
-  { href: '#projects', label: 'Projets' },
-  { href: '#skills', label: 'Compétences' },
+  { href: '#projets', label: 'Projets' },
+  { href: '#competences', label: 'Compétences' },
   { href: '#passions', label: 'Passions' },
-  { href: '#timeline', label: 'Parcours' },
+  { href: '#parcours', label: 'Parcours' },
   { href: '#contact', label: 'Contact' },
 ]

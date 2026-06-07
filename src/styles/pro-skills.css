@@ -1,0 +1,116 @@
+/* Badges compétences — section Pro */
+.pro-skill-chip {
+  position: relative;
+  overflow: hidden;
+  cursor: default;
+  isolation: isolate;
+  transition:
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease,
+    background-color 180ms ease,
+    opacity 280ms ease;
+}
+
+.pro-skill-chip::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, var(--accent), transparent 55%, var(--accent));
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 180ms ease;
+  pointer-events: none;
+}
+
+.pro-skill-chip::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -120%;
+  width: 55%;
+  height: 100%;
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.22) 45%,
+    transparent 100%
+  );
+  transform: skewX(-18deg);
+  transition: left 280ms cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
+
+.pro-skill-chip:hover,
+.pro-skill-chip:focus-visible {
+  transform: translateY(-3px) scale(1.035);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  color: var(--accent);
+  background-color: var(--accent-soft);
+  box-shadow:
+    0 4px 14px color-mix(in srgb, var(--accent) 18%, transparent),
+    0 12px 28px color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.dark .pro-skill-chip:hover,
+.dark .pro-skill-chip:focus-visible {
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--accent) 25%, transparent),
+    0 8px 24px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.pro-skill-chip:hover::before,
+.pro-skill-chip:focus-visible::before {
+  opacity: 1;
+}
+
+.pro-skill-chip:hover::after,
+.pro-skill-chip:focus-visible::after {
+  left: 140%;
+}
+
+.pro-skill-chip__dot {
+  transition:
+    background-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.pro-skill-chip:hover .pro-skill-chip__dot,
+.pro-skill-chip:focus-visible .pro-skill-chip__dot {
+  transform: scale(1.25);
+  background-color: var(--accent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.pro-skill-chip:active {
+  transform: translateY(-1px) scale(1.015);
+  transition-duration: 80ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pro-skill-chip,
+  .pro-skill-chip::after,
+  .pro-skill-chip__dot {
+    transition: none !important;
+  }
+
+  .pro-skill-chip:hover,
+  .pro-skill-chip:focus-visible {
+    transform: none;
+  }
+
+  .pro-skill-chip::after {
+    display: none;
+  }
+}

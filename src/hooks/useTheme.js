@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 
 const STORAGE_KEY = 'mathis-rvrs-theme'
-const TRANSITION_MS = 720
+const TRANSITION_MS = 400
 
 function getSystemTheme() {
   if (typeof window === 'undefined') return 'light'

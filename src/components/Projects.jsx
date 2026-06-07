@@ -7,13 +7,13 @@ export default function Projects() {
   const [ref, inView] = useInView()
 
   return (
-    <AnimatedSection id="projects" inView={inView} className="section-padding bg-[var(--bg-secondary)]">
+    <AnimatedSection id="projets" inView={inView} className="section-padding bg-[var(--bg-secondary)]">
       <div ref={ref} className="container-site">
         <div className="mx-auto max-w-3xl text-center">
           <span className="text-sm font-semibold uppercase tracking-widest text-[var(--accent)]">
             Portfolio
           </span>
-          <h2 className="mt-3 font-display text-3xl font-bold text-[var(--text-primary)] sm:text-4xl">
+          <h2 id="projets-heading" className="mt-3 font-display text-3xl font-bold text-[var(--text-primary)] sm:text-4xl">
             Mes projets
           </h2>
           <p className="mt-4 text-[var(--text-secondary)]">

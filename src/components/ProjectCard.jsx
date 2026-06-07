@@ -1,11 +1,11 @@
 export default function ProjectCard({ project, index, inView }) {
   return (
     <article
-      className={`group glass-card flex flex-col rounded-2xl p-6 transition-all duration-500 hover:-translate-y-1 hover:border-[var(--accent)] hover:shadow-xl ${
+      className={`group glass-card flex flex-col rounded-2xl p-6 transition-all duration-300 hover:-translate-y-1 hover:border-[var(--accent)] hover:shadow-xl ${
         project.featured ? 'ring-1 ring-[var(--accent)]/20' : ''
       }`}
       style={{
-        transitionDelay: inView ? `${index * 80}ms` : '0ms',
+        transitionDelay: inView ? `${index * 45}ms` : '0ms',
         opacity: inView ? 1 : 0,
         transform: inView ? 'translateY(0)' : 'translateY(20px)',
       }}

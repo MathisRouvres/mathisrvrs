@@ -8,7 +8,8 @@ export default function AnimatedSection({
   return (
     <section
       id={id}
-      className={`transition-all duration-700 ease-out ${
+      aria-labelledby={id ? `${id}-heading` : undefined}
+      className={`transition-all duration-[400ms] ease-out ${
         inView ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'
       } ${className}`}
       style={{ transitionDelay: inView ? `${delay}ms` : '0ms' }}

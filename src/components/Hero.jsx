@@ -31,7 +31,7 @@ export default function Hero() {
 
       {/* Grid background */}
       <div
-        className="pointer-events-none absolute inset-0 opacity-[0.03] transition-opacity duration-[720ms] ease-[cubic-bezier(0.65,0,0.35,1)] dark:opacity-[0.06]"
+        className="pointer-events-none absolute inset-0 opacity-[0.03] transition-opacity duration-[var(--theme-duration)] ease-[cubic-bezier(0.65,0,0.35,1)] dark:opacity-[0.06]"
         style={{
           backgroundImage: `
             linear-gradient(var(--text-primary) 1px, transparent 1px),
@@ -53,7 +53,7 @@ export default function Hero() {
             <h1 className="font-display text-4xl font-bold leading-[1.1] tracking-tight text-[var(--text-primary)] sm:text-5xl lg:text-6xl">
               {site.name.split(' ')[0]}
               <br />
-              <span className="text-gradient-pro transition-[background-image] duration-[720ms]">
+              <span className="text-gradient-pro transition-[background-image] duration-[var(--theme-duration)]">
                 {site.name.split(' ').slice(1).join(' ')}
               </span>
             </h1>
@@ -65,7 +65,7 @@ export default function Hero() {
             <p className="mt-3 text-sm font-medium text-[var(--text-muted)]">{site.heroSubtitle}</p>
 
             <div className="mt-8 flex flex-wrap items-center gap-4">
-              <Button href="#projects" variant="primary">
+              <Button href="#projets" variant="primary">
                 Voir mes projets
                 <span aria-hidden="true">→</span>
               </Button>
