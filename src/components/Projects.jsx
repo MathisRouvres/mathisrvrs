@@ -17,8 +17,8 @@ export default function Projects() {
             Mes projets
           </h2>
           <p className="mt-4 text-[var(--text-secondary)]">
-            SaaS, side projects, plugins gaming et automatisations — une sélection de ce que je
-            construis.
+            SaaS, extranet, data produit et automatisations — une sélection de ce que je construis
+            aujourd&apos;hui.
           </p>
         </div>
 

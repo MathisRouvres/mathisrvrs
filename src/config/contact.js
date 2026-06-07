@@ -4,6 +4,7 @@ export const CONTACT_ENDPOINT = import.meta.env.VITE_CONTACT_ENDPOINT ?? '/conta
 export const CONTACT_LIMITS = {
   nameMax: 100,
   emailMax: 150,
+  companyMax: 100,
   messageMin: 10,
   messageMax: 3000,
 }

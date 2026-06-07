@@ -7,7 +7,7 @@ export const skillCategories = [
       { name: 'React', level: 90 },
       { name: 'Vite', level: 85 },
       { name: 'Tailwind CSS', level: 88 },
-      { name: 'JavaScript / ES6+', level: 90 },
+      { name: 'JavaScript', level: 90 },
       { name: 'Responsive Design', level: 92 },
     ],
   },
@@ -51,7 +51,7 @@ export const skillCategories = [
     icon: '🤖',
     skills: [
       { name: 'Cursor / Agents IA', level: 90 },
-      { name: 'Prompt engineering', level: 85 },
+      { name: 'Outils IA', level: 85 },
       { name: 'Automatisation workflows', level: 88 },
       { name: 'Scaffolding features', level: 86 },
     ],
@@ -64,7 +64,7 @@ export const skillCategories = [
       { name: 'Auth & permissions', level: 84 },
       { name: 'Validation inputs', level: 88 },
       { name: 'CSRF / XSS', level: 85 },
-      { name: 'Audit sécurité', level: 80 },
+      { name: 'Formulaires sécurisés', level: 80 },
     ],
   },
 ]

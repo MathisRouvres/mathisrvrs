@@ -24,7 +24,7 @@ Le fichier `public/.htaccess` gère le HTTPS, le fallback SPA et les fichiers st
 Le formulaire envoie les messages via **`public/contact.php`** (copié dans `dist/contact.php` au build).
 
 - Destinataire : `rouvresmathis@gmail.com`
-- Expéditeur serveur : `no-reply@mathis-rvrs.fr`
+- Expéditeur serveur : `contact@mathis-rvrs.fr`
 - Honeypot + délai minimum anti-spam côté PHP
 
 **Variable d'environnement (optionnelle) :**
@@ -45,7 +45,7 @@ php -S localhost:8080 -t dist
 **Configuration OVH :**
 
 - Vérifier que PHP est activé sur l'hébergement.
-- Configurer l'adresse `no-reply@mathis-rvrs.fr` (alias ou boîte) pour l'envoi `mail()`.
+- Configurer l'adresse **`contact@mathis-rvrs.fr`** sur OVH (voir guide ci-dessous).
 - Vérifier les enregistrements SPF/DMARC du domaine si les emails arrivent en spam.
 
 ---

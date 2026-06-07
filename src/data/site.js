@@ -5,7 +5,7 @@ export const site = {
   description:
     'Développeur web full-stack spécialisé en React, Laravel, PHP, UX/UI, SaaS et automatisation IA. Découvrez mon parcours, mes projets et mon univers tech.',
   email: 'contact@mathis-rvrs.fr',
-  github: 'https://github.com/mathisrvrs',
+  github: 'https://github.com/MathisRouvres',
   linkedin: 'https://linkedin.com/in/mathisrvrs',
   tagline: 'Je construis des produits web modernes, des SaaS modulaires et des expériences qui ont du sens.',
   heroSubtitle:

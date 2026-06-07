@@ -8,10 +8,11 @@ declare(strict_types=1);
 const RECIPIENT = 'rouvresmathis@gmail.com';
 const FROM_ADDRESS = 'contact@mathis-rvrs.fr';
 const FROM_NAME = 'mathis-rvrs.fr';
-const SUBJECT = 'Nouveau message depuis mathis-rvrs.fr';
+const SUBJECT = 'Opportunité emploi — mathis-rvrs.fr';
 const MIN_SUBMIT_MS = 3000;
 const MAX_NAME = 100;
 const MAX_EMAIL = 150;
+const MAX_COMPANY = 100;
 const MAX_MESSAGE = 3000;
 const MIN_MESSAGE = 10;
 
@@ -34,6 +35,7 @@ if ($honeypot !== '') {
 
 $name = sanitize_text((string) ($payload['name'] ?? ''), MAX_NAME);
 $email = sanitize_email((string) ($payload['email'] ?? ''), MAX_EMAIL);
+$company = sanitize_text((string) ($payload['company'] ?? ''), MAX_COMPANY);
 $message = sanitize_text((string) ($payload['message'] ?? ''), MAX_MESSAGE);
 $formStartedAt = filter_var($payload['formStartedAt'] ?? 0, FILTER_VALIDATE_INT) ?: 0;
 
@@ -61,11 +63,18 @@ $safeEmail = sanitize_header_value($email);
 $ip = sanitize_header_value((string) ($_SERVER['REMOTE_ADDR'] ?? 'inconnue'));
 $date = date('d/m/Y H:i:s');
 
-$body = implode("\n", [
-    'Nouveau message depuis mathis-rvrs.fr',
+$bodyLines = [
+    'Nouvelle prise de contact emploi — mathis-rvrs.fr',
     '',
     'Nom : ' . $name,
     'Email : ' . $email,
+];
+
+if ($company !== '') {
+    $bodyLines[] = 'Entreprise : ' . $company;
+}
+
+$bodyLines = array_merge($bodyLines, [
     'Date : ' . $date,
     'IP : ' . $ip,
     '',
@@ -73,6 +82,8 @@ $body = implode("\n", [
     '----------',
     $message,
 ]);
+
+$body = implode("\n", $bodyLines);
 
 $encodedSubject = '=?UTF-8?B?' . base64_encode(SUBJECT) . '?=';
 

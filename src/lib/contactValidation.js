@@ -2,7 +2,7 @@ import { CONTACT_LIMITS } from '../config/contact'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-export function validateContactForm({ name, email, message }) {
+export function validateContactForm({ name, email, company, message }) {
   const errors = {}
 
   const trimmedName = name.trim()
@@ -19,6 +19,11 @@ export function validateContactForm({ name, email, message }) {
     errors.email = `L'email ne doit pas dépasser ${CONTACT_LIMITS.emailMax} caractères.`
   } else if (!EMAIL_RE.test(trimmedEmail)) {
     errors.email = 'Format email invalide.'
+  }
+
+  const trimmedCompany = company?.trim() ?? ''
+  if (trimmedCompany.length > CONTACT_LIMITS.companyMax) {
+    errors.company = `L'entreprise ne doit pas dépasser ${CONTACT_LIMITS.companyMax} caractères.`
   }
 
   const trimmedMessage = message.trim()

@@ -9,6 +9,7 @@ import { hasValidationErrors, validateContactForm } from '../lib/contactValidati
 const INITIAL_FORM = {
   name: '',
   email: '',
+  company: '',
   message: '',
   website: '',
 }
@@ -70,6 +71,7 @@ export default function Contact() {
         body: JSON.stringify({
           name: form.name.trim(),
           email: form.email.trim(),
+          company: form.company.trim(),
           message: form.message.trim(),
           website: form.website,
           formStartedAt: formStartedAt.current,
@@ -105,7 +107,7 @@ export default function Contact() {
       }
 
       setStatus('success')
-      setFeedback('Message envoyé avec succès. Je vous répondrai rapidement.')
+      setFeedback('Merci pour votre message. Je reviendrai vers vous rapidement concernant cette opportunité.')
       setForm(INITIAL_FORM)
       formStartedAt.current = Date.now()
     } catch (err) {
@@ -126,13 +128,17 @@ export default function Contact() {
         <div className="mx-auto max-w-3xl">
           <div className="text-center">
             <span className="text-sm font-semibold uppercase tracking-widest text-[var(--accent)]">
-              Contact
+              Recrutement
             </span>
             <h2 id="contact-heading" className="mt-3 font-display text-3xl font-bold text-[var(--text-primary)] sm:text-4xl">
-              Travaillons ensemble
+              Une opportunité à me proposer ?
             </h2>
             <p className="mt-4 text-[var(--text-secondary)]">
-              Un projet SaaS, une refonte UX/UI ou une collaboration tech ? Écrivez-moi.
+              Recruteur, RH ou manager : vous cherchez un développeur web full-stack orienté produit ?
+              Présentez-moi le poste, l&apos;équipe et le contexte — je vous réponds rapidement.
+            </p>
+            <p className="mt-2 text-sm text-[var(--text-muted)]">
+              CDI, alternance, stage ou mission longue · React, Laravel, UX/UI, SaaS
             </p>
           </div>
 
@@ -158,7 +164,6 @@ export default function Contact() {
             )}
 
             <form className="relative space-y-5" onSubmit={handleSubmit} noValidate>
-              {/* Honeypot anti-spam */}
               <div className="absolute -left-[9999px] h-0 w-0 overflow-hidden" aria-hidden="true">
                 <label htmlFor="website">Website</label>
                 <input
@@ -175,7 +180,7 @@ export default function Contact() {
               <div className="grid gap-5 sm:grid-cols-2">
                 <div>
                   <label htmlFor="name" className="mb-1.5 block text-sm font-medium text-[var(--text-primary)]">
-                    Nom
+                    Nom complet
                   </label>
                   <input
                     id="name"
@@ -190,7 +195,7 @@ export default function Contact() {
                     aria-invalid={Boolean(fieldErrors.name)}
                     aria-describedby={fieldErrors.name ? 'name-error' : undefined}
                     className={`${inputClass} ${fieldErrors.name ? inputInvalidClass : inputValidClass}`}
-                    placeholder="Votre nom"
+                    placeholder="Prénom Nom"
                   />
                   {fieldErrors.name && (
                     <p id="name-error" className="mt-1.5 text-xs text-red-600 dark:text-red-400">
@@ -200,7 +205,7 @@ export default function Contact() {
                 </div>
                 <div>
                   <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-[var(--text-primary)]">
-                    Email
+                    Email professionnel
                   </label>
                   <input
                     id="email"
@@ -215,7 +220,7 @@ export default function Contact() {
                     aria-invalid={Boolean(fieldErrors.email)}
                     aria-describedby={fieldErrors.email ? 'email-error' : undefined}
                     className={`${inputClass} ${fieldErrors.email ? inputInvalidClass : inputValidClass}`}
-                    placeholder="vous@exemple.com"
+                    placeholder="vous@entreprise.com"
                   />
                   {fieldErrors.email && (
                     <p id="email-error" className="mt-1.5 text-xs text-red-600 dark:text-red-400">
@@ -224,10 +229,37 @@ export default function Contact() {
                   )}
                 </div>
               </div>
+
+              <div>
+                <label htmlFor="company" className="mb-1.5 block text-sm font-medium text-[var(--text-primary)]">
+                  Entreprise{' '}
+                  <span className="font-normal text-[var(--text-muted)]">(recommandé)</span>
+                </label>
+                <input
+                  id="company"
+                  name="company"
+                  type="text"
+                  autoComplete="organization"
+                  maxLength={CONTACT_LIMITS.companyMax}
+                  value={form.company}
+                  onChange={updateField('company')}
+                  disabled={isLoading}
+                  aria-invalid={Boolean(fieldErrors.company)}
+                  aria-describedby={fieldErrors.company ? 'company-error' : undefined}
+                  className={`${inputClass} ${fieldErrors.company ? inputInvalidClass : inputValidClass}`}
+                  placeholder="Nom de votre entreprise"
+                />
+                {fieldErrors.company && (
+                  <p id="company-error" className="mt-1.5 text-xs text-red-600 dark:text-red-400">
+                    {fieldErrors.company}
+                  </p>
+                )}
+              </div>
+
               <div>
                 <div className="mb-1.5 flex items-center justify-between gap-2">
                   <label htmlFor="message" className="text-sm font-medium text-[var(--text-primary)]">
-                    Message
+                    Présentation du poste
                   </label>
                   <span className="text-xs text-[var(--text-muted)]" aria-live="polite">
                     {form.message.length}/{CONTACT_LIMITS.messageMax}
@@ -237,7 +269,7 @@ export default function Contact() {
                   id="message"
                   name="message"
                   required
-                  rows={4}
+                  rows={5}
                   maxLength={CONTACT_LIMITS.messageMax}
                   value={form.message}
                   onChange={updateField('message')}
@@ -245,7 +277,7 @@ export default function Contact() {
                   aria-invalid={Boolean(fieldErrors.message)}
                   aria-describedby={fieldErrors.message ? 'message-error' : undefined}
                   className={`${inputClass} resize-y ${fieldErrors.message ? inputInvalidClass : inputValidClass}`}
-                  placeholder="Parlez-moi de votre projet..."
+                  placeholder="Intitulé du poste, type de contrat, stack, équipe, localisation, télétravail, fourchette salariale si possible…"
                 />
                 {fieldErrors.message && (
                   <p id="message-error" className="mt-1.5 text-xs text-red-600 dark:text-red-400">
@@ -253,36 +285,45 @@ export default function Contact() {
                   </p>
                 )}
               </div>
-              <Button
-                type="submit"
-                variant="primary"
-                className="w-full disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
-                disabled={isLoading}
-                aria-busy={isLoading}
-              >
-                {isLoading ? (
-                  <>
-                    <span
-                      className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
-                      aria-hidden="true"
-                    />
-                    Envoi en cours…
-                  </>
-                ) : (
-                  'Envoyer le message'
-                )}
-              </Button>
+
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <Button
+                  type="submit"
+                  variant="primary"
+                  className="w-full disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                  disabled={isLoading}
+                  aria-busy={isLoading}
+                >
+                  {isLoading ? (
+                    <>
+                      <span
+                        className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
+                        aria-hidden="true"
+                      />
+                      Envoi en cours…
+                    </>
+                  ) : (
+                    'Envoyer ma candidature'
+                  )}
+                </Button>
+                <a
+                  href="#parcours"
+                  className="text-center text-sm font-medium text-[var(--text-muted)] transition-colors hover:text-[var(--accent)] sm:text-left"
+                >
+                  Voir mon parcours →
+                </a>
+              </div>
             </form>
 
             <div className="mt-8 flex flex-wrap items-center justify-center gap-4 border-t border-[var(--border-color)] pt-8">
-              <Button href={`mailto:${site.email}`} variant="secondary">
-                ✉️ {site.email}
+              <Button href={site.linkedin} variant="secondary" target="_blank" rel="noopener noreferrer">
+                LinkedIn
               </Button>
               <Button href={site.github} variant="ghost" target="_blank" rel="noopener noreferrer">
                 GitHub
               </Button>
-              <Button href={site.linkedin} variant="ghost" target="_blank" rel="noopener noreferrer">
-                LinkedIn
+              <Button href={`mailto:${site.email}`} variant="ghost">
+                ✉️ {site.email}
               </Button>
             </div>
           </div>
