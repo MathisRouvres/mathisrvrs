@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import Navbar from './components/Navbar'
 import Hero from './components/Hero'
 import ProMode from './components/ProMode'
@@ -9,8 +10,28 @@ import Contact from './components/Contact'
 import Footer from './components/Footer'
 import SeoJsonLd from './components/SeoJsonLd'
 import { ThemeProvider } from './context/ThemeProvider'
+import { CAREER_GAME_ENABLED, MONOVOMY_ENABLED, SPIN_ENABLED } from './config/features'
+import { CareerApp, DilemmaDevLab } from './features/career'
+import { MonovomyApp } from './features/monovomy'
+import { parseMonovomyRoute } from './features/monovomy/pwa/deepLink'
+import { SpinApp } from './features/spin'
 
-export default function App() {
+function normalizePathname(pathname) {
+  if (!pathname || pathname === '/') return '/'
+  const cleaned = pathname.replace(/\/+$/, '') || '/'
+  try {
+    const decoded = decodeURIComponent(cleaned)
+    if (decoded === '/carrière') return '/carriere'
+    if (decoded.startsWith('/carrière/')) {
+      return decoded.replace(/^\/carrière/, '/carriere')
+    }
+  } catch {
+    // ignore malformed URI
+  }
+  return cleaned
+}
+
+function PortfolioHome() {
   return (
     <ThemeProvider>
       <SeoJsonLd />
@@ -35,4 +56,97 @@ export default function App() {
       </div>
     </ThemeProvider>
   )
+}
+
+function CareerRouteGate({ children }) {
+  useEffect(() => {
+    if (!CAREER_GAME_ENABLED) {
+      window.location.replace('/')
+    }
+  }, [])
+
+  if (!CAREER_GAME_ENABLED) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center bg-[var(--bg-primary)] px-4 text-[var(--text-secondary)]">
+        <p role="status">Redirection vers le portfolio…</p>
+      </div>
+    )
+  }
+
+  return children
+}
+
+function MonovomyRouteGate({ children }) {
+  useEffect(() => {
+    if (!MONOVOMY_ENABLED) {
+      window.location.replace('/')
+    }
+  }, [])
+
+  if (!MONOVOMY_ENABLED) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center bg-[var(--bg-primary)] px-4 text-[var(--text-secondary)]">
+        <p role="status">Redirection vers le portfolio…</p>
+      </div>
+    )
+  }
+
+  return children
+}
+
+function SpinRouteGate({ children }) {
+  useEffect(() => {
+    if (!SPIN_ENABLED) {
+      window.location.replace('/')
+    }
+  }, [])
+
+  if (!SPIN_ENABLED) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center bg-[var(--bg-primary)] px-4 text-[var(--text-secondary)]">
+        <p role="status">Redirection vers le portfolio…</p>
+      </div>
+    )
+  }
+
+  return children
+}
+
+export default function App() {
+  const path = normalizePathname(window.location.pathname)
+
+  if (path === '/spin') {
+    return (
+      <SpinRouteGate>
+        <SpinApp />
+      </SpinRouteGate>
+    )
+  }
+
+  if (path === '/carriere/dev/events') {
+    return (
+      <CareerRouteGate>
+        <DilemmaDevLab />
+      </CareerRouteGate>
+    )
+  }
+
+  if (path === '/carriere') {
+    return (
+      <CareerRouteGate>
+        <CareerApp />
+      </CareerRouteGate>
+    )
+  }
+
+  const monovomyRoute = parseMonovomyRoute(path)
+  if (monovomyRoute) {
+    return (
+      <MonovomyRouteGate>
+        <MonovomyApp initialRoute={monovomyRoute} />
+      </MonovomyRouteGate>
+    )
+  }
+
+  return <PortfolioHome />
 }

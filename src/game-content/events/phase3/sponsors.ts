@@ -1,0 +1,218 @@
+import { dilemma, choice, fx } from '../helpers'
+import type { DilemmaDefinition } from '../../../game-engine/dilemmas'
+
+/**
+ * Dilemmes de sponsors fictifs (Phase 3) — emplacement 2.
+ * Signature, incompatibilité et rupture de contrats de sponsoring.
+ */
+export const sponsorDilemmas: DilemmaDefinition[] = [
+  dilemma({
+    id: 'p3_sponsor_equipement',
+    title: 'L’équipementier Volt Athletic t’appelle',
+    body: 'Volt Athletic, marque d’équipement en vue, veut faire de toi son visage. Le contrat est exclusif : impossible d’en signer un autre dans l’équipement tant qu’il court. La rémunération est belle, l’image propre. Ton agent y voit un cap franchi.',
+    category: 'sponsors',
+    tags: ['sponsors', 'equipement'],
+    rarity: 'uncommon',
+    weight: 8,
+    ageMin: 18,
+    ageMax: 34,
+    cooldownSeasons: 4,
+    prerequisites: [{ type: 'minResource', id: 'reputationSportive', value: 45 }],
+    choices: [
+      choice({
+        id: 'signer',
+        label: 'Signer avec Volt Athletic',
+        stance: 'financial',
+        riskPreview: 'Gros revenus, exclusivité sur l’équipement.',
+        immediate: [
+          fx.signSponsor({
+            sponsorId: 'volt_athletic',
+            name: 'Volt Athletic',
+            sector: 'equipement',
+            prestige: 82,
+            annualPay: 90000,
+            durationSeasons: 3,
+            imageTag: 'clean',
+            reputationRisk: 10,
+            exclusive: true,
+          }),
+          fx.rel('sponsors', 8),
+          fx.res('popularite', 3),
+        ],
+      }),
+      choice({
+        id: 'refuser',
+        label: 'Rester libre de tout équipementier',
+        stance: 'prudent',
+        riskPreview: 'Liberté gardée, revenus commerciaux moindres.',
+        immediate: [fx.res('bienEtre', 3), fx.rel('sponsors', -3)],
+      }),
+    ],
+  }),
+
+  dilemma({
+    id: 'p3_sponsor_media',
+    title: 'Une chaîne veut ton visage à l’antenne',
+    body: 'Kanal Prime t’offre un contrat média : chroniques, pubs, présence à l’antenne. La visibilité est énorme, mais la marque flaire aussi la polémique et n’hésitera pas à t’exposer. Le risque réputationnel est réel si un dérapage survient.',
+    category: 'sponsors',
+    tags: ['sponsors', 'medias'],
+    rarity: 'uncommon',
+    weight: 7,
+    ageMin: 19,
+    ageMax: 35,
+    cooldownSeasons: 4,
+    prerequisites: [{ type: 'minResource', id: 'popularite', value: 40 }],
+    choices: [
+      choice({
+        id: 'signer',
+        label: 'Signer avec Kanal Prime',
+        stance: 'media_savvy',
+        riskPreview: 'Visibilité maximale, exposition risquée.',
+        immediate: [
+          fx.signSponsor({
+            sponsorId: 'kanal_prime',
+            name: 'Kanal Prime',
+            sector: 'media',
+            prestige: 66,
+            annualPay: 45000,
+            durationSeasons: 2,
+            imageTag: 'clean',
+            reputationRisk: 28,
+            exclusive: false,
+          }),
+          fx.res('popularite', 5),
+        ],
+        delayed: [
+          fx.delayed(1, [fx.chance(0.3, [fx.res('reputationSportive', -6)])]),
+        ],
+      }),
+      choice({
+        id: 'refuser',
+        label: 'Décliner l’offre média',
+        stance: 'prudent',
+        riskPreview: 'Image maîtrisée, cachet perdu.',
+        immediate: [fx.res('bienEtre', 3), fx.res('popularite', -2)],
+      }),
+    ],
+  }),
+
+  dilemma({
+    id: 'p3_sponsor_automobile',
+    title: 'Veridian Motors déroule le tapis rouge',
+    body: 'Veridian Motors, constructeur haut de gamme, propose un contrat exclusif et très rémunérateur. L’image est luxueuse — parfaite si ton statut suit, risquée si tes performances flanchent. Un seul contrat automobile exclusif possible à la fois.',
+    category: 'sponsors',
+    tags: ['sponsors', 'automobile', 'luxe'],
+    rarity: 'rare',
+    weight: 5,
+    ageMin: 22,
+    ageMax: 34,
+    cooldownSeasons: 5,
+    prerequisites: [{ type: 'minResource', id: 'reputationSportive', value: 62 }],
+    choices: [
+      choice({
+        id: 'signer',
+        label: 'Signer avec Veridian Motors',
+        stance: 'financial',
+        riskPreview: 'Contrat en or, image de luxe exigeante.',
+        immediate: [
+          fx.signSponsor({
+            sponsorId: 'veridian_motors',
+            name: 'Veridian Motors',
+            sector: 'automobile',
+            prestige: 88,
+            annualPay: 120000,
+            durationSeasons: 3,
+            imageTag: 'luxury',
+            reputationRisk: 22,
+            exclusive: true,
+          }),
+          fx.rel('sponsors', 10),
+          fx.res('popularite', 4),
+        ],
+      }),
+      choice({
+        id: 'refuser',
+        label: 'Garder les pieds sur terre',
+        stance: 'ethical',
+        riskPreview: 'Sobriété assumée, gros chèque refusé.',
+        immediate: [fx.res('bienEtre', 4), fx.rel('fans', 3)],
+        hidden: [fx.hidden('constance', 2)],
+      }),
+    ],
+  }),
+
+  dilemma({
+    id: 'p3_sponsor_association',
+    title: 'La Fondation Élan te tend la main',
+    body: 'Une association, la Fondation Élan, veut t’associer à ses actions. La rémunération est symbolique, mais l’image est forte et sincère. Ton agent médiatique trouve ça peu rentable ; ton entourage, lui, y voit du sens.',
+    category: 'sponsors',
+    tags: ['sponsors', 'association', 'image'],
+    rarity: 'common',
+    weight: 8,
+    ageMin: 18,
+    ageMax: 39,
+    cooldownSeasons: 3,
+    choices: [
+      choice({
+        id: 'signer',
+        label: 'Rejoindre la Fondation Élan',
+        stance: 'ethical',
+        riskPreview: 'Image sincère, revenus faibles.',
+        immediate: [
+          fx.signSponsor({
+            sponsorId: 'fondation_elan',
+            name: 'Fondation Élan',
+            sector: 'association',
+            prestige: 40,
+            annualPay: 8000,
+            durationSeasons: 3,
+            imageTag: 'ethical',
+            reputationRisk: 4,
+            exclusive: false,
+          }),
+          fx.rel('fans', 6),
+          fx.res('bienEtre', 3),
+        ],
+        hidden: [fx.hidden('loyaute', 1)],
+      }),
+      choice({
+        id: 'refuser',
+        label: 'Chercher plus rémunérateur',
+        stance: 'financial',
+        riskPreview: 'Portefeuille avant l’image.',
+        immediate: [fx.res('financesPersonnelles', 2), fx.rel('fans', -2)],
+      }),
+    ],
+  }),
+
+  dilemma({
+    id: 'p3_sponsor_rupture',
+    title: 'Un sponsor devient encombrant',
+    body: 'L’un de tes sponsors traverse une mauvaise passe et son nom te colle une image gênante. Rompre le contrat coûte une pénalité et un peu de réputation ; l’honorer jusqu’au bout te lie à une marque en perdition.',
+    category: 'sponsors',
+    tags: ['sponsors', 'rupture'],
+    rarity: 'uncommon',
+    weight: 7,
+    ageMin: 18,
+    ageMax: 39,
+    cooldownSeasons: 4,
+    prerequisites: [{ type: 'hasFlag', key: 'sponsor_active' }],
+    choices: [
+      choice({
+        id: 'rompre',
+        label: 'Activer la clause de rupture',
+        stance: 'prudent',
+        riskPreview: 'Sortie nette, pénalité à payer.',
+        immediate: [fx.endSponsor(undefined, 8), fx.cash(-20000)],
+      }),
+      choice({
+        id: 'honorer',
+        label: 'Honorer le contrat jusqu’au bout',
+        stance: 'loyal',
+        riskPreview: 'Parole tenue, image un temps ternie.',
+        immediate: [fx.res('reputationSportive', -3), fx.rel('sponsors', 5)],
+        hidden: [fx.hidden('loyaute', 2)],
+      }),
+    ],
+  }),
+]

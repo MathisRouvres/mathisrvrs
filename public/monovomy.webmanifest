@@ -1,0 +1,54 @@
+{
+  "id": "/monovomy",
+  "name": "MonoVomy — Le Monopoly à boire",
+  "short_name": "MonoVomy",
+  "description": "MonoVomy, le Monopoly à boire. Joue en local ou en ligne avec tes potes, en plein écran.",
+  "lang": "fr",
+  "dir": "ltr",
+  "scope": "/monovomy",
+  "start_url": "/monovomy?source=pwa",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#0a0613",
+  "theme_color": "#0a0613",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    {
+      "src": "/monovomy-icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/monovomy-icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/monovomy-icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/monovomy-icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Partie locale (hot-seat)",
+      "short_name": "Local",
+      "url": "/monovomy?mode=local&source=pwa"
+    },
+    {
+      "name": "Partie en ligne",
+      "short_name": "En ligne",
+      "url": "/monovomy?mode=online&source=pwa"
+    }
+  ]
+}

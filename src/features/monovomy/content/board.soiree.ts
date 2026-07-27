@@ -1,0 +1,56 @@
+import type { BoardTheme } from './schema'
+
+/**
+ * Thème de plateau « Soirée » — 40 cases, univers 100% boisson.
+ * Structure Monopoly : 22 propriétés (8 groupes), 4 gares, 2 services,
+ * 6 cases action, 2 taxes, 4 coins. Prix/loyers dérivés du barème classique
+ * (à équilibrer par simulation en Étape 3). sipTier : 1 = 1 gorgée,
+ * 2 = 2 gorgées, 3 = cul sec (voir GDD §5).
+ */
+export const soireeBoard: BoardTheme = {
+  id: 'soiree',
+  name: 'Soirée',
+  description: 'Le plateau festif par défaut : de la Rue de la Soif à la Place du Grand Cru.',
+  spaces: [
+    { kind: 'start', id: 'depart', name: 'Départ' },
+    { kind: 'property', id: 'rue_soif', name: 'Rue de la Soif', group: 'brun', price: 60, rents: [2, 10, 30, 90, 160, 250], sipTier: 1 },
+    { kind: 'action', id: 'action_1', name: 'Carte Action' },
+    { kind: 'property', id: 'impasse_dernier_verre', name: 'Impasse du Dernier Verre', group: 'brun', price: 60, rents: [4, 20, 60, 180, 320, 450], sipTier: 1 },
+    { kind: 'tax', id: 'taxe_bar', name: 'Note du Bar', amount: 100, sips: 1 },
+    { kind: 'station', id: 'gare_taxi_nuit', name: 'Taxi de Nuit', price: 200, rents: [25, 50, 100, 200], sipTier: 1 },
+    { kind: 'property', id: 'rue_apero', name: 'Rue de l’Apéro', group: 'cyan', price: 100, rents: [6, 30, 90, 270, 400, 550], sipTier: 1 },
+    { kind: 'action', id: 'action_2', name: 'Chance à Boire' },
+    { kind: 'property', id: 'place_bulles', name: 'Place des Bulles', group: 'cyan', price: 100, rents: [6, 30, 90, 270, 400, 550], sipTier: 1 },
+    { kind: 'property', id: 'allee_spritz', name: 'Allée du Spritz', group: 'cyan', price: 120, rents: [8, 40, 100, 300, 450, 600], sipTier: 1 },
+    { kind: 'jail', id: 'prison_visite', name: 'En Cuve (visite)' },
+    { kind: 'property', id: 'bd_cocktails', name: 'Boulevard des Cocktails', group: 'rose', price: 140, rents: [10, 50, 150, 450, 625, 750], sipTier: 1 },
+    { kind: 'utility', id: 'service_punch', name: 'Fontaine à Punch', price: 150, sipTier: 1 },
+    { kind: 'property', id: 'rue_tequila', name: 'Rue de la Tequila', group: 'rose', price: 140, rents: [10, 50, 150, 450, 625, 750], sipTier: 1 },
+    { kind: 'property', id: 'passage_mojito', name: 'Passage du Mojito', group: 'rose', price: 160, rents: [12, 60, 180, 500, 700, 900], sipTier: 1 },
+    { kind: 'station', id: 'gare_dernier_metro', name: 'Dernier Métro', price: 200, rents: [25, 50, 100, 200], sipTier: 1 },
+    { kind: 'property', id: 'av_rhum', name: 'Avenue du Rhum', group: 'orange', price: 180, rents: [14, 70, 200, 550, 750, 950], sipTier: 2 },
+    { kind: 'action', id: 'action_3', name: 'Carte Action' },
+    { kind: 'property', id: 'rue_vodka', name: 'Rue de la Vodka', group: 'orange', price: 180, rents: [14, 70, 200, 550, 750, 950], sipTier: 2 },
+    { kind: 'property', id: 'place_gin', name: 'Place du Gin', group: 'orange', price: 200, rents: [16, 80, 220, 600, 800, 1000], sipTier: 2 },
+    { kind: 'parking', id: 'bar_ouvert', name: 'Bar Ouvert' },
+    { kind: 'property', id: 'bd_biere', name: 'Boulevard de la Bière', group: 'rouge', price: 220, rents: [18, 90, 250, 700, 875, 1050], sipTier: 2 },
+    { kind: 'action', id: 'action_4', name: 'Chance à Boire' },
+    { kind: 'property', id: 'rue_pintes', name: 'Rue des Pintes', group: 'rouge', price: 220, rents: [18, 90, 250, 700, 875, 1050], sipTier: 2 },
+    { kind: 'property', id: 'av_mousse', name: 'Avenue de la Mousse', group: 'rouge', price: 240, rents: [20, 100, 300, 750, 925, 1100], sipTier: 2 },
+    { kind: 'station', id: 'gare_vtc', name: 'VTC du Retour', price: 200, rents: [25, 50, 100, 200], sipTier: 1 },
+    { kind: 'property', id: 'rue_whisky', name: 'Rue du Whisky', group: 'jaune', price: 260, rents: [22, 110, 330, 800, 975, 1150], sipTier: 2 },
+    { kind: 'property', id: 'av_bourbon', name: 'Avenue du Bourbon', group: 'jaune', price: 260, rents: [22, 110, 330, 800, 975, 1150], sipTier: 2 },
+    { kind: 'utility', id: 'service_shots', name: 'Distributeur de Shots', price: 150, sipTier: 1 },
+    { kind: 'property', id: 'place_digestif', name: 'Place du Digestif', group: 'jaune', price: 280, rents: [24, 120, 360, 850, 1025, 1200], sipTier: 2 },
+    { kind: 'gojail', id: 'go_prison', name: 'Au Poste !' },
+    { kind: 'property', id: 'bd_after', name: 'Boulevard de l’After', group: 'vert', price: 300, rents: [26, 130, 390, 900, 1100, 1275], sipTier: 3 },
+    { kind: 'property', id: 'rue_nuit_blanche', name: 'Rue de la Nuit Blanche', group: 'vert', price: 300, rents: [26, 130, 390, 900, 1100, 1275], sipTier: 3 },
+    { kind: 'action', id: 'action_5', name: 'Carte Action' },
+    { kind: 'property', id: 'av_tournee', name: 'Avenue de la Tournée', group: 'vert', price: 320, rents: [28, 150, 450, 1000, 1200, 1400], sipTier: 3 },
+    { kind: 'station', id: 'gare_covoit', name: 'Covoit’ de l’Aube', price: 200, rents: [25, 50, 100, 200], sipTier: 1 },
+    { kind: 'action', id: 'action_6', name: 'Chance à Boire' },
+    { kind: 'property', id: 'av_champagne', name: 'Avenue du Champagne', group: 'bleu', price: 350, rents: [35, 175, 500, 1100, 1300, 1500], sipTier: 3 },
+    { kind: 'tax', id: 'taxe_tournee', name: 'Tournée Générale', amount: 200, sips: 2 },
+    { kind: 'property', id: 'place_grand_cru', name: 'Place du Grand Cru', group: 'bleu', price: 400, rents: [50, 200, 600, 1400, 1700, 2000], sipTier: 3 },
+  ],
+}

@@ -13,3 +13,14 @@
 
   RewriteRule . /index.html [L]
 </IfModule>
+
+# Service worker MonoVomy : toujours revalidé pour livrer vite les mises à jour.
+<IfModule mod_headers.c>
+  <Files "monovomy-sw.js">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Service-Worker-Allowed "/monovomy"
+  </Files>
+  <Files "monovomy.webmanifest">
+    Header set Cache-Control "no-cache"
+  </Files>
+</IfModule>

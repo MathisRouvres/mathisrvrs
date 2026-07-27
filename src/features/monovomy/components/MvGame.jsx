@@ -1,0 +1,451 @@
+import { useCallback, useEffect, useRef, useState, lazy, Suspense } from 'react'
+import { MonovomyButton } from '../MonovomyShell'
+import MvTrade from './MvTrade'
+import MvAuction from './MvAuction'
+import MvHud from './MvHud'
+import MvPlayerBar from './MvPlayerBar'
+import MvCoach from './MvCoach'
+import MvJournal from './MvJournal'
+import MvCenter from './MvCenter'
+import MvActionBar from './MvActionBar'
+import MvDock from './MvDock'
+import MvToasts from './MvToasts'
+import { soireeBoard } from '../content'
+import { incomingOffers, softAlternative, evaluateReminder } from '../engine'
+import { completeGroups } from '../game/boardInsights'
+import { logEntryForResult } from '../game/journal'
+import { sound } from '../game/sound'
+import { haptics } from '../game/haptics'
+import { selectMainAction } from '../game/mainAction'
+import { useReducedMotion } from '../game/useReducedMotion'
+
+// Plateau 3D (three.js) chargé à la demande : les écrans secondaires (accueil,
+// lobby, règles) ne tirent pas ce gros bundle.
+const MvBoard3D = lazy(() => import('./board3d/MvBoard3D'))
+
+const ROLL_MS = 1150
+const TURN_ALERT_MS = 5000
+const FX_MS = 1400
+
+export default function MvGame({
+  state,
+  result,
+  active,
+  now = 0,
+  myId = null,
+  onRoll,
+  onBuy,
+  onNext,
+  onJail,
+  onSendTrade,
+  onSetDrinkMode,
+  onManage,
+  onBid,
+  onPass,
+  auctionControllableIds = [],
+  onFinish,
+  canAct = true,
+  showFinish = true,
+  mode = 'local',
+  netStatus = 'idle',
+  role = null,
+  chat = [],
+  onSendChat,
+}) {
+  const [showTrade, setShowTrade] = useState(false)
+  const reducedMotion = useReducedMotion()
+
+  // Événement de scène centrale (transient) — déclaré tôt (utilisé par des effets).
+  const [event, setEvent] = useState(null)
+  const eventId = useRef(0)
+  const fireEvent = useCallback((icon, text, tone = 'gold') => {
+    eventId.current += 1
+    const id = eventId.current
+    setEvent({ id, icon, text, tone })
+    setTimeout(() => setEvent((cur) => (cur && cur.id === id ? null : cur)), 2400)
+  }, [])
+
+  // Notifications (toasts) — infos sans ancrage spatial (règle, reconnexion).
+  const [toasts, setToasts] = useState([])
+  const toastId = useRef(0)
+  const pushToast = useCallback((icon, text, tone = 'info') => {
+    toastId.current += 1
+    const id = toastId.current
+    setToasts((t) => [...t, { id, icon, text, tone }].slice(-3))
+    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 3200)
+  }, [])
+
+  // Toast : règle temporaire nouvellement activée.
+  const prevRulesRef = useRef(null)
+  useEffect(() => {
+    const keys = state.activeRules.map((r) => `${r.id}-${r.activatedStep}`)
+    const prev = prevRulesRef.current
+    if (prev) {
+      for (const r of state.activeRules) {
+        if (!prev.includes(`${r.id}-${r.activatedStep}`)) pushToast('📜', `Règle : ${r.name}`, 'info')
+      }
+    }
+    prevRulesRef.current = keys
+  }, [state.activeRules, pushToast])
+
+  // Toast : reconnexion réseau retrouvée.
+  const prevNetRef = useRef(netStatus)
+  useEffect(() => {
+    if (netStatus === 'found' && prevNetRef.current !== 'found') pushToast('🔌', 'Reconnecté à la partie', 'good')
+    prevNetRef.current = netStatus
+  }, [netStatus, pushToast])
+  const tradeCount = myId ? incomingOffers(state, myId, now).length : 0
+  const myMode = myId ? state.players.find((p) => p.id === myId)?.drinkMode : null
+
+  // Rappel de modération sur transition d’ambiance (chaos / avant finale).
+  const prevIntensityRef = useRef(state.partyIntensity)
+  const [reminder, setReminder] = useState(null)
+  useEffect(() => {
+    const prev = prevIntensityRef.current
+    if (prev !== state.partyIntensity) {
+      const r = evaluateReminder({ now, lastReminderAt: now, sanctionStreak: 0, prevIntensity: prev, intensity: state.partyIntensity })
+      prevIntensityRef.current = state.partyIntensity
+      if (state.partyIntensity === 'chaos') fireEvent('🔥', 'Niveau CHAOS', 'hot')
+      else if (state.partyIntensity === 'finale') fireEvent('🏁', 'FINALE', 'hot')
+      if (r) {
+        setReminder(r.text)
+        const t = setTimeout(() => setReminder(null), 6000)
+        return () => clearTimeout(t)
+      }
+    }
+    return undefined
+  }, [state.partyIntensity, now, fireEvent])
+
+  const handleSoft = (mode) => {
+    if (!onSetDrinkMode) return
+    if (mode === 'alcohol' && typeof window !== 'undefined' && !window.confirm('Revenir en mode alcool ?')) return
+    onSetDrinkMode(mode)
+  }
+
+  const softAlt =
+    active && active.drinkMode === 'soft' && result && result.sips > 0
+      ? softAlternative(state.config.seed, `${active.id}:${state.turnStep}:${result.outcome.kind}`)
+      : null
+  const isDecision = state.phase === 'awaiting_purchase'
+  const softActive = active && active.drinkMode === 'soft'
+  const hydrate = state.turn > 0 && state.turn % 6 === 0
+
+  // Décomptes dérivés des timestamps absolus partagés (survivent à la reconnexion).
+  const gameLeft = state.endsAt > 0 ? state.endsAt - now : -1
+  const turnLeft = state.turnEndsAt > 0 ? state.turnEndsAt - now : -1
+  const turnUrgent = turnLeft >= 0 && turnLeft <= TURN_ALERT_MS
+  const turnTotal = (state.config.turnSeconds ?? 0) * 1000
+  const turnFrac = turnTotal > 0 && turnLeft >= 0 ? Math.max(0, Math.min(1, turnLeft / turnTotal)) : null
+
+  // Action attendue (libellé toujours visible dans le HUD).
+  const mainAction = selectMainAction({
+    phase: state.phase,
+    canAct,
+    activeName: active?.name,
+    finished: state.finished,
+  })
+
+  // Haptique : alerte unique quand le tour approche de la fin (canAct seulement).
+  const alertedRef = useRef(false)
+  useEffect(() => {
+    if (canAct && turnUrgent && !alertedRef.current) {
+      alertedRef.current = true
+      haptics.vibrate('timer')
+    } else if (!turnUrgent) {
+      alertedRef.current = false
+    }
+  }, [canAct, turnUrgent])
+
+  // Haptique : loyer/taxe (paiement) et faillite (événement fort).
+  useEffect(() => {
+    if (!result) return
+    if (result.bankruptcy) haptics.vibrate('event')
+    else if (result.outcome?.kind === 'pay_rent' || result.outcome?.kind === 'tax') haptics.vibrate('pay')
+  }, [result])
+
+  const [prevResult, setPrevResult] = useState(null)
+  const [rollId, setRollId] = useState(0)
+  const [rolling, setRolling] = useState(false)
+
+  if (result !== prevResult) {
+    setPrevResult(result)
+    setRolling(Boolean(result))
+    if (result) setRollId((n) => n + 1)
+  }
+
+  const dice = result && result.roll.total > 0 ? { d1: result.roll.d1, d2: result.roll.d2, id: rollId } : null
+
+  useEffect(() => {
+    if (!rolling) return undefined
+    const land = setTimeout(() => sound.play('land'), ROLL_MS - 150)
+    const done = setTimeout(() => setRolling(false), ROLL_MS)
+    return () => { clearTimeout(land); clearTimeout(done) }
+  }, [rolling])
+
+  const handleRoll = () => {
+    sound.play('roll')
+    haptics.vibrate('roll')
+    onRoll()
+  }
+
+  // ── Effets visuels (Phase 12) : nombres flottants, arc de loyer, burst, shake ──
+  const gameRef = useRef(null)
+  const chipRefs = useRef(new Map())
+  const fxId = useRef(0)
+  const [floaters, setFloaters] = useState([])
+  const [arc, setArc] = useState(null)
+  const [burst, setBurst] = useState(false)
+  const [shake, setShake] = useState(false)
+  const [justOwned, setJustOwned] = useState(null)
+
+  // Journal de partie.
+  const [log, setLog] = useState([])
+  const [logOpen, setLogOpen] = useState(false)
+  const logId = useRef(0)
+  const pushLog = useCallback((icon, text) => {
+    logId.current += 1
+    const id = logId.current
+    setLog((l) => [{ id, icon, text }, ...l].slice(0, 40))
+  }, [])
+
+  const registerChip = useCallback((id, el) => {
+    if (el) chipRefs.current.set(id, el)
+    else chipRefs.current.delete(id)
+  }, [])
+
+  const anchorOf = (playerId) => {
+    const cont = gameRef.current?.getBoundingClientRect()
+    const el = chipRefs.current.get(playerId)
+    if (!cont || !el) return null
+    const r = el.getBoundingClientRect()
+    return { x: r.left + r.width / 2 - cont.left, y: r.top - cont.top }
+  }
+
+  const pushFloater = (playerId, text, tone) => {
+    const a = anchorOf(playerId)
+    if (!a) return
+    fxId.current += 1
+    const id = fxId.current
+    setFloaters((list) => [...list, { id, x: a.x, y: a.y, text, tone }])
+    setTimeout(() => setFloaters((list) => list.filter((f) => f.id !== id)), FX_MS)
+  }
+
+  // Nombres flottants + arc de loyer + shake, déclenchés par chaque résultat.
+  useEffect(() => {
+    if (!result || reducedMotion) return
+    const o = result.outcome
+    if (result.passedStart && active) pushFloater(active.id, `+${result.salary}€`, 'up')
+    if (o.kind === 'pay_rent') {
+      pushFloater(active.id, `-${o.amount}€`, 'down')
+      pushFloater(o.toPlayerId, `+${o.amount}€`, 'up')
+      const p = anchorOf(active.id)
+      const w = anchorOf(o.toPlayerId)
+      if (p && w) {
+        fxId.current += 1
+        const id = fxId.current
+        setArc({ id, x1: p.x, y1: p.y, x2: w.x, y2: w.y })
+        setTimeout(() => setArc((cur) => (cur && cur.id === id ? null : cur)), 1000)
+      }
+    }
+    if (o.kind === 'tax' && active) pushFloater(active.id, `-${o.amount}€`, 'down')
+    if (result.bankruptcy) {
+      setShake(true)
+      setTimeout(() => setShake(false), 620)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rollId])
+
+  // Journal + événement central à chaque résultat (indépendant de reduced-motion).
+  useEffect(() => {
+    if (!result) return
+    const name = active?.name ?? 'Joueur'
+    if (result.passedStart) pushLog('💰', `${name} touche ${result.salary}€ (Départ)`)
+    const e = logEntryForResult(result, name)
+    if (e) pushLog(e.icon, e.text)
+    const o = result.outcome
+    if (result.bankruptcy) { pushLog('💥', `${name} fait faillite`); fireEvent('💥', `${name} fait faillite`, 'bad') }
+    else if (o.kind === 'go_jail') fireEvent('🚓', `${name} → prison`, 'bad')
+    else if (o.kind === 'pay_rent' && o.amount >= 150) fireEvent('💸', `Gros loyer · ${o.amount}€`, 'bad')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rollId])
+
+  // Burst doré + journal quand un joueur COMPLÈTE un groupe (monopole).
+  const prevMonoRef = useRef(null)
+  useEffect(() => {
+    const groups = completeGroups(state, soireeBoard).monopolyGroupsByOwner
+    const prev = prevMonoRef.current
+    if (prev) {
+      for (const [ownerId, arr] of Object.entries(groups)) {
+        if (arr.length > (prev[ownerId]?.length ?? 0)) {
+          const nm = state.players.find((p) => p.id === ownerId)?.name ?? 'Un joueur'
+          pushLog('⭐', `${nm} complète un groupe !`)
+          fireEvent('⭐', `${nm} complète un groupe !`, 'gold')
+          if (!reducedMotion) {
+            fxId.current += 1
+            const id = fxId.current
+            setBurst(id)
+            setTimeout(() => setBurst((cur) => (cur === id ? false : cur)), 1200)
+          }
+        }
+      }
+    }
+    prevMonoRef.current = groups
+  }, [state, reducedMotion, pushLog, fireEvent])
+
+  const handleBuyFx = (yes) => {
+    if (yes && result?.outcome?.kind === 'buy_offer') {
+      const { price, spaceId, name } = result.outcome
+      if (active && !reducedMotion) pushFloater(active.id, `-${price}€`, 'down')
+      pushLog('🏠', `${active?.name ?? 'Joueur'} achète ${name} (${price}€)`)
+      if (spaceId) {
+        setJustOwned(spaceId)
+        setTimeout(() => setJustOwned((cur) => (cur === spaceId ? null : cur)), 700)
+      }
+    }
+    onBuy(yes)
+  }
+
+  return (
+    <div ref={gameRef} className={`mv-game ${shake ? 'is-shake' : ''}`}>
+      <MvHud
+        state={state}
+        active={active}
+        mainAction={mainAction}
+        gameLeft={gameLeft}
+        turnLeft={turnLeft}
+        myId={myId}
+        mode={mode}
+        netStatus={netStatus}
+        role={role}
+      />
+      {reminder && <p className="mv-reminder">{reminder}</p>}
+
+      <Suspense fallback={<div className="mv-board3d__loading">Chargement du plateau…</div>}>
+        <MvBoard3D
+          state={state}
+          dice={dice}
+          reducedMotion={reducedMotion}
+          onManage={onManage}
+          canManage={canAct && (state.phase === 'awaiting_roll' || state.phase === 'turn_cleanup')}
+          managePlayerId={active ? active.id : null}
+          justOwned={justOwned}
+          centerSlot={
+            <MvCenter
+              state={state}
+              result={result}
+              active={active}
+              now={now}
+              rolling={rolling}
+              isDecision={isDecision}
+              canAct={canAct}
+              softActive={softActive}
+              softAlt={softAlt}
+              event={event}
+            />
+          }
+        />
+      </Suspense>
+
+      {hydrate && <p className="mv-hydrate">💧 Pense à boire de l’eau entre les tours</p>}
+
+      <MvPlayerBar
+        players={state.players}
+        currentIndex={state.currentPlayerIndex}
+        reducedMotion={reducedMotion}
+        registerChip={registerChip}
+      />
+
+      <div className="mv-actions mv-actions--sec">
+        {myId && onSendTrade && (
+          <MonovomyButton variant="secondary" onClick={() => setShowTrade(true)}>
+            🤝 Échanger{tradeCount ? ` (${tradeCount})` : ''}
+          </MonovomyButton>
+        )}
+        {showFinish && (
+          <MonovomyButton variant="ghost" onClick={onFinish}>
+            Terminer la partie
+          </MonovomyButton>
+        )}
+      </div>
+
+      {/* CTA principal unique, contextuel, au pouce. */}
+      {rolling ? (
+        <div className="mv-actionbar"><p className="mv-actionbar__wait">🎲 Le dé roule…</p></div>
+      ) : (
+        <MvActionBar
+          phase={state.phase}
+          canAct={canAct}
+          activeName={active ? active.name : ''}
+          result={result}
+          jailCards={active ? active.jailCards : 0}
+          turnFrac={turnFrac}
+          turnUrgent={turnUrgent}
+          onRoll={handleRoll}
+          onBuy={handleBuyFx}
+          onNext={onNext}
+          onJail={onJail}
+        />
+      )}
+
+      {/* Couche d'effets (nombres flottants, arc de loyer, burst monopole). */}
+      <div className="mv-fx" aria-hidden="true">
+        {arc && (
+          <svg className="mv-fx__arc">
+            <line x1={arc.x1} y1={arc.y1} x2={arc.x2} y2={arc.y2} />
+          </svg>
+        )}
+        {floaters.map((f) => (
+          <span key={f.id} className={`mv-floater is-${f.tone}`} style={{ left: f.x, top: f.y }}>
+            {f.text}
+          </span>
+        ))}
+        {burst && (
+          <div className="mv-burst">
+            <span className="mv-burst__flash" />
+            {Array.from({ length: 14 }, (_, k) => (
+              <i key={k} className="mv-burst__p" style={{ '--a': `${(k / 14) * 360}deg` }} />
+            ))}
+            <span className="mv-burst__label">MONOPOLE&nbsp;!</span>
+          </div>
+        )}
+      </div>
+
+      {showTrade && myId && onSendTrade && (
+        <MvTrade state={state} myId={myId} now={now} onSend={onSendTrade} onClose={() => setShowTrade(false)} />
+      )}
+
+      {state.phase === 'awaiting_auction' && state.auction && (
+        <MvAuction
+          auction={state.auction}
+          players={state.players}
+          now={now}
+          controllableIds={auctionControllableIds}
+          onBid={onBid}
+          onPass={onPass}
+        />
+      )}
+
+      {!result && state.phase !== 'awaiting_auction' && !showTrade && (
+        <MvJournal entries={log} open={logOpen} onToggle={() => setLogOpen((o) => !o)} />
+      )}
+
+      <MvToasts toasts={toasts} />
+
+      <MvDock
+        state={state}
+        myId={myId}
+        active={active}
+        mode={mode}
+        chat={chat}
+        onSendChat={onSendChat}
+        onManage={onManage}
+        canManage={canAct && (state.phase === 'awaiting_roll' || state.phase === 'turn_cleanup')}
+        managePlayerId={active ? active.id : null}
+        onSoft={onSetDrinkMode ? handleSoft : null}
+        myMode={myMode}
+      />
+
+      <MvCoach />
+    </div>
+  )
+}

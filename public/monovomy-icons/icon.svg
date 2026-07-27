@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="MonoVomy">
+  <defs>
+    <radialGradient id="bg" cx="28%" cy="18%" r="90%">
+      <stop offset="0%" stop-color="#2a1257"/>
+      <stop offset="55%" stop-color="#160a2e"/>
+      <stop offset="100%" stop-color="#0a0613"/>
+    </radialGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f5b21a"/>
+      <stop offset="100%" stop-color="#ec1e79"/>
+    </linearGradient>
+    <linearGradient id="stroke" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f5b21a"/>
+      <stop offset="100%" stop-color="#ec1e79"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Full-bleed background: safe for maskable masks -->
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <circle cx="150" cy="96" r="150" fill="#7c3aed" opacity="0.20"/>
+  <circle cx="392" cy="120" r="120" fill="#ec1e79" opacity="0.16"/>
+
+  <!-- Cocktail glass, kept inside the central ~62% safe zone (x 128..384, y 120..392) -->
+  <g fill="none" stroke="url(#stroke)" stroke-width="16" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M160 168 L352 168 L268 268 L268 356"/>
+    <path d="M212 356 L324 356"/>
+  </g>
+  <path d="M176 180 L336 180 L268 260 Z" fill="url(#glass)"/>
+  <circle cx="300" cy="150" r="16" fill="#22c1c3"/>
+  <circle cx="230" cy="200" r="9" fill="#0a0613" opacity="0.55"/>
+  <circle cx="266" cy="224" r="7" fill="#0a0613" opacity="0.45"/>
+</svg>

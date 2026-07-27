@@ -7,16 +7,34 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "inventory": "INVENTORY_REPORT=1 vitest run src/game-content/events/inventory.report.test.ts",
+    "validate:dilemmas": "vitest run src/game-content/events/catalog.test.ts",
+    "massim": "MASS_SIM_REPORT=1 MASS_SIM_COUNT=100000 vitest run src/game-engine/sim/massSim.report.test.ts",
+    "mv:sim": "MASS_SIM_REPORT=1 vitest run src/features/monovomy/engine/sim/massSim.report.test.ts",
+    "mv:sim:order": "MASS_SIM_REPORT=1 vitest run src/features/monovomy/engine/sim/orderSim.report.test.ts"
   },
   "dependencies": {
+    "@react-three/drei": "^10.0.0",
+    "@react-three/fiber": "^9.1.0",
+    "@react-three/postprocessing": "^3.0.0",
+    "@supabase/supabase-js": "^2.45.0",
     "@tailwindcss/vite": "^4.3.0",
+    "postprocessing": "^6.36.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
-    "tailwindcss": "^4.3.0"
+    "tailwindcss": "^4.3.0",
+    "three": "^0.171.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
@@ -24,6 +42,10 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.6.0",
-    "vite": "^8.0.12"
+    "happy-dom": "^20.11.1",
+    "jsdom": "^29.1.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.0.12",
+    "vitest": "^4.1.10"
   }
 }
