@@ -1,3 +1,10 @@
+# Désactive la négociation de contenu (MultiViews) : sinon une requête /monovomy
+# est captée par les fichiers monovomy-*.{webmanifest,sw.js,offline.html} et renvoie
+# un 404 avant d'atteindre le fallback SPA ci-dessous.
+<IfModule mod_negotiation.c>
+  Options -MultiViews
+</IfModule>
+
 <IfModule mod_rewrite.c>
   RewriteEngine On
 
