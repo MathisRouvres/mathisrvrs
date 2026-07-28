@@ -1309,7 +1309,14 @@
   backdrop-filter: blur(10px);
   animation: mv-rise 0.35s ease both;
 }
+/* Deux animations d'apparition, et non une seule : `mv-rise` embarque un
+   translate(-50%) qui n'a de sens que pour les éléments centrés par `left: 50%`
+   (bandeau d'installation, journal). Appliquée ailleurs avec `fill-mode: both`,
+   elle laissait la carte décalée d'une demi-largeur vers la gauche APRÈS
+   l'animation — c'est ce qui envoyait les feuilles du dock hors de l'écran. */
 @keyframes mv-rise { from { opacity: 0; transform: translate(-50%, 12px); } to { opacity: 1; transform: translate(-50%, 0); } }
+/* Pour tout ce qui est déjà positionné par le flux : aucun décalage horizontal. */
+@keyframes mv-rise-up { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 .mv-install__icon img { display: block; border-radius: 0.6rem; }
 .mv-install__body { flex: 1; min-width: 0; }
 .mv-install__title { margin: 0; font-family: 'Fredoka', 'Poppins', sans-serif; font-weight: 700; font-size: 0.98rem; }
@@ -1668,7 +1675,7 @@
   border: 1px solid var(--mv-or);
   border-radius: 1.1rem 1.1rem 0 0;
   padding: 1rem 1rem calc(1rem + env(safe-area-inset-bottom));
-  animation: mv-rise 0.3s ease both;
+  animation: mv-rise-up 0.3s ease both;
 }
 .mv-auction__head { display: flex; align-items: center; justify-content: space-between; }
 .mv-auction__eyebrow { font-family: 'Fredoka', 'Poppins', sans-serif; font-weight: 700; color: var(--mv-or); }
@@ -1949,7 +1956,7 @@
   width: 100%; max-width: 30rem; margin: 0 auto; max-height: 70dvh;
   display: flex; flex-direction: column;
   border-radius: 18px 18px 0 0;
-  animation: mv-rise 0.28s ease both;
+  animation: mv-rise-up 0.28s ease both;
 }
 .mv-sheet__head {
   display: flex; align-items: center; justify-content: space-between;
