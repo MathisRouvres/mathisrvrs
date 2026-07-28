@@ -2731,6 +2731,8 @@
 .mv-goods__wholbl { max-width: 6rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mv-goods__whon { color: var(--mv-or); font-weight: 700; }
 
+.mv-settings__build { margin: 0.4rem 0 0; text-align: center; font-size: 0.72rem; color: var(--mv-muted); font-family: 'JetBrains Mono', monospace; }
+
 /* Action sans retour : elle se distingue du reste des réglages. */
 .mv-settings__row.is-danger { border-color: rgba(239, 77, 99, 0.4); background: rgba(239, 77, 99, 0.1); }
 .mv-settings__row.is-danger b { color: #ffb3c2; }

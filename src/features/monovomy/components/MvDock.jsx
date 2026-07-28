@@ -5,6 +5,7 @@ import { playerColor } from './board3d/playerColors'
 import { sound } from '../game/sound'
 import { haptics } from '../game/haptics'
 import { useWakeLockConsent } from '../pwa/useWakeLock'
+import { APP_BUILD } from '../pwa/buildInfo'
 import MvChat from './MvChat'
 import MvRules from './MvRules'
 import MvLegal from './MvLegal'
@@ -192,6 +193,9 @@ function SettingsSheet({ onSoft, myMode, onOpenDoc, onFinish }) {
           <span>🏁 Terminer la partie</span><b>›</b>
         </button>
       )}
+      {/* Repère de build : permet de vérifier depuis le téléphone qu'on regarde
+          bien la dernière version et non une page ressortie du cache. */}
+      <p className="mv-settings__build">Version {APP_BUILD}</p>
     </div>
   )
 }

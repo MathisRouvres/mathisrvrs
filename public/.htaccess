@@ -31,3 +31,23 @@
     Header set Cache-Control "no-cache"
   </Files>
 </IfModule>
+
+# Cache HTTP.
+#
+# Le serveur n'envoyait AUCUN en-tête de cache sur le HTML : ni Cache-Control, ni
+# ETag, ni Last-Modified. Sans validateur, un navigateur applique une durée de
+# fraîcheur heuristique — et Safari iOS reservait un index.html périmé, qui pointe
+# vers les anciens fichiers hashés. Résultat : un déploiement pouvait rester
+# invisible sur le téléphone alors qu'il était bien en ligne.
+#
+# Le HTML doit donc toujours être revalidé ; les fichiers hashés, eux, ne changent
+# jamais sous un même nom et se mettent en cache pour un an.
+<IfModule mod_headers.c>
+  <FilesMatch "\.html$">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
+  # Empreinte Vite dans le nom : `index-BR4v069a.css`, `MvBoard3D-1VCW_yyo.js`.
+  <FilesMatch "-[A-Za-z0-9_-]{8,}\.(js|css)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+</IfModule>

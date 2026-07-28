@@ -50,8 +50,28 @@
 
     <!-- Icons & manifest -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="apple-touch-icon" href="/og-image.svg" />
-    <link rel="manifest" href="/manifest.webmanifest" />
+    <!--
+      Manifest choisi AVANT le rendu, d'après l'URL. MonoVomy (/monovomy) est une
+      PWA distincte du portfolio, avec son propre start_url et son propre scope.
+      Le poser depuis React arrivait trop tard : Safari avait déjà lu celui du
+      portfolio, et « Sur l'écran d'accueil » enregistrait mathis-rvrs.fr au lieu
+      de mathis-rvrs.fr/monovomy. Rien n'est déclaré en dur : la balise est créée
+      ici, il n'y a donc aucun premier manifest à corriger après coup.
+    -->
+    <script>
+      (function () {
+        var path = location.pathname.replace(/\/+$/, '') || '/'
+        var monovomy = path === '/monovomy' || path.indexOf('/monovomy/') === 0
+        function link(rel, href) {
+          var el = document.createElement('link')
+          el.rel = rel
+          el.href = href
+          document.head.appendChild(el)
+        }
+        link('manifest', monovomy ? '/monovomy.webmanifest' : '/manifest.webmanifest')
+        link('apple-touch-icon', monovomy ? '/monovomy-icons/apple-touch-icon-180.png' : '/og-image.svg')
+      })()
+    </script>
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
