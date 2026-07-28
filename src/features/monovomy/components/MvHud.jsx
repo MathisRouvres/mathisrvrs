@@ -1,5 +1,7 @@
 import { soireeBoard } from '../content'
 import { playerColor } from './board3d/playerColors'
+import { useCountUp, useDelta } from '../game/useCountUp'
+import { useReducedMotion } from '../game/useReducedMotion'
 
 const INTENSITY = {
   warmup: { label: 'Warm-up', color: '#22c1c3', emoji: '🌱' },
@@ -23,8 +25,10 @@ function fmt(ms) {
 }
 
 /**
- * Barre du joueur actif (Phase 6), compacte : avatar · pseudo · argent · position ·
- * timer · action attendue · état réseau discret. Remplace l'étiquette flottante.
+ * Barre du joueur actif (Phase 6). Hiérarchie assumée : avatar, pseudo et surtout
+ * l'ARGENT en très grand — c'est l'information la plus lue de l'écran après le
+ * plateau. Tout le reste (case, minuteurs, ambiance, réseau, action attendue) passe
+ * en second niveau, plus petit et plus sourd.
  */
 export default function MvHud({
   state,
@@ -37,6 +41,7 @@ export default function MvHud({
   netStatus = 'idle',
   role = null,
 }) {
+  const reducedMotion = useReducedMotion()
   const it = INTENSITY[state.partyIntensity] ?? INTENSITY.warmup
   const activeIdx = state.currentPlayerIndex
   const spaceName = active ? soireeBoard.spaces[active.position]?.name ?? '—' : '—'
@@ -45,26 +50,38 @@ export default function MvHud({
   const net = NET[netStatus] ?? NET.idle
   const netLabel = mode === 'local' ? 'Local' : role === 'host' ? 'Hôte' : net.label
 
+  // Argent : compteur qui roule + variation flottante. Se remet à zéro tout seul.
+  const cash = active ? active.cash : 0
+  const shownCash = useCountUp(cash, reducedMotion)
+  const delta = useDelta(cash)
+
   return (
-    <div className="mv-hud2">
-      <div className="mv-hud2__row">
+    <div className="mv-hud2 mv-surface-1">
+      <div className="mv-hud2__main">
         <span className="mv-hud2__who">
           <i className="mv-hud2__dot" style={{ background: playerColor(activeIdx) }} />
           <b>{active ? active.name : '—'}</b>
         </span>
-        <span className="mv-hud2__cash">{active ? active.cash : 0}€</span>
-        <span className="mv-hud2__pos" title={spaceName}>📍 {spaceName}</span>
-        <span className="mv-hud2__timers">
-          {gameLeft >= 0 && <span className={`mv-hud2__timer ${gameLeft <= 60000 ? 'is-low' : ''}`}>🕒 {fmt(gameLeft)}</span>}
-          {turnLeft >= 0 && <span className={`mv-hud2__timer is-turn ${turnUrgent ? 'is-alert' : ''}`}>⏱ {fmt(turnLeft)}</span>}
+        <span className={`mv-hud2__cash ${delta ? (delta.value > 0 ? 'is-up' : 'is-down') : ''}`}>
+          {shownCash}
+          <i>€</i>
+          {delta && !reducedMotion && (
+            <em key={delta.id} className={delta.value > 0 ? 'mv-hud2__delta is-up' : 'mv-hud2__delta is-down'}>
+              {delta.value > 0 ? '+' : ''}{delta.value}€
+            </em>
+          )}
         </span>
       </div>
 
-      <div className="mv-hud2__row mv-hud2__row--sub">
+      <div className="mv-hud2__sub">
         <span className={`mv-hud2__action ${mainAction?.waiting ? 'is-wait' : ''}`}>
           {mainAction?.icon} {mainAction?.label}
         </span>
+        <span className="mv-hud2__pos" title={spaceName}>📍 {spaceName}</span>
         {me && me.id !== active?.id && <span className="mv-hud2__me">toi · {me.cash}€</span>}
+        <span className="mv-hud2__spacer" />
+        {gameLeft >= 0 && <span className={`mv-hud2__timer ${gameLeft <= 60000 ? 'is-low' : ''}`}>🕒 {fmt(gameLeft)}</span>}
+        {turnLeft >= 0 && <span className={`mv-hud2__timer is-turn ${turnUrgent ? 'is-alert' : ''}`}>⏱ {fmt(turnLeft)}</span>}
         <span className="mv-hud2__intensity" style={{ '--c': it.color }}>{it.emoji} {it.label}</span>
         <span className={`mv-hud2__net ${netStatus === 'reconnecting' || netStatus === 'syncing' ? 'is-busy' : ''}`} title={netLabel || 'Connecté'}>
           <i style={{ background: net.dot }} />

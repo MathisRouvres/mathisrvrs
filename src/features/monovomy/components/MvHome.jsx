@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import MvBackdrop from './MvBackdrop'
 import MvModal from './MvModal'
 import MvRules from './MvRules'
 
@@ -19,9 +20,11 @@ export default function MvHome({ onPick }) {
 
   return (
     <div className="mv-home">
-      <section className="mv-hero">
-        <p className="mv-eyebrow">Le Monopoly à boire</p>
-        <h1 className="mv-hero__title">
+      <MvBackdrop />
+
+      <section className="mv-hero mv-hero--home">
+        <p className="mv-eyebrow mv-eyebrow--pill">Le Monopoly à boire</p>
+        <h1 className="mv-hero__title mv-hero__title--neon">
           <span className="mv-mono">MONO</span>
           <span className="mv-vomy">VOMY</span>
         </h1>
@@ -29,20 +32,22 @@ export default function MvHome({ onPick }) {
       </section>
 
       <div className="mv-modes">
-        <button type="button" className="mv-modecard" onClick={() => onPick('local')}>
+        <button type="button" className="mv-modecard mv-modecard--local" onClick={() => onPick('local')}>
           <span className="mv-modecard__ic">📱</span>
           <span className="mv-modecard__title">Local (hot-seat)</span>
           <span className="mv-modecard__desc">Un seul téléphone qui tourne entre potes.</span>
+          <span className="mv-modecard__go" aria-hidden="true">Jouer <span className="mv-modecard__arrow">→</span></span>
         </button>
-        <button type="button" className="mv-modecard" onClick={() => onPick('online')}>
+        <button type="button" className="mv-modecard mv-modecard--online" onClick={() => onPick('online')}>
           <span className="mv-modecard__ic">🌐</span>
           <span className="mv-modecard__title">En ligne</span>
           <span className="mv-modecard__desc">Chacun son téléphone, en temps réel.</span>
+          <span className="mv-modecard__go" aria-hidden="true">Jouer <span className="mv-modecard__arrow">→</span></span>
         </button>
       </div>
 
       <div className="mv-actions">
-        <button type="button" className="mv-btn mv-btn--ghost" onClick={() => setShowRules(true)}>
+        <button type="button" className="mv-btn mv-btn--ghost mv-btn--shine" onClick={() => setShowRules(true)}>
           📖 Comment jouer
         </button>
       </div>

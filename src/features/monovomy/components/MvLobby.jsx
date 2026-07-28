@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { MonovomyButton } from '../MonovomyShell'
+import MvBackdrop from './MvBackdrop'
 import { PAWNS, PAWN_COUNT } from './board3d/pawnCatalog'
 import { playerColor } from './board3d/playerColors'
 import {
@@ -64,9 +65,11 @@ export default function MvLobby({ onStart, version, onExit }) {
 
   return (
     <div className="mv-lobby">
-      <section className="mv-hero">
-        <p className="mv-eyebrow">Partie locale</p>
-        <h1 className="mv-hero__title">
+      <MvBackdrop />
+
+      <section className="mv-hero mv-hero--home">
+        <p className="mv-eyebrow mv-eyebrow--pill">Partie locale</p>
+        <h1 className="mv-hero__title mv-hero__title--neon">
           <span className="mv-mono">MONO</span>
           <span className="mv-vomy">VOMY</span>
         </h1>
@@ -74,7 +77,7 @@ export default function MvLobby({ onStart, version, onExit }) {
       </section>
 
       <section className="mv-card">
-        <h2 className="mv-card__title">Difficulté</h2>
+        <h2 className="mv-card__title"><span className="mv-card__ic">🎯</span> Difficulté</h2>
         <div className="mv-choicerow">
           {DIFFICULTY_IDS.map((id) => (
             <button
@@ -91,7 +94,7 @@ export default function MvLobby({ onStart, version, onExit }) {
       </section>
 
       <section className="mv-card">
-        <h2 className="mv-card__title">Durée de partie</h2>
+        <h2 className="mv-card__title"><span className="mv-card__ic">⏱️</span> Durée de partie</h2>
         <div className="mv-choicerow">
           {DURATION_MINUTES.map((m) => (
             <button
@@ -104,7 +107,7 @@ export default function MvLobby({ onStart, version, onExit }) {
             </button>
           ))}
         </div>
-        <h2 className="mv-card__title">Temps par tour</h2>
+        <h2 className="mv-card__title mv-card__title--sub"><span className="mv-card__ic">⌛</span> Temps par tour</h2>
         <div className="mv-choicerow">
           {TURN_SECONDS_OPTIONS.map((s) => (
             <button
@@ -117,30 +120,48 @@ export default function MvLobby({ onStart, version, onExit }) {
             </button>
           ))}
         </div>
-        <button
-          type="button"
-          className={`mv-mode ${fair ? 'is-alcohol' : 'is-soft'}`}
-          onClick={() => setFair((v) => !v)}
-        >
-          {fair ? '⚖️ Ordre équitable : ON' : '⚖️ Ordre équitable : OFF'}
-        </button>
-        <button
-          type="button"
-          className={`mv-mode ${auction ? 'is-alcohol' : 'is-soft'}`}
-          onClick={() => setAuction((v) => !v)}
-        >
-          {auction ? '🔨 Enchères : ON' : '🔨 Enchères : OFF'}
-        </button>
+        <div className="mv-togglerow">
+          <button
+            type="button"
+            className={`mv-toggle ${fair ? 'is-on' : ''}`}
+            aria-pressed={fair}
+            onClick={() => setFair((v) => !v)}
+          >
+            <span className="mv-toggle__ic">⚖️</span>
+            <span className="mv-toggle__label">Ordre équitable</span>
+            <span className="mv-toggle__state">{fair ? 'ON' : 'OFF'}</span>
+          </button>
+          <button
+            type="button"
+            className={`mv-toggle ${auction ? 'is-on' : ''}`}
+            aria-pressed={auction}
+            onClick={() => setAuction((v) => !v)}
+          >
+            <span className="mv-toggle__ic">🔨</span>
+            <span className="mv-toggle__label">Enchères</span>
+            <span className="mv-toggle__state">{auction ? 'ON' : 'OFF'}</span>
+          </button>
+        </div>
       </section>
 
       <section className="mv-card">
-        <h2 className="mv-card__title">Joueurs</h2>
+        <h2 className="mv-card__title"><span className="mv-card__ic">🧑‍🤝‍🧑</span> Joueurs</h2>
         <div className="mv-counter">
-          <MonovomyButton variant="ghost" onClick={() => setCount(Math.max(PLAYER_MIN, players.length - 1))}>
+          <MonovomyButton
+            variant="ghost"
+            className="mv-counter__btn"
+            aria-label="Retirer un joueur"
+            onClick={() => setCount(Math.max(PLAYER_MIN, players.length - 1))}
+          >
             −
           </MonovomyButton>
           <span className="mv-counter__value">{players.length}</span>
-          <MonovomyButton variant="ghost" onClick={() => setCount(Math.min(PLAYER_MAX, players.length + 1))}>
+          <MonovomyButton
+            variant="ghost"
+            className="mv-counter__btn"
+            aria-label="Ajouter un joueur"
+            onClick={() => setCount(Math.min(PLAYER_MAX, players.length + 1))}
+          >
             +
           </MonovomyButton>
         </div>
@@ -187,11 +208,13 @@ export default function MvLobby({ onStart, version, onExit }) {
 
       <div className="mv-actions mv-actions--row">
         {onExit && (
-          <MonovomyButton variant="ghost" onClick={onExit}>
+          <MonovomyButton variant="ghost" className="mv-btn--shine" onClick={onExit}>
             ← Menu
           </MonovomyButton>
         )}
-        <MonovomyButton onClick={handleStart}>Lancer la partie</MonovomyButton>
+        <MonovomyButton className="mv-btn--shine mv-btn--lg" onClick={handleStart}>
+          🎲 Lancer la partie
+        </MonovomyButton>
       </div>
     </div>
   )

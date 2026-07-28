@@ -12,10 +12,27 @@ const GROUP_COLOR = {
   rouge: '#ef4d63', jaune: '#f5b21a', vert: '#34d17e', bleu: '#3b82f6',
 }
 
+// Icônes en trait : un seul jeu cohérent, à la place du mélange d'emojis.
+const ICON_PATHS = {
+  goods: 'M3 10.5 12 4l9 6.5M6 9.5V20h12V9.5M10 20v-5h4v5',
+  players: 'M8 11a3.2 3.2 0 1 0 0-6.4A3.2 3.2 0 0 0 8 11Zm8.4-.4a2.6 2.6 0 1 0 0-5.2 2.6 2.6 0 0 0 0 5.2ZM2.5 19.5c0-3 2.5-5 5.5-5s5.5 2 5.5 5M15 14.6c2.8.2 4.5 2.1 4.5 4.9',
+  rules: 'M7 4h10a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm2 4h6M9 12h6M9 16h4',
+  chat: 'M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v7a2.5 2.5 0 0 1-2.5 2.5H10l-4 4v-4h-.5A1.5 1.5 0 0 1 4 14.5Z',
+  settings: 'M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Zm8-3.2a8 8 0 0 0-.14-1.5l2-1.5-2-3.4-2.3.9a8 8 0 0 0-2.6-1.5L14.6 2h-4l-.36 2.5a8 8 0 0 0-2.6 1.5l-2.3-.9-2 3.4 2 1.5a8 8 0 0 0 0 3l-2 1.5 2 3.4 2.3-.9a8 8 0 0 0 2.6 1.5l.36 2.5h4l.36-2.5a8 8 0 0 0 2.6-1.5l2.3.9 2-3.4-2-1.5c.09-.49.14-1 .14-1.5Z',
+}
+
+function DockIcon({ name }) {
+  return (
+    <svg className="mv-dock__ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d={ICON_PATHS[name]} fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 function Sheet({ title, onClose, children }) {
   return (
     <div className="mv-sheet" onClick={onClose}>
-      <div className="mv-sheet__card" onClick={(e) => e.stopPropagation()}>
+      <div className="mv-sheet__card mv-surface-3" onClick={(e) => e.stopPropagation()}>
         <div className="mv-sheet__head">
           <span>{title}</span>
           <button type="button" className="mv-sheet__close" onClick={onClose} aria-label="Fermer">✕</button>
@@ -142,16 +159,23 @@ export default function MvDock({
   const showChat = mode === 'online' && typeof onSendChat === 'function'
 
   const items = [
-    { key: 'goods', icon: '🏠', label: 'Biens' },
-    { key: 'players', icon: '👥', label: 'Joueurs' },
-    { key: 'rules', icon: '📜', label: 'Règles', badge: rulesCount || null },
-    ...(showChat ? [{ key: 'chat', icon: '💬', label: 'Chat' }] : []),
-    { key: 'settings', icon: '⚙️', label: 'Réglages' },
+    { key: 'goods', label: 'Biens' },
+    { key: 'players', label: 'Joueurs' },
+    { key: 'rules', label: 'Règles', badge: rulesCount || null },
+    ...(showChat ? [{ key: 'chat', label: 'Chat' }] : []),
+    { key: 'settings', label: 'Réglages' },
   ]
+  // Position de la pilule de sélection : elle glisse sous l'onglet ouvert.
+  const activeIdx = items.findIndex((it) => it.key === sheet)
 
   return (
     <>
-      <nav className="mv-dock" aria-label="Navigation">
+      <nav
+        className="mv-dock mv-surface-1"
+        aria-label="Navigation"
+        style={{ '--dock-n': items.length, '--dock-i': activeIdx < 0 ? 0 : activeIdx }}
+      >
+        <span className={`mv-dock__pill ${activeIdx < 0 ? '' : 'is-on'}`} aria-hidden="true" />
         {items.map((it) => (
           <button
             key={it.key}
@@ -159,9 +183,9 @@ export default function MvDock({
             className={`mv-dock__btn ${sheet === it.key ? 'is-on' : ''}`}
             onClick={() => setSheet((s) => (s === it.key ? null : it.key))}
           >
-            <span className="mv-dock__ic">{it.icon}</span>
+            <DockIcon name={it.key} />
             <span className="mv-dock__lbl">{it.label}</span>
-            {it.badge ? <span className="mv-dock__badge">{it.badge}</span> : null}
+            {it.badge ? <span key={it.badge} className="mv-dock__badge">{it.badge}</span> : null}
           </button>
         ))}
       </nav>

@@ -1,11 +1,5 @@
 import MvCardReveal from './MvCardReveal'
-
-const INTENSITY = {
-  warmup: { label: 'Warm-up', emoji: '🌱', color: '#22c1c3' },
-  party: { label: 'Party', emoji: '🎉', color: '#f5b21a' },
-  chaos: { label: 'Chaos', emoji: '🔥', color: '#f97316' },
-  finale: { label: 'Finale', emoji: '🏁', color: '#ec1e79' },
-}
+import { centerPanelKind } from '../game/centerPanel'
 
 function fmt(ms) {
   const s = Math.max(0, Math.ceil(ms / 1000))
@@ -13,7 +7,7 @@ function fmt(ms) {
 }
 
 /**
- * Scène centrale dynamique (Phase 5) : le centre du plateau change selon la phase.
+ * Contenu TEXTE de la scène centrale (Phase 5) : le centre du plateau change selon la phase.
  * Défaut : logo réduit + tour + ambiance + temps. Pendant carte/achat : la carte
  * (reveal) se joue AU CENTRE. Pendant une enchère : résumé + compte à rebours. Les
  * événements forts (monopole, faillite, prison, chaos…) surgissent au centre.
@@ -30,21 +24,20 @@ export default function MvCenter({
   softAlt = null,
   event = null,
 }) {
-  const showReveal = Boolean(result) && !rolling && state.phase !== 'awaiting_auction'
-  const auction = state.phase === 'awaiting_auction' ? state.auction : null
-  const it = INTENSITY[state.partyIntensity] ?? INTENSITY.warmup
-  const gameLeft = state.endsAt > 0 ? state.endsAt - now : -1
-  const hasPanel = showReveal || Boolean(auction)
+  const kind = centerPanelKind(state, result, rolling)
+  const showReveal = kind === 'card'
+  const auction = kind === 'auction' ? state.auction : null
 
   const bidderName = auction?.highBidderId
     ? state.players.find((p) => p.id === auction.highBidderId)?.name ?? '—'
     : null
   const aucLeft = auction && auction.endsAt > 0 ? auction.endsAt - now : -1
 
-  return (
-    <div className={`mv-center__inner ${hasPanel ? 'has-panel' : ''}`}>
-      {hasPanel && <span className="mv-center__scrim" aria-hidden="true" />}
+  // Au repos, plus rien en HTML : tour, ambiance et temps sont dans la 3D.
+  if (!showReveal && !auction && !event) return null
 
+  return (
+    <div className="mv-center__inner">
       {event && (
         <div key={event.id} className={`mv-centerevent tone-${event.tone || 'gold'}`} role="status">
           <span className="mv-centerevent__ic" aria-hidden="true">{event.icon}</span>
@@ -71,15 +64,7 @@ export default function MvCenter({
           </span>
           {aucLeft >= 0 && <span className={`mv-centerauc__timer ${aucLeft <= 5000 ? 'is-alert' : ''}`}>⏱ {fmt(aucLeft)}</span>}
         </div>
-      ) : (
-        <div className="mv-centerdefault">
-          <span className="mv-centerdefault__tour">Tour {state.turn}</span>
-          <span className="mv-centerdefault__amb" style={{ '--c': it.color }}>{it.emoji} {it.label}</span>
-          {gameLeft >= 0 && (
-            <span className={`mv-centerdefault__timer ${gameLeft <= 60000 ? 'is-low' : ''}`}>🕒 {fmt(gameLeft)}</span>
-          )}
-        </div>
-      )}
+      ) : null}
     </div>
   )
 }

@@ -23,23 +23,23 @@ export default function MvActionBar({
 
   let content
   if (!canAct) {
-    content = <p className="mv-actionbar__wait">En attente de {activeName || '…'}…</p>
+    content = <p className="mv-actionbar__wait mv-surface-1">En attente de {activeName || '…'}…</p>
   } else if (phase === 'awaiting_roll') {
-    content = <MonovomyButton className="mv-actionbar__primary" onClick={onRoll}>🎲 Lancer le dé</MonovomyButton>
+    content = <MonovomyButton className="mv-actionbar__primary is-live" onClick={onRoll}>🎲 Lancer le dé</MonovomyButton>
   } else if (phase === 'awaiting_jail') {
     content = (
       <div className="mv-actionbar__multi">
-        <MonovomyButton className="mv-actionbar__primary" onClick={() => onJail?.('bail')}>💸 Payer pour sortir</MonovomyButton>
-        <MonovomyButton variant="secondary" onClick={() => onJail?.('double')}>🎲 Tenter un double</MonovomyButton>
+        <MonovomyButton className="mv-actionbar__primary is-live" onClick={() => onJail?.('bail')}>💸 Payer pour sortir</MonovomyButton>
+        <MonovomyButton variant="ghost" onClick={() => onJail?.('double')}>🎲 Tenter un double</MonovomyButton>
         {jailCards > 0 && (
-          <MonovomyButton variant="secondary" onClick={() => onJail?.('card')}>🎟 Carte de sortie</MonovomyButton>
+          <MonovomyButton variant="ghost" onClick={() => onJail?.('card')}>🎟 Carte de sortie</MonovomyButton>
         )}
       </div>
     )
   } else if (phase === 'awaiting_purchase' && result?.outcome?.kind === 'buy_offer') {
     content = (
       <div className="mv-actionbar__multi">
-        <MonovomyButton className="mv-actionbar__primary" onClick={() => onBuy?.(true)}>
+        <MonovomyButton className="mv-actionbar__primary is-live" onClick={() => onBuy?.(true)}>
           🏠 Acheter {result.outcome.price}€
         </MonovomyButton>
         <MonovomyButton variant="ghost" onClick={() => onBuy?.(false)}>Refuser</MonovomyButton>
