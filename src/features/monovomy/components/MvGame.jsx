@@ -20,6 +20,7 @@ import { logEntryForResult } from '../game/journal'
 import { sound } from '../game/sound'
 import { haptics } from '../game/haptics'
 import { selectMainAction } from '../game/mainAction'
+import { moneyMoves } from '../game/moneyMoves'
 import { useReducedMotion } from '../game/useReducedMotion'
 
 // Plateau 3D (three.js) chargé à la demande : les écrans secondaires (accueil,
@@ -28,7 +29,7 @@ const MvBoard3D = lazy(() => import('./board3d/MvBoard3D'))
 
 const ROLL_MS = 1150
 const TURN_ALERT_MS = 5000
-const FX_MS = 1400
+const FX_MS = 2000
 
 export default function MvGame({
   state,
@@ -178,13 +179,6 @@ export default function MvGame({
     }
   }, [canAct, turnUrgent])
 
-  // Haptique : loyer/taxe (paiement) et faillite (événement fort).
-  useEffect(() => {
-    if (!result) return
-    if (result.bankruptcy) haptics.vibrate('event')
-    else if (result.outcome?.kind === 'pay_rent' || result.outcome?.kind === 'tax') haptics.vibrate('pay')
-  }, [result])
-
   const [prevResult, setPrevResult] = useState(null)
   const [rollId, setRollId] = useState(0)
   const [rolling, setRolling] = useState(false)
@@ -194,6 +188,28 @@ export default function MvGame({
     setRolling(Boolean(result))
     if (result) setRollId((n) => n + 1)
   }
+
+  // Pendant le lancer : on ré-affiche les soldes d'AVANT paiement (les mouvements
+  // sont rejoués à l'envers). La faillite est exclue — le moteur y remet le cash
+  // à plat, l'inverser n'aurait aucun sens.
+  const pendingMoves = rolling && result && !result.bankruptcy ? moneyMoves(result, active?.id) : null
+  const viewPlayers = pendingMoves
+    ? state.players.map((p) => (pendingMoves[p.id] ? { ...p, cash: p.cash - pendingMoves[p.id] } : p))
+    : state.players
+  const viewActive = active ? viewPlayers.find((p) => p.id === active.id) ?? active : active
+  const viewState = pendingMoves ? { ...state, players: viewPlayers } : state
+
+  // Une fois le dé arrêté : qui paie, qui encaisse. Les pastilles concernées
+  // restent allumées tant que la carte de résultat est à l'écran.
+  const moneyFx = !rolling && result ? moneyMoves(result, active?.id) : null
+
+  // Haptique : loyer/taxe (paiement) et faillite, au moment de la révélation.
+  useEffect(() => {
+    if (rolling || !result) return
+    if (result.bankruptcy) haptics.vibrate('event')
+    else if (result.outcome?.kind === 'pay_rent' || result.outcome?.kind === 'tax') haptics.vibrate('pay')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rolling])
 
   const dice = result && result.roll.total > 0 ? { d1: result.roll.d1, d2: result.roll.d2, id: rollId } : null
 
@@ -243,23 +259,23 @@ export default function MvGame({
     return { x: r.left + r.width / 2 - cont.left, y: r.top - cont.top }
   }
 
-  const pushFloater = (playerId, text, tone) => {
+  const pushFloater = (playerId, text, tone, big = false) => {
     const a = anchorOf(playerId)
     if (!a) return
     fxId.current += 1
     const id = fxId.current
-    setFloaters((list) => [...list, { id, x: a.x, y: a.y, text, tone }])
+    setFloaters((list) => [...list, { id, x: a.x, y: a.y, text, tone, big }])
     setTimeout(() => setFloaters((list) => list.filter((f) => f.id !== id)), FX_MS)
   }
 
-  // Nombres flottants + arc de loyer + shake, déclenchés par chaque résultat.
+  // Nombres flottants + arc de loyer + shake : à l'arrêt du dé, pas au lancer.
   useEffect(() => {
-    if (!result || reducedMotion) return
+    if (rolling || !result || reducedMotion) return
     const o = result.outcome
     if (result.passedStart && active) pushFloater(active.id, `+${result.salary}€`, 'up')
     if (o.kind === 'pay_rent') {
-      pushFloater(active.id, `-${o.amount}€`, 'down')
-      pushFloater(o.toPlayerId, `+${o.amount}€`, 'up')
+      pushFloater(active.id, `−${o.amount}€`, 'down', true)
+      pushFloater(o.toPlayerId, `+${o.amount}€`, 'up', true)
       const p = anchorOf(active.id)
       const w = anchorOf(o.toPlayerId)
       if (p && w) {
@@ -269,20 +285,20 @@ export default function MvGame({
         setTimeout(() => setArc((cur) => (cur && cur.id === id ? null : cur)), 1000)
       }
     }
-    if (o.kind === 'tax' && active) pushFloater(active.id, `-${o.amount}€`, 'down')
+    if (o.kind === 'tax' && active) pushFloater(active.id, `−${o.amount}€`, 'down', true)
     if (result.bankruptcy) {
       setShake(true)
       setTimeout(() => setShake(false), 620)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rollId])
+  }, [rolling])
 
   // Effets 3D pilotés par le résultat du tour : loyer (pièces qui volent) et
   // faillite (vidage des cases). Valeur dérivée — pas d'état, pas d'effet : le
   // plateau ne réagit qu'au changement d'`id`. Indépendant de reduced-motion, le
   // plateau remplace lui-même chaque effet par un fondu.
   const boardFx = useMemo(() => {
-    if (!result) return null
+    if (rolling || !result) return null
     if (result.bankruptcy) return { type: 'bankrupt', playerId: result.bankruptcy.playerId, id: `bank-${rollId}` }
     const o = result.outcome
     if (o.kind === 'pay_rent' && active) {
@@ -290,11 +306,11 @@ export default function MvGame({
     }
     return null
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rollId])
+  }, [rolling])
 
-  // Journal + événement central à chaque résultat (indépendant de reduced-motion).
+  // Journal + événement central à la révélation (indépendant de reduced-motion).
   useEffect(() => {
-    if (!result) return
+    if (rolling || !result) return
     const name = active?.name ?? 'Joueur'
     if (result.passedStart) pushLog('💰', `${name} touche ${result.salary}€ (Départ)`)
     const e = logEntryForResult(result, name)
@@ -304,7 +320,7 @@ export default function MvGame({
     else if (o.kind === 'go_jail') fireEvent('🚓', `${name} → prison`, 'bad')
     else if (o.kind === 'pay_rent' && o.amount >= 150) fireEvent('💸', `Gros loyer · ${o.amount}€`, 'bad')
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rollId])
+  }, [rolling])
 
   // Burst doré + journal quand un joueur COMPLÈTE un groupe (monopole).
   const prevMonoRef = useRef(null)
@@ -358,8 +374,8 @@ export default function MvGame({
   return (
     <div ref={gameRef} className={`mv-game ${shake ? 'is-shake' : ''}`}>
       <MvHud
-        state={state}
-        active={active}
+        state={viewState}
+        active={viewActive}
         mainAction={mainAction}
         gameLeft={gameLeft}
         turnLeft={turnLeft}
@@ -405,10 +421,11 @@ export default function MvGame({
           rare et sans retour : elle vit dans Réglages, pas sous le pouce. */}
       <div className="mv-strip">
         <MvPlayerBar
-          players={state.players}
+          players={viewPlayers}
           currentIndex={state.currentPlayerIndex}
           reducedMotion={reducedMotion}
           registerChip={registerChip}
+          moneyFx={moneyFx}
         />
 
         {myId && (onSendTrade || onMarketUse) && (
@@ -454,7 +471,7 @@ export default function MvGame({
           </svg>
         )}
         {floaters.map((f) => (
-          <span key={f.id} className={`mv-floater is-${f.tone}`} style={{ left: f.x, top: f.y }}>
+          <span key={f.id} className={`mv-floater is-${f.tone} ${f.big ? 'is-big' : ''}`} style={{ left: f.x, top: f.y }}>
             {f.text}
           </span>
         ))}

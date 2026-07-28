@@ -1763,14 +1763,29 @@
   font-size: 1.05rem;
   white-space: nowrap;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
-  animation: mv-float 1.4s ease-out forwards;
+  animation: mv-float 2s ease-out forwards;
 }
 .mv-floater.is-up { color: #4ade80; }
 .mv-floater.is-down { color: #ff6b8a; }
+/* Paiements (loyer, taxe) : plus gros et tenus plus longtemps — c'est
+   l'information que la table doit voir passer. */
+.mv-floater.is-big {
+  font-size: 1.7rem;
+  letter-spacing: -0.01em;
+  animation: mv-float-big 2s cubic-bezier(0.16, 0.9, 0.3, 1) forwards;
+}
 @keyframes mv-float {
   0% { opacity: 0; transform: translate(-50%, -60%) scale(0.7); }
-  20% { opacity: 1; transform: translate(-50%, -110%) scale(1.05); }
+  14% { opacity: 1; transform: translate(-50%, -110%) scale(1.05); }
+  70% { opacity: 1; transform: translate(-50%, -170%) scale(1); }
   100% { opacity: 0; transform: translate(-50%, -230%) scale(1); }
+}
+@keyframes mv-float-big {
+  0% { opacity: 0; transform: translate(-50%, -60%) scale(0.5); }
+  12% { opacity: 1; transform: translate(-50%, -120%) scale(1.25); }
+  22% { transform: translate(-50%, -125%) scale(1.05); }
+  72% { opacity: 1; transform: translate(-50%, -175%) scale(1.05); }
+  100% { opacity: 0; transform: translate(-50%, -250%) scale(1); }
 }
 
 /* Burst monopole */
@@ -2987,3 +3002,27 @@
 .mv-deal__chip.is-on { background: var(--mv-or); color: #1a0f2e; border-color: var(--mv-or); }
 .mv-deal__chip.is-on small { opacity: 0.8; }
 .mv-deal__send { width: 100%; margin-top: 0.3rem; }
+
+/* ── Paiement : les deux pastilles concernées s'allument ─────────────────── */
+.mv-pbar__chip.is-paying {
+  animation: mv-chip-pay 2s ease-out;
+  box-shadow: 0 0 0 2px #ff6b8a inset, 0 0 14px rgba(255, 107, 138, 0.55);
+}
+.mv-pbar__chip.is-cashing {
+  animation: mv-chip-cash 2s ease-out;
+  box-shadow: 0 0 0 2px #4ade80 inset, 0 0 14px rgba(74, 222, 128, 0.5);
+}
+@keyframes mv-chip-pay {
+  0% { transform: translateY(0) scale(1); }
+  12% { transform: translateY(3px) scale(0.94); }
+  30% { transform: translateY(0) scale(1); }
+}
+@keyframes mv-chip-cash {
+  0% { transform: translateY(0) scale(1); }
+  12% { transform: translateY(-4px) scale(1.08); }
+  34% { transform: translateY(0) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mv-pbar__chip.is-paying,
+  .mv-pbar__chip.is-cashing { animation: none; }
+}
