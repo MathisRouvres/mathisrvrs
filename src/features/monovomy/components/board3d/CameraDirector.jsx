@@ -2,10 +2,9 @@ import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
 import { useFrame, useThree } from '@react-three/fiber'
 import { cellPos } from './boardCells'
+import { framing } from './cameraDirection'
 
 const INTRO_DUR = 1.8    // fly-in d'ouverture
-const IDLE_MS = 4000     // silence requis avant de suivre le pion actif
-const GRACE_MS = 900     // silence requis avant un recadrage de phase
 const FOLLOW_LERP = 1.5  // suivi volontairement mou
 const DOLLY_LERP = 2.2
 const ORBIT_SPEED = 0.12 // rad/s : un tour complet en ~52 s
@@ -38,6 +37,8 @@ export default function CameraDirector({ shot = 'idle', reducedMotion = false, c
   const input = useRef({ last: 0, dragging: false })
   const intro = useRef({ t: 0, from: null, to: null, active: false, armed: false })
   const rest = useRef(0) // distance choisie par le joueur, base des dollys
+  const home = useRef(0) // distance de repos d'origine, retrouvée en quittant la caméra libre
+  const wasFree = useRef(false)
 
   useEffect(() => {
     const el = gl.domElement
@@ -70,14 +71,33 @@ export default function CameraDirector({ shot = 'idle', reducedMotion = false, c
     if (!controls) return
     const it = intro.current
 
+    // Distance de repos d'origine, relevée à la toute première frame : c'est le
+    // cadrage vers lequel on revient en quittant la caméra libre.
+    if (!home.current) home.current = cam.position.distanceTo(controls.target)
+
     // Caméra libre : le réalisateur se tait complètement — ni fly-in, ni suivi du
-    // pion, ni dolly de phase, ni orbite finale. On garde la distance de repos à
-    // jour pour que la reprise en main automatique reparte du cadrage du joueur.
+    // pion, ni dolly de phase, ni orbite finale.
     if (free) {
       it.armed = true
       it.active = false
-      rest.current = cam.position.distanceTo(controls.target)
+      wasFree.current = true
       return
+    }
+
+    // Retour de la caméra libre : couper le mode EST la demande de revenir au pion.
+    // On repart donc du cadrage d'origine, sans attendre le délai de silence, et on
+    // remonte la cible sur le plateau — la caméra libre autorise le déplacement
+    // latéral, elle a pu la laisser en l'air ou loin du plateau.
+    const resumed = wasFree.current
+    if (resumed) {
+      wasFree.current = false
+      rest.current = home.current
+      controls.target.setY(0)
+      // L'horloge d'inactivité est remise à zéro, sinon le suivi s'arrêterait dès
+      // la frame suivante : il repartirait du dernier geste, forcément récent
+      // puisque le joueur vient de cadrer à la main.
+      input.current.last = 0
+      input.current.dragging = false
     }
 
     // Première frame : la position posée par <Canvas camera> EST la position de jeu.
@@ -104,11 +124,8 @@ export default function CameraDirector({ shot = 'idle', reducedMotion = false, c
       return // pendant le fly-in, aucun autre mouvement ne se superpose
     }
 
-    const now = performance.now()
-    const silence = now - input.current.last
-    const busy = input.current.dragging
-    const canFrame = !busy && silence > GRACE_MS
-    const canFollow = !busy && silence > IDLE_MS
+    const silence = performance.now() - input.current.last
+    const { canFrame, canFollow } = framing({ dragging: input.current.dragging, silence, resumed })
 
     if (reducedMotion) return
 
@@ -126,6 +143,9 @@ export default function CameraDirector({ shot = 'idle', reducedMotion = false, c
     if (shot === 'dice' && canFrame) want = DICE_FOCUS
     else if (shot === 'auction' || shot === 'outro') { if (canFrame) want = [0, 0] }
     else if (shot === 'idle' && focusCell != null && canFollow) want = cellPos(focusCell)
+    // Sans pion à suivre, quitter la caméra libre ramène au moins au centre : la
+    // cible a pu être déplacée très loin par le déplacement latéral.
+    if (!want && resumed) want = [0, 0]
 
     if (want) {
       TMP.set(want[0], controls.target.y, want[1])
