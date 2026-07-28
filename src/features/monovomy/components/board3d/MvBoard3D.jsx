@@ -1,6 +1,6 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
-import { Canvas } from '@react-three/fiber'
+import { Canvas, useFrame } from '@react-three/fiber'
 import { EffectComposer, Bloom } from '@react-three/postprocessing'
 import Scene3D from './Scene3D'
 import { PLAYER_COLORS } from './playerColors'
@@ -15,6 +15,35 @@ import MvCaseDetail from '../MvCaseDetail'
 const INTRO_MS = 1800
 const DICE_MS = 1400
 
+// Demi-largeur à cadrer : le rail des titres (RAIL_WIDTH = 15) est l'élément le
+// plus large de la scène, pas le plateau lui-même.
+const FIT_HALF_WIDTH = 7.6
+const FOV_MIN = 26
+const FOV_MAX = 62
+
+/**
+ * Cadrage adaptatif : un FOV vertical figé cadre bien un canvas 4/3 et gaspille la
+ * moitié de l'écran sur un canvas portrait (le champ horizontal, lui, dépend du
+ * ratio). On dérive donc le FOV du ratio réel pour que la scène remplisse toujours
+ * la LARGEUR utile. La distance de référence est celle du cadrage de départ, pas
+ * la distance courante : les zooms du joueur ne doivent pas recadrer la scène.
+ */
+function CameraFit({ dist, halfWidth = FIT_HALF_WIDTH }) {
+  const last = useRef({ w: 0, h: 0 })
+
+  useFrame((s) => {
+    const { width, height } = s.size
+    if (last.current.w === width && last.current.h === height) return
+    last.current = { w: width, h: height }
+    const aspect = width / Math.max(1, height)
+    const fov = 2 * THREE.MathUtils.radToDeg(Math.atan(halfWidth / dist / aspect))
+    s.camera.fov = THREE.MathUtils.clamp(fov, FOV_MIN, FOV_MAX)
+    s.camera.updateProjectionMatrix()
+  })
+
+  return null
+}
+
 export default function MvBoard3D({ state, dice, reducedMotion = false, onManage, canManage = false, managePlayerId = null, justOwned = null, centerSlot = null, center = null, fx = null }) {
   const [selected, setSelected] = useState(null)
   const controlsRef = useRef(null)
@@ -25,6 +54,8 @@ export default function MvBoard3D({ state, dice, reducedMotion = false, onManage
   // Le cadrage doit inclure la BANDE PROCHE de la table (z ≈ 7,5 à 8,4) : c'est là
   // que vit le rail des titres de propriété, qui doit rester à portée sans reculer.
   const camera = isMobile ? { position: [0, 12.5, 13.5], fov: 54 } : { position: [0, 10.8, 16], fov: 47 }
+  // Distance de repos (caméra → centre du plateau), base du cadrage adaptatif.
+  const camDist = Math.hypot(...camera.position)
   // Ambiance visuelle pilotée par l'intensité de soirée (Warm-up → Finale).
   const amb = ambianceFor(state.partyIntensity)
   const selectedSpace = selected != null ? soireeBoard.spaces[selected] : null
@@ -177,6 +208,8 @@ export default function MvBoard3D({ state, dice, reducedMotion = false, onManage
               centerSlot={centerSlot}
             />
           </Suspense>
+          {/* Cadrage : ajuste le FOV au ratio du canvas (jamais la position). */}
+          <CameraFit dist={camDist} />
           {/* Seul composant autorisé à bouger la caméra. */}
           <CameraDirector
             shot={shot}
@@ -216,7 +249,7 @@ export default function MvBoard3D({ state, dice, reducedMotion = false, onManage
             dans la 3D (podium + carte), et son texte long est ancré sur la carte. */}
 
         <button type="button" className="mv-board3d__recenter" onClick={recenter} aria-label="Recentrer sur le plateau">
-          🎯 Recentrer
+          🎯<span className="mv-lbl-lg"> Recentrer</span>
         </button>
       </div>
 

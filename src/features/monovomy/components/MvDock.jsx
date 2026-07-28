@@ -6,6 +6,8 @@ import { sound } from '../game/sound'
 import { haptics } from '../game/haptics'
 import { useWakeLockConsent } from '../pwa/useWakeLock'
 import MvChat from './MvChat'
+import MvRules from './MvRules'
+import MvLegal from './MvLegal'
 
 const GROUP_COLOR = {
   brun: '#c07a3a', cyan: '#22c1c3', rose: '#ec4899', orange: '#f97316',
@@ -111,7 +113,7 @@ function RulesSheet({ state }) {
   )
 }
 
-function SettingsSheet({ onSoft, myMode }) {
+function SettingsSheet({ onSoft, myMode, onOpenDoc }) {
   const [muted, setMuted] = useState(() => sound.isMuted())
   const [haptic, setHaptic] = useState(() => haptics.isEnabled())
   const wake = useWakeLockConsent()
@@ -135,6 +137,14 @@ function SettingsSheet({ onSoft, myMode }) {
           <span>🥤 Mode soft</span><b>{myMode === 'soft' ? 'Actif' : 'Non'}</b>
         </button>
       )}
+      {/* En partie, la barre de marque disparaît sur mobile : ces deux écrans
+          restent joignables ici. */}
+      <button type="button" className="mv-settings__row" onClick={() => onOpenDoc('howto')}>
+        <span>📖 Comment jouer</span><b>›</b>
+      </button>
+      <button type="button" className="mv-settings__row" onClick={() => onOpenDoc('legal')}>
+        <span>⚖️ Mentions légales</span><b>›</b>
+      </button>
     </div>
   )
 }
@@ -165,8 +175,10 @@ export default function MvDock({
     ...(showChat ? [{ key: 'chat', label: 'Chat' }] : []),
     { key: 'settings', label: 'Réglages' },
   ]
-  // Position de la pilule de sélection : elle glisse sous l'onglet ouvert.
-  const activeIdx = items.findIndex((it) => it.key === sheet)
+  // Position de la pilule de sélection : elle glisse sous l'onglet ouvert. Les
+  // écrans documentaires s'ouvrent depuis Réglages : la pilule y reste.
+  const tab = sheet === 'howto' || sheet === 'legal' ? 'settings' : sheet
+  const activeIdx = items.findIndex((it) => it.key === tab)
 
   return (
     <>
@@ -180,7 +192,7 @@ export default function MvDock({
           <button
             key={it.key}
             type="button"
-            className={`mv-dock__btn ${sheet === it.key ? 'is-on' : ''}`}
+            className={`mv-dock__btn ${tab === it.key ? 'is-on' : ''}`}
             onClick={() => setSheet((s) => (s === it.key ? null : it.key))}
           >
             <DockIcon name={it.key} />
@@ -200,7 +212,13 @@ export default function MvDock({
       {sheet === 'chat' && showChat && (
         <Sheet title="💬 Chat" onClose={() => setSheet(null)}><MvChat messages={chat} onSend={onSendChat} /></Sheet>
       )}
-      {sheet === 'settings' && <Sheet title="⚙️ Réglages" onClose={() => setSheet(null)}><SettingsSheet onSoft={onSoft} myMode={myMode} /></Sheet>}
+      {sheet === 'settings' && (
+        <Sheet title="⚙️ Réglages" onClose={() => setSheet(null)}>
+          <SettingsSheet onSoft={onSoft} myMode={myMode} onOpenDoc={setSheet} />
+        </Sheet>
+      )}
+      {sheet === 'howto' && <Sheet title="📖 Comment jouer" onClose={() => setSheet('settings')}><MvRules /></Sheet>}
+      {sheet === 'legal' && <Sheet title="⚖️ Mentions légales" onClose={() => setSheet('settings')}><MvLegal /></Sheet>}
     </>
   )
 }

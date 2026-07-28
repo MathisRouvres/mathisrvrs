@@ -379,24 +379,28 @@ export default function MvGame({
 
       {hydrate && <p className="mv-hydrate">💧 Pense à boire de l’eau entre les tours</p>}
 
-      <MvPlayerBar
-        players={state.players}
-        currentIndex={state.currentPlayerIndex}
-        reducedMotion={reducedMotion}
-        registerChip={registerChip}
-      />
+      {/* Bandeau joueurs et actions secondaires partagent UNE seule rangée : sur
+          mobile chaque ligne prise ici est prise au plateau. */}
+      <div className="mv-strip">
+        <MvPlayerBar
+          players={state.players}
+          currentIndex={state.currentPlayerIndex}
+          reducedMotion={reducedMotion}
+          registerChip={registerChip}
+        />
 
-      <div className="mv-actions mv-actions--sec">
-        {myId && onSendTrade && (
-          <MonovomyButton variant="secondary" onClick={() => setShowTrade(true)}>
-            🤝 Échanger{tradeCount ? ` (${tradeCount})` : ''}
-          </MonovomyButton>
-        )}
-        {showFinish && (
-          <MonovomyButton variant="ghost" onClick={onFinish}>
-            Terminer la partie
-          </MonovomyButton>
-        )}
+        <div className="mv-actions mv-actions--sec">
+          {myId && onSendTrade && (
+            <MonovomyButton variant="secondary" onClick={() => setShowTrade(true)} aria-label="Échanger">
+              🤝<span className="mv-lbl-lg"> Échanger</span>{tradeCount ? ` (${tradeCount})` : ''}
+            </MonovomyButton>
+          )}
+          {showFinish && (
+            <MonovomyButton variant="ghost" onClick={onFinish} aria-label="Terminer la partie">
+              🏁<span className="mv-lbl-lg"> Terminer la partie</span>
+            </MonovomyButton>
+          )}
+        </div>
       </div>
 
       {/* CTA principal unique, contextuel, au pouce. */}
