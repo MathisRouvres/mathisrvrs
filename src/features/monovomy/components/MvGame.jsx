@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, lazy, Suspense } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react'
 import { MonovomyButton } from '../MonovomyShell'
 import MvTrade from './MvTrade'
 import MvAuction from './MvAuction'
@@ -11,6 +11,7 @@ import MvActionBar from './MvActionBar'
 import MvDock from './MvDock'
 import MvToasts from './MvToasts'
 import { soireeBoard } from '../content'
+import { centerPanelKind } from '../game/centerPanel'
 import { incomingOffers, softAlternative, evaluateReminder } from '../engine'
 import { completeGroups } from '../game/boardInsights'
 import { logEntryForResult } from '../game/journal'
@@ -255,6 +256,21 @@ export default function MvGame({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rollId])
 
+  // Effets 3D pilotés par le résultat du tour : loyer (pièces qui volent) et
+  // faillite (vidage des cases). Valeur dérivée — pas d'état, pas d'effet : le
+  // plateau ne réagit qu'au changement d'`id`. Indépendant de reduced-motion, le
+  // plateau remplace lui-même chaque effet par un fondu.
+  const boardFx = useMemo(() => {
+    if (!result) return null
+    if (result.bankruptcy) return { type: 'bankrupt', playerId: result.bankruptcy.playerId, id: `bank-${rollId}` }
+    const o = result.outcome
+    if (o.kind === 'pay_rent' && active) {
+      return { type: 'rent', spaceId: soireeBoard.spaces[active.position]?.id, playerId: o.toPlayerId, id: `rent-${rollId}` }
+    }
+    return null
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rollId])
+
   // Journal + événement central à chaque résultat (indépendant de reduced-motion).
   useEffect(() => {
     if (!result) return
@@ -305,6 +321,19 @@ export default function MvGame({
     onBuy(yes)
   }
 
+  // Descripteur de la scène centrale 3D : quel panneau est ouvert, et quel
+  // minuteur alimente la jauge circulaire du podium (enchère prioritaire).
+  const centerData = useMemo(() => {
+    const panel = centerPanelKind(state, result, rolling)
+    const auc = state.phase === 'awaiting_auction' ? state.auction : null
+    const total = (state.config?.durationMinutes ?? 0) * 60000
+    if (auc && auc.endsAt > 0) {
+      return { panel, turn: state.turn, timerLeft: auc.endsAt - now, timerTotal: (state.config?.auctionSeconds ?? 20) * 1000 }
+    }
+    return { panel, turn: state.turn, timerLeft: state.endsAt > 0 ? state.endsAt - now : -1, timerTotal: total }
+  }, [state, result, rolling, now])
+
+
   return (
     <div ref={gameRef} className={`mv-game ${shake ? 'is-shake' : ''}`}>
       <MvHud
@@ -329,6 +358,8 @@ export default function MvGame({
           canManage={canAct && (state.phase === 'awaiting_roll' || state.phase === 'turn_cleanup')}
           managePlayerId={active ? active.id : null}
           justOwned={justOwned}
+          fx={boardFx}
+          center={centerData}
           centerSlot={
             <MvCenter
               state={state}

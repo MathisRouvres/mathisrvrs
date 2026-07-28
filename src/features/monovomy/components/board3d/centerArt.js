@@ -13,15 +13,11 @@ const DRINKS = [
   { icon: 'drop', color: '#ec4899' },
 ]
 
-function roundRect(ctx, x, y, w, h, r) {
-  ctx.beginPath(); ctx.moveTo(x + r, y)
-  ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r)
-  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath()
-}
-
 /**
- * Décor central imprimé SUR le plateau : logo MONOVOMY + ruban, illustrations
- * néon et confettis (le tout tourne avec le plateau, ne flotte pas).
+ * Décor central imprimé SUR le podium : illustrations néon en filigrane et
+ * confettis, rien d'autre. Le logo et le ruban ont quitté la texture — ils sont
+ * désormais en volume et face caméra (voir CenterStage), parce qu'imprimés au sol
+ * ils devenaient illisibles dès que la caméra s'inclinait.
  */
 export function createCenterTexture() {
   const N = 1024
@@ -33,8 +29,15 @@ export function createCenterTexture() {
   ctx.imageSmoothingEnabled = true
   ctx.imageSmoothingQuality = 'high'
   const cx = N / 2, cy = N / 2
-  // Logo remonté vers le haut du plateau → laisse le centre libre pour la scène.
-  const ly = cy - 268
+
+  // Fond opaque : la texture habille désormais le DESSUS du podium (un disque), pas
+  // un plan transparent posé sur le plateau. Dégradé radial → effet piste de danse.
+  const base = ctx.createRadialGradient(cx, cy, 40, cx, cy, N / 2)
+  base.addColorStop(0, '#1d1440')
+  base.addColorStop(0.55, '#120b2a')
+  base.addColorStop(1, '#090515')
+  ctx.fillStyle = base
+  ctx.fillRect(0, 0, N, N)
 
   // Confettis en filigrane, périphérie seulement (ne concurrencent jamais l'info).
   for (let i = 0; i < 30; i += 1) {
@@ -61,25 +64,6 @@ export function createCenterTexture() {
     drawIcon(ctx, d.icon, cx + Math.cos(a) * R, cy + Math.sin(a) * R, 66, d.color)
   })
   ctx.restore()
-
-  // Logo MONOVOMY — police de marque, glow net et maîtrisé (imprimé en haut).
-  ctx.textAlign = 'left'; ctx.textBaseline = 'middle'
-  ctx.font = "800 92px 'Fredoka', 'Poppins', sans-serif"
-  const mono = 'MONO', vomy = 'VOMY'
-  const wm = ctx.measureText(mono).width
-  const wv = ctx.measureText(vomy).width
-  const x0 = cx - (wm + wv) / 2
-  ctx.shadowBlur = 11; ctx.lineWidth = 2
-  ctx.shadowColor = 'rgba(245, 178, 26, 0.7)'; ctx.fillStyle = '#f5b21a'; ctx.fillText(mono, x0, ly)
-  ctx.shadowColor = 'rgba(236, 30, 121, 0.7)'; ctx.fillStyle = '#ec1e79'; ctx.fillText(vomy, x0 + wm, ly)
-
-  // Ruban « signature » sous le logo, compact.
-  ctx.shadowBlur = 8; ctx.shadowColor = 'rgba(236, 30, 121, 0.55)'
-  roundRect(ctx, cx - 148, ly + 60, 296, 42, 21); ctx.fillStyle = '#ec1e79'; ctx.fill()
-  ctx.shadowBlur = 0; ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'
-  ctx.letterSpacing = '2px'
-  ctx.font = "700 21px 'Fredoka', 'Poppins', sans-serif"; ctx.fillText('LE MONOPOLY À BOIRE', cx, ly + 82)
-  ctx.letterSpacing = '0px'
 
   const tex = new THREE.CanvasTexture(cv)
   tex.anisotropy = 16

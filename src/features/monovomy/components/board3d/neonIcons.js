@@ -1,9 +1,12 @@
-/** Icônes néon en trait, dessinées sur un canvas 2D (centrées cx,cy, taille s). */
-export function drawIcon(ctx, name, cx, cy, s, color) {
+/**
+ * Icônes néon en trait, dessinées sur un canvas 2D (centrées cx,cy, taille s).
+ * `glow` = intensité du halo, en fraction de s (0 = trait net, sans halo).
+ */
+export function drawIcon(ctx, name, cx, cy, s, color, glow = 0.5) {
   ctx.save()
   ctx.strokeStyle = color; ctx.fillStyle = color
   ctx.lineWidth = Math.max(3, s * 0.09); ctx.lineJoin = 'round'; ctx.lineCap = 'round'
-  ctx.shadowColor = color; ctx.shadowBlur = s * 0.5
+  ctx.shadowColor = color; ctx.shadowBlur = s * glow; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0
   const P = (x, y) => [cx + x * s, cy + y * s]
   const line = (pts) => { ctx.beginPath(); pts.forEach((p, i) => { const [x, y] = P(p[0], p[1]); if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y) }); ctx.stroke() }
   switch (name) {
