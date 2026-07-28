@@ -33,7 +33,7 @@ function easeInOutCubic(t) {
  * sur l'orbite : on ne fait que déplacer sa cible et ajuster la distance, jamais
  * remplacer ses contraintes (pan, min/maxDistance, angles polaires).
  */
-export default function CameraDirector({ shot = 'idle', reducedMotion = false, controlsRef, focusCell = null }) {
+export default function CameraDirector({ shot = 'idle', reducedMotion = false, controlsRef, focusCell = null, free = false }) {
   const gl = useThree((s) => s.gl)
   const input = useRef({ last: 0, dragging: false })
   const intro = useRef({ t: 0, from: null, to: null, active: false, armed: false })
@@ -69,6 +69,16 @@ export default function CameraDirector({ shot = 'idle', reducedMotion = false, c
     const cam = s.camera
     if (!controls) return
     const it = intro.current
+
+    // Caméra libre : le réalisateur se tait complètement — ni fly-in, ni suivi du
+    // pion, ni dolly de phase, ni orbite finale. On garde la distance de repos à
+    // jour pour que la reprise en main automatique reparte du cadrage du joueur.
+    if (free) {
+      it.armed = true
+      it.active = false
+      rest.current = cam.position.distanceTo(controls.target)
+      return
+    }
 
     // Première frame : la position posée par <Canvas camera> EST la position de jeu.
     if (!it.armed) {

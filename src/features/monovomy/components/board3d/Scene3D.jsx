@@ -894,7 +894,7 @@ function DiceSet({ dice }) {
   )
 }
 
-export default function Scene3D({ state, onSelect, dice, reducedMotion = false, lite = false, topDown = false, showEstates = true, ambiance, monopolySpaces, buildings, mortgaged, justOwned, targetSpace, controlsRef, fx = null, center = null, centerSlot = null }) {
+export default function Scene3D({ state, onSelect, dice, reducedMotion = false, lite = false, topDown = false, showEstates = true, freeCam = false, ambiance, monopolySpaces, buildings, mortgaged, justOwned, targetSpace, controlsRef, fx = null, center = null, centerSlot = null }) {
   // Re-génère les textures une fois les polices web prêtes (sinon fallback système).
   const [fontTick, setFontTick] = useState(0)
   useEffect(() => {
@@ -930,7 +930,20 @@ export default function Scene3D({ state, onSelect, dice, reducedMotion = false, 
   // pion actif compris), seul endroit autorisé à la toucher.
   return (
     <>
-      <OrbitControls ref={controlsRef} makeDefault enablePan={false} enableDamping={!reducedMotion} dampingFactor={0.08} minDistance={topDown ? 8 : 11} maxDistance={26} minPolarAngle={topDown ? 0.12 : 0.5} maxPolarAngle={1.25} target={[0, 0, 0]} />
+      {/* Caméra libre : les butées s'ouvrent (déplacement latéral, zoom plus large,
+          vue plus rasante). Sinon elles gardent le plateau cadré quoi qu'il arrive. */}
+      <OrbitControls
+        ref={controlsRef}
+        makeDefault
+        enablePan={freeCam}
+        enableDamping={!reducedMotion}
+        dampingFactor={0.08}
+        minDistance={freeCam ? 3 : topDown ? 8 : 11}
+        maxDistance={freeCam ? 60 : 26}
+        minPolarAngle={freeCam ? 0 : topDown ? 0.12 : 0.5}
+        maxPolarAngle={freeCam ? 1.5 : 1.25}
+        target={[0, 0, 0]}
+      />
       {/* Faces de cases moins auto-illuminées (0,9 → 0,55) : le relief vient
           maintenant de la lumière, donc ambiante et clé sont remontées d'autant. */}
       <AmbianceLights ambiance={amb} reducedMotion={reducedMotion} lite={lite} vignetteRef={vignetteMatRef} />

@@ -5,6 +5,7 @@ import { playerColor } from './board3d/playerColors'
 import { sound } from '../game/sound'
 import { haptics } from '../game/haptics'
 import { useWakeLockConsent } from '../pwa/useWakeLock'
+import { useFreeCam } from '../game/freeCam'
 import { APP_BUILD } from '../pwa/buildInfo'
 import MvChat from './MvChat'
 import MvRules from './MvRules'
@@ -160,6 +161,7 @@ function SettingsSheet({ onSoft, myMode, onOpenDoc, onFinish }) {
   const [muted, setMuted] = useState(() => sound.isMuted())
   const [haptic, setHaptic] = useState(() => haptics.isEnabled())
   const wake = useWakeLockConsent()
+  const cam = useFreeCam()
   return (
     <div className="mv-settings">
       <button type="button" className="mv-settings__row" onClick={() => { const n = !muted; sound.setMuted(n); setMuted(n) }}>
@@ -175,6 +177,9 @@ function SettingsSheet({ onSoft, myMode, onOpenDoc, onFinish }) {
           <span>🔆 Écran allumé</span><b>{wake.consent ? 'Oui' : 'Non'}</b>
         </button>
       )}
+      <button type="button" className="mv-settings__row" onClick={cam.toggle} aria-pressed={cam.free}>
+        <span>🎥 Caméra libre</span><b>{cam.free ? 'Active' : 'Non'}</b>
+      </button>
       {onSoft && (
         <button type="button" className="mv-settings__row" onClick={() => onSoft(myMode === 'soft' ? 'alcohol' : 'soft')}>
           <span>🥤 Mode soft</span><b>{myMode === 'soft' ? 'Actif' : 'Non'}</b>

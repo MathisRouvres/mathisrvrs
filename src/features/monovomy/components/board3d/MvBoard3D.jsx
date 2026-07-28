@@ -7,6 +7,7 @@ import { PLAYER_COLORS } from './playerColors'
 import { soireeBoard } from '../../content'
 import { completeGroups } from '../../game/boardInsights'
 import { useDeviceProfile } from '../../game/useDeviceProfile'
+import { useFreeCam } from '../../game/freeCam'
 import { ambianceFor } from './ambiance'
 import { propertyManagement, ranking } from '../../engine'
 import CameraDirector from './CameraDirector'
@@ -70,6 +71,7 @@ export default function MvBoard3D({ state, dice, reducedMotion = false, onManage
   const [selected, setSelected] = useState(null)
   const controlsRef = useRef(null)
   const { isMobile, lowPerf, weak } = useDeviceProfile()
+  const freeCam = useFreeCam()
   // Rendu allégé (reflets, bloom, ombres) : mouvement réduit OU faible perf.
   const lite = reducedMotion || lowPerf
   // La DÉFINITION, elle, ne suit plus le rendu allégé. Un écran à 3 dpr rendu à
@@ -231,6 +233,7 @@ export default function MvBoard3D({ state, dice, reducedMotion = false, onManage
               lite={lite}
               topDown={isMobile}
               showEstates={showEstates}
+              freeCam={freeCam.free}
               ambiance={amb}
               monopolySpaces={monopolySpaces}
               buildings={state.buildings}
@@ -251,6 +254,7 @@ export default function MvBoard3D({ state, dice, reducedMotion = false, onManage
             reducedMotion={reducedMotion}
             controlsRef={controlsRef}
             focusCell={active ? active.position : null}
+            free={freeCam.free}
           />
           {/* Bloom = flou coûteux : coupé en rendu allégé (mobile / faible perf). */}
           {!lite && (
@@ -283,9 +287,21 @@ export default function MvBoard3D({ state, dice, reducedMotion = false, onManage
         {/* La scène centrale n'est plus un calque HTML posé sur le canvas : elle vit
             dans la 3D (podium + carte), et son texte long est ancré sur la carte. */}
 
-        <button type="button" className="mv-board3d__recenter" onClick={recenter} aria-label="Recentrer sur le plateau">
-          🎯<span className="mv-lbl-lg"> Recentrer</span>
-        </button>
+        <div className="mv-board3d__tools">
+          <button
+            type="button"
+            className={`mv-board3d__tool ${freeCam.free ? 'is-on' : ''}`}
+            onClick={freeCam.toggle}
+            aria-pressed={freeCam.free}
+            aria-label="Caméra libre"
+            title={freeCam.free ? 'Caméra libre active — le plateau ne se recadre plus' : 'Caméra libre : plus aucun recadrage automatique'}
+          >
+            🎥<span className="mv-lbl-lg"> Caméra libre</span>
+          </button>
+          <button type="button" className="mv-board3d__tool" onClick={recenter} aria-label="Recentrer sur le plateau">
+            🎯<span className="mv-lbl-lg"> Recentrer</span>
+          </button>
+        </div>
       </div>
 
       <p className="mv-board3d__hint">↻ Glisse pour tourner · pince pour zoomer · double-tap pour recentrer · tape une case</p>
