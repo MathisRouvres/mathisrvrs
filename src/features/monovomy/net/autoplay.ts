@@ -10,6 +10,7 @@ import type { Intent } from './protocol'
  *  - awaiting_jail  → tenter un double (n’engage pas de cash tant que non forcé)
  *  - awaiting_purchase → refuser l’achat
  *  - awaiting_card  → accuser réception
+ *  - awaiting_market → quitter le marché sans acheter
  *  - turn_cleanup   → terminer le tour
  */
 export function defaultIntentForPhase(phase: GamePhase): Intent | null {
@@ -22,6 +23,8 @@ export function defaultIntentForPhase(phase: GamePhase): Intent | null {
       return { type: 'buy', yes: false }
     case 'awaiting_card':
       return { type: 'ackCard' }
+    case 'awaiting_market':
+      return { type: 'marketBuy', cardId: null, pay: 'cash' }
     case 'awaiting_trade':
     case 'turn_cleanup':
       return { type: 'endTurn' }

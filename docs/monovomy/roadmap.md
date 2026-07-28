@@ -78,21 +78,25 @@ du rejeu préservé (test Phase 5 vert).
   expire au bout de **20 s** (`TRADE_TTL_MS`) — la partie n’est jamais bloquée.
   Pur et sérialisable ; le temps entre par un `now` injecté (déterministe).
 - **Structure** `TradeOffer { id, senderId, receiverId, offeredAssets,
-  requestedAssets, status, createdAt, expiresAt }` · statuts `draft/pending/
-  accepted/declined/countered/expired/cancelled`. Actifs : **cash, propriétés,
-  cartes conservables** (jetons prison). **Jamais de gorgées.**
+  requestedAssets, status, createdAt, expiresAt }` · statuts `pending/accepted/
+  declined/countered/expired/cancelled`. Actifs : **cash, propriétés, jetons de
+  cuve et cartes du Marché Noir**. **Jamais de gorgées.**
 - **Validation à l’acceptation** : les deux joueurs possèdent encore leurs actifs
   (cash, propriétés, cartes), sont actifs, l’offre n’est pas expirée. **Transfert
   atomique** tout-ou-rien. Idempotent : rejeu réseau ⇒ pas de double transfert.
-- **Contre-propositions** (`counterOffer`) + **réactions rapides** (`too_expensive`,
-  `add_property`, `deal`, `never`, `last_offer`) — négociation sans chat libre.
+- **Contre-propositions** (`counterOffer`) : l'offre reçue est renvoyée inversée
+  et déjà pré-remplie. Les « réactions rapides » ont été **supprimées** (Phase 12) —
+  cinq boutons de chat pour rien, au détriment de la lisibilité.
 - **Estimation d’équilibre** informative (`estimateTrade` → avantageux / équilibré /
   risqué) qui **ne décide jamais** à la place du joueur.
-- **UI mobile** (`components/MvTrade.jsx`) : « Tu donnes / Tu reçois », boutons
-  rapides +50/+100 €, ajout/retrait de propriété, Deal/Refuser/Contre.
+- **UI mobile** (`components/MvTrade.jsx`) — **refondue en Phase 12**, un écran =
+  une décision : `inbox` (offres reçues en grand : Accepter / Contre / Refuser),
+  `who` (à qui ? un tap sur un joueur), `compose` (deux paniers, curseur d'argent,
+  pastilles d'actifs, verdict en une phrase). Voir `negociation.md`.
 - **Tests** (`engine/trade.test.ts`) : accepté, refusé, expiré, contre-proposition,
   actif vendu entre création et acceptation, joueur en faillite, double acceptation,
-  rejeu du même message réseau (un seul transfert), conservation (zéro duplication).
+  rejeu du même message réseau (un seul transfert), conservation (zéro duplication),
+  échange de cartes de marché (doublons compris) et plafond d'inventaire.
 
 ## Étape 5 — livré (boucle de partie complète)
 

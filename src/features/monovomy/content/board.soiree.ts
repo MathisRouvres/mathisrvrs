@@ -3,7 +3,7 @@ import type { BoardTheme } from './schema'
 /**
  * Thème de plateau « Soirée » — 40 cases, univers 100% boisson.
  * Structure Monopoly : 22 propriétés (8 groupes), 4 gares, 2 services,
- * 6 cases action, 2 taxes, 4 coins. Prix/loyers dérivés du barème classique
+ * 5 cases action, 1 Marché Noir (case 17), 2 taxes, 4 coins. Prix/loyers dérivés du barème classique
  * (à équilibrer par simulation en Étape 3). sipTier : 1 = 1 gorgée,
  * 2 = 2 gorgées, 3 = cul sec (voir GDD §5).
  */
@@ -29,7 +29,7 @@ export const soireeBoard: BoardTheme = {
     { kind: 'property', id: 'passage_mojito', name: 'Passage du Mojito', group: 'rose', price: 160, rents: [12, 60, 180, 500, 700, 900], sipTier: 1 },
     { kind: 'station', id: 'gare_dernier_metro', name: 'Dernier Métro', price: 200, rents: [25, 50, 100, 200], sipTier: 1 },
     { kind: 'property', id: 'av_rhum', name: 'Avenue du Rhum', group: 'orange', price: 180, rents: [14, 70, 200, 550, 750, 950], sipTier: 2 },
-    { kind: 'action', id: 'action_3', name: 'Carte Action' },
+    { kind: 'market', id: 'marche_noir', name: 'Marché Noir' },
     { kind: 'property', id: 'rue_vodka', name: 'Rue de la Vodka', group: 'orange', price: 180, rents: [14, 70, 200, 550, 750, 950], sipTier: 2 },
     { kind: 'property', id: 'place_gin', name: 'Place du Gin', group: 'orange', price: 200, rents: [16, 80, 220, 600, 800, 1000], sipTier: 2 },
     { kind: 'parking', id: 'bar_ouvert', name: 'Bar Ouvert' },

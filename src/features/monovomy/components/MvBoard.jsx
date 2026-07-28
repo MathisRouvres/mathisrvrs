@@ -9,7 +9,7 @@ const GROUP_COLOR = {
   rouge: '#ef4444', jaune: '#f5b21a', vert: '#22c55e', bleu: '#3b82f6',
 }
 const KIND_ICON = {
-  start: '🏁', action: '❓', tax: '💸', jail: '🔒', gojail: '🚨', parking: '🍹', station: '🚕', utility: '🚰',
+  start: '🏁', action: '❓', tax: '💸', jail: '🔒', gojail: '🚨', parking: '🍹', market: '🕶️', station: '🚕', utility: '🚰',
 }
 const PAWN_COLORS = ['#7c3aed', '#ec1e79', '#22c1c3', '#f5b21a', '#f97316', '#22c55e', '#3b82f6', '#e11d48']
 

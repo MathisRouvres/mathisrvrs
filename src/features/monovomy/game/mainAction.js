@@ -24,6 +24,8 @@ export function selectMainAction({ phase, canAct, activeName, finished }) {
       return { key: 'buy', label: 'Acheter ou passer', icon: '🏠', waiting: false }
     case 'awaiting_card':
       return { key: 'card', label: 'Résous la carte', icon: '🃏', waiting: false }
+    case 'awaiting_market':
+      return { key: 'market', label: 'Marché Noir', icon: '🕶️', waiting: false }
     case 'awaiting_trade':
       return { key: 'trade', label: 'Réponds à l’offre', icon: '🤝', waiting: false }
     default:

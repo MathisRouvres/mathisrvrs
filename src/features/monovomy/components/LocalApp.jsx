@@ -32,6 +32,8 @@ export default function LocalApp({ onExit }) {
           onManage={game.manage}
           onBid={game.auctionBid}
           onPass={game.auctionPass}
+          onMarketBuy={game.marketBuy}
+          onMarketUse={game.marketUse}
           auctionControllableIds={game.state.auction ? game.state.auction.activeBidders : []}
           onFinish={game.finish}
         />

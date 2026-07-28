@@ -51,6 +51,13 @@ export interface PlayerState extends PlayerSetup {
   jailCards: number
   bankrupt: boolean
   eliminated: boolean
+  // ── Marché Noir (Phase 12) — champs optionnels, snapshots antérieurs valides ──
+  /** Cartes de marché détenues (max `MARKET_MAX_CARDS`). */
+  marketCards?: string[]
+  /** Bouclier armé : annule les gorgées de la prochaine sanction subie. */
+  shielded?: boolean
+  /** Dé Truqué armé : le prochain lancer est doublé, le plus haut total est retenu. */
+  loadedDie?: boolean
 }
 
 /**
@@ -72,6 +79,7 @@ export type GamePhase =
   | 'awaiting_card'
   | 'awaiting_trade'
   | 'awaiting_auction'
+  | 'awaiting_market'
   | 'turn_cleanup'
   | 'finished'
 
@@ -89,6 +97,33 @@ export interface AuctionState {
   minIncrement: number
   /** Fin d'enchère (timestamp absolu ms). 0 tant que non estampillé. */
   endsAt: number
+}
+
+/** Stock de cartes en vente au Marché Noir (Phase 12). */
+export interface MarketState {
+  /** Identifiants des cartes proposées (taille `MARKET_STOCK_SIZE`). */
+  stock: string[]
+}
+
+/** Dernier loyer payé — support du Passe-Droit (annulation rétroactive). */
+export interface LastRent {
+  payerId: string
+  ownerId: string
+  spaceId: string
+  amount: number
+  sips: number
+  /** Tour individuel où le loyer a été payé : le Passe-Droit n'agit que sur le tour courant. */
+  turnStep: number
+}
+
+/** Annonce publique d'une carte de marché jouée (les effets déclaratifs vivent ici). */
+export interface MarketAnnounce {
+  seq: number
+  cardId: string
+  byId: string
+  targetId: string | null
+  effect: string
+  turnStep: number
 }
 
 /** État global d’une partie MonoVomy. */
@@ -145,6 +180,19 @@ export interface GameState {
   cardsPlayed: number
   /** Compteur monotone de tours individuels (expiration des règles). */
   turnStep: number
+  // ── Marché Noir (Phase 12) — tout est optionnel (rétrocompatibilité snapshots) ──
+  /** Stock en vente. Absent = marché jamais approvisionné. */
+  market?: MarketState | null
+  /** Dernier loyer payé (support du Passe-Droit). */
+  lastRent?: LastRent | null
+  /** Annonces récentes (bornées à `MARKET_LOG_MAX`). */
+  marketLog?: MarketAnnounce[]
+  /** Compteur d'annonces (déterministe). */
+  marketSeq?: number
+  /** Nombre de tirages de stock (indexe le flux PRNG dédié au marché). */
+  marketDraws?: number
+  /** Carte action dont les gorgées ont été absorbées par un Bouclier au tirage. */
+  shieldedCardId?: string | null
 }
 
 export interface DiceRoll {
@@ -175,6 +223,8 @@ export type SpaceOutcome =
   | { kind: 'jail_out'; name: string; via: 'bail' | 'card'; sips: number }
   | { kind: 'tax'; name: string; amount: number; sips: number }
   | { kind: 'draw_card'; cardId: string }
+  /** Marché Noir : cartes en vente, payables en argent ou en gorgées. */
+  | { kind: 'market'; name: string; offers: string[] }
   | { kind: 'buy_offer'; spaceId: string; name: string; price: number }
   | { kind: 'cannot_afford'; name: string; price: number }
   | { kind: 'own_property'; name: string }

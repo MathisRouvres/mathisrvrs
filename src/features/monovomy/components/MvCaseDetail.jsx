@@ -19,6 +19,7 @@ const KIND_META = {
   jail: { label: 'Cuve · visite', icon: '🔒', color: '#22c1c3' },
   gojail: { label: 'Au poste', icon: '🚓', color: '#ef4d63' },
   parking: { label: 'Bar ouvert', icon: '🍹', color: '#8b5cf6' },
+  market: { label: 'Marché noir', icon: '🕶️', color: '#0f172a' },
 }
 
 /** Libellé d'un palier de loyer (0 = base, 1..4 maisons, 5 hôtel). */

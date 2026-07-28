@@ -19,7 +19,8 @@ export default function MvActionBar({
   onNext,
   onJail,
 }) {
-  if (phase === 'awaiting_auction') return null
+  // Enchère et Marché Noir ont leur propre surface d'action (panneau dédié).
+  if (phase === 'awaiting_auction' || phase === 'awaiting_market') return null
 
   let content
   if (!canAct) {

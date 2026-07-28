@@ -7,7 +7,6 @@ import {
   respondOffer,
   counterOffer,
   cancelOffer,
-  reactOffer,
   expireTrades,
   incomingOffers,
   estimateTrade,
@@ -53,7 +52,15 @@ function baseState(): GameState {
 const totals = (s: GameState) => ({
   cash: s.players.reduce((a, p) => a + p.cash, 0),
   props: s.players.reduce((a, p) => a + p.ownedSpaceIds.length, 0),
+  cards: s.players.reduce((a, p) => a + (p.marketCards ?? []).length, 0),
 })
+
+/** Place des cartes de marché dans la main d'un joueur (état de test). */
+function hand(state: GameState, playerId: string, cards: string[]): GameState {
+  const s = cloneState(state)
+  s.players.find((p) => p.id === playerId)!.marketCards = [...cards]
+  return s
+}
 
 describe('Phase 7 — négociation', () => {
   it('échange accepté : transfert atomique, aucune duplication', () => {
@@ -143,7 +150,7 @@ describe('Phase 7 — négociation', () => {
   it('réception du même message réseau plusieurs fois → un seul transfert', () => {
     const seats = { c1: 0, c2: 1, c3: 2 }
     const s0 = baseState()
-    const create = applyIntent(s0, 'c1', seats, { type: 'tradeCreate', receiverId: 'p2', offered: { cash: 300, properties: [], jailCards: 0 }, requested: { cash: 0, properties: [PB], jailCards: 0 } }, BOARD, 1000)
+    const create = applyIntent(s0, 'c1', seats, { type: 'tradeCreate', receiverId: 'p2', offered: { cash: 300, properties: [], jailCards: 0, cards: [] }, requested: { cash: 0, properties: [PB], jailCards: 0, cards: [] } }, BOARD, 1000)
     expect(create.error).toBeNull()
     const offerId = create.state.trades[0]!.id
     const resp = { type: 'tradeRespond', offerId, accept: true } as const
@@ -165,15 +172,67 @@ describe('Phase 7 — négociation', () => {
     expect(est.receiverDelta).toBe(1000)
   })
 
-  it('réactions rapides + annulation', () => {
+  it('annulation par l’émetteur', () => {
     const s0 = baseState()
     const created = createOffer(s0, 'p1', 'p2', { cash: 100 }, {}, 1000)
-    const reacted = reactOffer(created.state, created.offer!.id, 'p2', 'too_expensive', 1100)
-    expect(reacted.state.trades[0]!.lastReaction!.reaction).toBe('too_expensive')
-    const cancelled = cancelOffer(reacted.state, created.offer!.id, 'p1')
+    const cancelled = cancelOffer(created.state, created.offer!.id, 'p1')
     expect(cancelled.offer!.status).toBe('cancelled')
     // Après annulation, plus rien à répondre.
     const resp = respondOffer(cancelled.state, created.offer!.id, 'p2', true, 1200)
     expect(resp.error).toBe('trade_not_pending')
+  })
+
+  it('échange une carte du Marché Noir : transfert atomique des deux mains', () => {
+    let s0 = baseState()
+    s0 = hand(s0, 'p1', ['mk_bouclier'])
+    s0 = hand(s0, 'p2', ['mk_miroir'])
+    const before = totals(s0)
+
+    const created = createOffer(s0, 'p1', 'p2', { cards: ['mk_bouclier'] }, { cards: ['mk_miroir'] }, 1000)
+    expect(created.error).toBeNull()
+    const done = respondOffer(created.state, created.offer!.id, 'p2', true, 1100)
+    expect(done.error).toBeNull()
+
+    expect(done.state.players.find((p) => p.id === 'p1')!.marketCards).toEqual(['mk_miroir'])
+    expect(done.state.players.find((p) => p.id === 'p2')!.marketCards).toEqual(['mk_bouclier'])
+    expect(totals(done.state)).toEqual(before)
+  })
+
+  it('carte absente de la main → asset_unavailable', () => {
+    const s0 = hand(baseState(), 'p1', ['mk_bouclier'])
+    const created = createOffer(s0, 'p1', 'p2', { cards: ['mk_miroir'] }, { cash: 100 }, 1000)
+    expect(respondOffer(created.state, created.offer!.id, 'p2', true, 1100).error).toBe('asset_unavailable')
+  })
+
+  it('gère les doublons : deux Boucliers cédés, un seul reste', () => {
+    const s0 = hand(baseState(), 'p1', ['mk_bouclier', 'mk_bouclier', 'mk_miroir'])
+    const created = createOffer(s0, 'p1', 'p2', { cards: ['mk_bouclier', 'mk_bouclier'] }, { cash: 100 }, 1000)
+    const done = respondOffer(created.state, created.offer!.id, 'p2', true, 1100)
+    expect(done.error).toBeNull()
+    expect(done.state.players.find((p) => p.id === 'p1')!.marketCards).toEqual(['mk_miroir'])
+    expect(done.state.players.find((p) => p.id === 'p2')!.marketCards).toEqual(['mk_bouclier', 'mk_bouclier'])
+  })
+
+  it('refuse un échange qui ferait déborder l’inventaire (3 cartes max)', () => {
+    let s0 = hand(baseState(), 'p1', ['mk_bouclier'])
+    s0 = hand(s0, 'p2', ['mk_miroir', 'mk_baillon', 'mk_tournee'])
+    const created = createOffer(s0, 'p1', 'p2', { cards: ['mk_bouclier'] }, { cash: 100 }, 1000)
+    expect(respondOffer(created.state, created.offer!.id, 'p2', true, 1100).error).toBe('inventory_full')
+  })
+
+  it('accepte quand l’échange laisse la main pile au plafond', () => {
+    let s0 = hand(baseState(), 'p1', ['mk_bouclier'])
+    s0 = hand(s0, 'p2', ['mk_miroir', 'mk_baillon', 'mk_tournee'])
+    // p2 cède une carte en même temps qu'il en reçoit une : la main reste à 3.
+    const created = createOffer(s0, 'p1', 'p2', { cards: ['mk_bouclier'] }, { cards: ['mk_tournee'] }, 1000)
+    const done = respondOffer(created.state, created.offer!.id, 'p2', true, 1100)
+    expect(done.error).toBeNull()
+    expect(done.state.players.find((p) => p.id === 'p2')!.marketCards).toHaveLength(3)
+  })
+
+  it('valorise une carte à son prix de marché dans l’estimation', () => {
+    const s0 = hand(baseState(), 'p1', ['mk_miroir'])
+    const created = createOffer(s0, 'p1', 'p2', { cards: ['mk_miroir'] }, {}, 1000)
+    expect(estimateTrade(BOARD, created.offer!).receiverDelta).toBe(300)
   })
 })

@@ -14,7 +14,6 @@ import {
   respondOffer,
   counterOffer,
   cancelOffer,
-  reactOffer,
   activateRule,
   setDrinkMode,
   build,
@@ -23,7 +22,11 @@ import {
   unmortgage,
   placeBid,
   passBid,
+  buyMarketCard,
+  skipMarket,
+  playMarketCard,
   type TradeError,
+  type MarketError,
   type BuildingError,
   type AuctionError,
 } from '../engine'
@@ -34,11 +37,18 @@ import type { ClientId, Intent, SyncResult } from './protocol'
 export interface ApplyResult {
   state: GameState
   sync: SyncResult | null
-  error: IntentError | TradeError | BuildingError | AuctionError | null
+  error: IntentError | TradeError | BuildingError | AuctionError | MarketError | null
 }
 
 /** Intentions « canal parallèle » : hors machine à états du tour (négociation + ambiance). */
-const SIDE_TYPES = new Set(['tradeCreate', 'tradeRespond', 'tradeCounter', 'tradeCancel', 'tradeReact', 'setDrinkMode'])
+const SIDE_TYPES = new Set([
+  'tradeCreate',
+  'tradeRespond',
+  'tradeCounter',
+  'tradeCancel',
+  'setDrinkMode',
+  'marketUse',
+])
 
 /** Intentions d'enchère : tout joueur non éliminé, uniquement en phase awaiting_auction. */
 const AUCTION_TYPES = new Set(['bid', 'passBid'])
@@ -127,6 +137,13 @@ export function applyIntent(
     }
     case 'endTurn':
       return { state: endTurn(state), sync: null, error: null }
+    case 'marketBuy': {
+      const meId = state.players[state.currentPlayerIndex]?.id
+      if (!meId) return { state, sync: null, error: 'not_participant' }
+      if (intent.cardId === null) return { state: skipMarket(state), sync: null, error: null }
+      const r = buyMarketCard(state, meId, intent.cardId, intent.pay)
+      return { state: r.state, sync: null, error: r.error }
+    }
     case 'build':
     case 'sellBuilding':
     case 'mortgage':
@@ -165,12 +182,12 @@ function applySideChannel(state: GameState, meId: string, intent: Intent, now: n
       const r = cancelOffer(state, intent.offerId, meId)
       return { state: r.state, sync: null, error: r.error }
     }
-    case 'tradeReact': {
-      const r = reactOffer(state, intent.offerId, meId, intent.reaction, now)
-      return { state: r.state, sync: null, error: r.error }
-    }
     case 'setDrinkMode':
       return { state: setDrinkMode(state, meId, intent.mode), sync: null, error: null }
+    case 'marketUse': {
+      const r = playMarketCard(state, meId, intent.cardId, intent.targetId ?? null)
+      return { state: r.state, sync: null, error: r.error }
+    }
     default:
       return { state, sync: null, error: 'trade_not_found' }
   }

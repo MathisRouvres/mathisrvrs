@@ -8,9 +8,10 @@ const ICON_PROP = { brun: 'glass', cyan: 'martini', rose: 'martini', orange: 'wh
 const SPECIAL_LABEL = {
   start: 'DÉPART', tax: 'TAXE', parking: 'TOUS BOIVENT', jail: 'PAUSE',
   gojail: 'AU POSTE', action: 'CARTE', station: 'GARE', utility: 'SERVICE',
+  market: 'MARCHÉ NOIR',
 }
 /** Cases rendues « icône + libellé » (jamais de prix), y compris gares et services. */
-const ICON_ONLY = new Set(['start', 'jail', 'gojail', 'parking', 'station', 'utility', 'tax', 'action'])
+const ICON_ONLY = new Set(['start', 'jail', 'gojail', 'parking', 'station', 'utility', 'tax', 'action', 'market'])
 
 // Espace de dessin logique de la texture (carré). Toutes les coordonnées ci-dessous
 // sont exprimées dans ce repère ; le canvas réel est sur-échantillonné (voir texScale).
@@ -33,6 +34,7 @@ function iconFor(kind, group) {
   if (kind === 'jail') return 'glass'
   if (kind === 'gojail') return 'arrow'
   if (kind === 'utility') return 'shot'
+  if (kind === 'market') return 'cards'
   return ICON_PROP[group] || 'glass'
 }
 
@@ -51,6 +53,7 @@ function colorFor(kind, group) {
   if (kind === 'jail') return '#22c1c3'
   if (kind === 'gojail') return '#ef4d63'
   if (kind === 'utility') return '#22c1c3'
+  if (kind === 'market') return '#0f172a'
   return G[group] || '#8b5cf6'
 }
 

@@ -80,6 +80,19 @@ export const HYDRATION_INTERVAL_MS = 8 * 60_000
 /** Séquence de sanctions symboliques déclenchant un rappel. */
 export const SANCTION_STREAK_REMINDER = 6
 
+/** Marché Noir (Phase 12). Taux de change de la maison : 1 gorgée = 50 €. */
+export const SIPS_TO_CASH = 50
+/** Cartes de marché détenues simultanément par un joueur. */
+export const MARKET_MAX_CARDS = 3
+/** Cartes proposées à la vente en permanence sur la case Marché Noir. */
+export const MARKET_STOCK_SIZE = 3
+/** Gorgées maximum transférées par une Procuration. */
+export const PROXY_MAX_SIPS = 4
+/** Gorgées maximum encaissées par un Bâillon avant qu'il ne tombe. */
+export const GAG_MAX_SIPS = 5
+/** Annonces de marché conservées dans l'état (les plus récentes). */
+export const MARKET_LOG_MAX = 8
+
 /** Négociation / échanges (Phase 7). */
 export const TRADE_TTL_MS = 20_000
 /** Nombre max d’offres conservées dans l’état (les plus récentes). */

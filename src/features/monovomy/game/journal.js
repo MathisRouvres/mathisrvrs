@@ -19,6 +19,8 @@ export function logEntryForResult(result, activeName) {
       return { icon: '🚓', text: `${activeName} file en prison` }
     case 'draw_card':
       return { icon: '🃏', text: `${activeName} tire une carte` }
+    case 'market':
+      return { icon: '🕶️', text: `${activeName} entre au Marché Noir` }
     case 'jail_stay':
       return { icon: '🔒', text: `${activeName} reste en cuve` }
     case 'jail_out':

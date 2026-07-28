@@ -1252,29 +1252,6 @@
 .mv-sips--soft { color: #bdf3f4 !important; }
 
 /* --- Négociation (Phase 7) --- */
-.mv-trade { position: fixed; inset: 0; z-index: 40; overflow-y: auto; background: rgba(10,10,20,0.94); backdrop-filter: blur(6px); padding: 0.8rem; display: flex; flex-direction: column; gap: 0.8rem; }
-.mv-trade__head { display: flex; align-items: center; justify-content: space-between; }
-.mv-trade__head h3 { margin: 0; font-family: 'Fredoka','Poppins',sans-serif; color: var(--mv-or); }
-.mv-trade__x { background: none; border: 1px solid rgba(255,255,255,0.2); color: #fff; border-radius: 999px; width: 2rem; height: 2rem; font-size: 1rem; }
-.mv-trade h4 { margin: 0.2rem 0 0.4rem; font-size: 0.85rem; color: var(--mv-muted); text-transform: uppercase; letter-spacing: 0.04em; }
-.mv-trade__offer { border: 1px solid rgba(255,255,255,0.12); border-radius: 0.8rem; padding: 0.6rem; margin-bottom: 0.5rem; background: rgba(255,255,255,0.03); }
-.mv-trade__offer.is-sent { opacity: 0.85; }
-.mv-trade__from { font-size: 0.8rem; color: var(--mv-cyan); margin: 0 0 0.3rem; }
-.mv-trade__line { margin: 0.15rem 0; font-size: 0.9rem; }
-.mv-trade__line b { color: var(--mv-muted); font-weight: 600; margin-right: 0.35rem; }
-.mv-trade__bundle { color: #fff; font-weight: 600; }
-.mv-trade__react { font-size: 0.8rem; color: var(--mv-or); margin: 0.2rem 0; }
-.mv-trade__acts { display: flex; gap: 0.4rem; margin-top: 0.4rem; }
-.mv-trade__reacts { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.4rem; }
-.mv-trade__rbtn, .mv-trade__qbtns button, .mv-trade__prop { background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.14); color: #fff; border-radius: 999px; padding: 0.25rem 0.6rem; font-size: 0.8rem; }
-.mv-trade__prop.is-on { background: var(--mv-or); color: #1a1200; border-color: var(--mv-or); }
-.mv-trade__side { border-top: 1px solid rgba(255,255,255,0.08); padding-top: 0.5rem; margin-top: 0.4rem; }
-.mv-trade__label { font-size: 0.9rem; margin: 0 0 0.35rem; }
-.mv-trade__qbtns, .mv-trade__props { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-bottom: 0.35rem; }
-.mv-trade__to { display: flex; align-items: center; gap: 0.4rem; font-size: 0.9rem; margin-bottom: 0.4rem; }
-.mv-trade__to select { flex: 1; padding: 0.35rem; border-radius: 0.5rem; background: rgba(255,255,255,0.08); color: #fff; border: 1px solid rgba(255,255,255,0.16); }
-.mv-trade__estimate { font-size: 0.9rem; margin: 0.5rem 0; }
-.mv-trade__estimate small { color: var(--mv-muted); }
 
 /* --- PWA & mobile (Phase 10) --- */
 /* Notice hors ligne en mode online */
@@ -2808,3 +2785,205 @@
   .mv-casedetail { padding: 0.6rem; backdrop-filter: none; -webkit-backdrop-filter: none; background: rgba(6, 3, 14, 0.78); }
   .mv-casedetail__card { max-width: none; }
 }
+
+/* ── Marché Noir : panneau d'achat (phase awaiting_market) ───────────────── */
+.mv-market {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: flex-end;
+  background: rgba(6, 4, 12, 0.68);
+  backdrop-filter: blur(4px);
+  padding: 0.8rem;
+}
+.mv-market__card {
+  width: 100%;
+  max-width: 30rem;
+  margin: 0 auto;
+  max-height: 84vh;
+  overflow-y: auto;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.99), rgba(28, 16, 51, 0.99));
+  border: 1px solid var(--mv-or);
+  border-radius: 1.1rem 1.1rem 0 0;
+  padding: 1rem 1rem calc(1rem + env(safe-area-inset-bottom));
+  animation: mv-rise-up 0.3s ease both;
+}
+.mv-market__head { display: flex; align-items: center; justify-content: space-between; }
+.mv-market__eyebrow { font-weight: 800; letter-spacing: 0.06em; }
+.mv-market__slots { font-size: 0.8rem; opacity: 0.75; }
+.mv-market__hint,
+.mv-market__warn { margin: 0.4rem 0 0.7rem; font-size: 0.85rem; opacity: 0.8; }
+.mv-market__warn { color: var(--mv-rouge, #ef4d63); opacity: 1; }
+.mv-market__list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
+.mv-market__row {
+  display: grid;
+  grid-template-columns: 2rem 1fr auto;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.55rem 0.6rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0.8rem;
+  background: rgba(255, 255, 255, 0.04);
+}
+.mv-market__icon { font-size: 1.5rem; text-align: center; }
+.mv-market__info { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+.mv-market__name { font-size: 0.95rem; }
+.mv-market__desc { font-size: 0.75rem; opacity: 0.75; line-height: 1.25; }
+.mv-market__acts { display: flex; flex-direction: column; gap: 0.3rem; }
+.mv-market__leave { width: 100%; margin-top: 0.8rem; }
+
+/* ── Marché Noir : main de cartes ────────────────────────────────────────── */
+.mv-cards__empty { opacity: 0.75; font-size: 0.9rem; }
+.mv-cards__list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
+.mv-cards__row {
+  display: grid;
+  grid-template-columns: 2rem 1fr auto;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.55rem 0.6rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0.8rem;
+  background: rgba(255, 255, 255, 0.04);
+}
+.mv-cards__icon { font-size: 1.5rem; text-align: center; }
+.mv-cards__info { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+.mv-cards__info small { font-size: 0.75rem; opacity: 0.75; line-height: 1.25; }
+.mv-cards__target { display: grid; gap: 0.6rem; }
+.mv-cards__targets { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+
+/* ── Négociation (refonte Phase 12) : un écran = une décision ────────────── */
+.mv-deal {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: flex-end;
+  background: rgba(6, 4, 12, 0.7);
+  backdrop-filter: blur(4px);
+  padding: 0.8rem;
+}
+.mv-deal__card {
+  width: 100%;
+  max-width: 32rem;
+  margin: 0 auto;
+  max-height: 88vh;
+  overflow-y: auto;
+  background: rgba(28, 16, 51, 0.98);
+  border: 1px solid var(--mv-or);
+  border-radius: 1.1rem 1.1rem 0 0;
+  padding: 0.9rem 0.9rem calc(0.9rem + env(safe-area-inset-bottom));
+  animation: mv-rise-up 0.3s ease both;
+}
+.mv-deal__head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.mv-deal__head h3 { margin: 0; font-size: 1.05rem; }
+.mv-deal__x,
+.mv-deal__back {
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  padding: 0.3rem 0.4rem;
+  opacity: 0.8;
+}
+.mv-deal__tabs { display: flex; gap: 0.4rem; margin: 0.7rem 0; }
+.mv-deal__tabs button {
+  flex: 1;
+  padding: 0.5rem;
+  border-radius: 0.7rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.05);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.mv-deal__tabs button.is-on { background: var(--mv-or); color: #1a0f2e; font-weight: 700; }
+
+.mv-deal__hint { margin: 0.6rem 0 0.4rem; font-size: 0.85rem; opacity: 0.75; }
+.mv-deal__dot { width: 0.6rem; height: 0.6rem; border-radius: 50%; display: inline-block; flex: none; }
+
+/* Offres reçues */
+.mv-deal__offer {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 0.9rem;
+  padding: 0.75rem;
+  margin-bottom: 0.6rem;
+  background: rgba(255, 255, 255, 0.04);
+}
+.mv-deal__from { display: flex; align-items: center; gap: 0.4rem; margin: 0 0 0.5rem; }
+.mv-deal__flow { display: grid; gap: 0.35rem; margin: 0 0 0.5rem; font-size: 0.9rem; }
+.mv-deal__get { color: #34d17e; }
+.mv-deal__give { color: #ff9f6b; }
+.mv-deal__basket { opacity: 0.95; }
+.mv-deal__verdict { margin: 0.4rem 0 0.6rem; font-weight: 700; font-size: 0.9rem; }
+.mv-deal__verdict small { font-weight: 400; opacity: 0.65; }
+.mv-deal__verdict.is-good { color: #34d17e; }
+.mv-deal__verdict.is-bad { color: #ef4d63; }
+.mv-deal__verdict.is-even { color: #f5b21a; }
+.mv-deal__acts { display: grid; gap: 0.4rem; }
+
+/* Choix du partenaire */
+.mv-deal__players { display: grid; gap: 0.45rem; }
+.mv-deal__player {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas: 'dot name' 'dot sub';
+  gap: 0.1rem 0.5rem;
+  align-items: center;
+  text-align: left;
+  padding: 0.6rem 0.7rem;
+  border-radius: 0.8rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.05);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.mv-deal__player .mv-deal__dot { grid-area: dot; }
+.mv-deal__player b { grid-area: name; }
+.mv-deal__player small { grid-area: sub; opacity: 0.7; font-size: 0.75rem; }
+.mv-deal__sent { margin-top: 0.8rem; }
+.mv-deal__sentrow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+  padding: 0.4rem 0.2rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+.mv-deal__sentrow button { background: none; border: 0; color: #ef4d63; font: inherit; cursor: pointer; }
+
+/* Composeur : deux paniers */
+.mv-deal__side {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-left-width: 3px;
+  border-radius: 0.9rem;
+  padding: 0.65rem 0.7rem;
+  margin-bottom: 0.6rem;
+  background: rgba(255, 255, 255, 0.04);
+}
+.mv-deal__side.is-get { border-left-color: #34d17e; }
+.mv-deal__side.is-give { border-left-color: #ff9f6b; }
+.mv-deal__sidehead { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 0.5rem; font-size: 0.9rem; }
+.mv-deal__sidehead .mv-deal__basket { opacity: 0.7; font-size: 0.8rem; }
+.mv-deal__cash { display: grid; gap: 0.25rem; font-size: 0.85rem; margin-bottom: 0.5rem; }
+.mv-deal__cash input { width: 100%; accent-color: var(--mv-or); }
+.mv-deal__chips { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.4rem; }
+.mv-deal__chip {
+  display: grid;
+  gap: 0.05rem;
+  text-align: left;
+  padding: 0.35rem 0.55rem;
+  border-radius: 0.6rem;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.05);
+  color: inherit;
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+.mv-deal__chip small { opacity: 0.6; font-size: 0.68rem; }
+.mv-deal__chip.is-on { background: var(--mv-or); color: #1a0f2e; border-color: var(--mv-or); }
+.mv-deal__chip.is-on small { opacity: 0.8; }
+.mv-deal__send { width: 100%; margin-top: 0.3rem; }

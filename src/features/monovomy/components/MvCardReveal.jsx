@@ -30,6 +30,7 @@ const TYPE_META = {
   jail_stay: { label: 'EN CUVE', icon: '🔒', accent: '#e11d48', tag: 'Double raté' },
   jail_out: { label: 'LIBÉRÉ', icon: '🔓', accent: '#22c1c3', tag: 'Sortie de cuve' },
   parking: { label: 'BAR OUVERT', icon: '🍹', accent: '#22c1c3', tag: 'Petite pause' },
+  market: { label: 'MARCHÉ NOIR', icon: '🕶️', accent: '#0f172a', tag: 'Sous le manteau' },
 }
 const DEFAULT_META = { label: 'CASE', icon: '🎲', accent: '#7c3aed', tag: '' }
 
@@ -149,6 +150,10 @@ function faceOf(result, active) {
     case 'parking':
       title = 'Bar ouvert'
       text = 'Petite pause, personne ne paie.'
+      break
+    case 'market':
+      title = 'Marché Noir'
+      text = 'Trois cartes sous le manteau. Argent ou gorgées, à toi de voir.'
       break
     case 'draw_card':
       title = meta.label

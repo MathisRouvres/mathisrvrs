@@ -6,7 +6,7 @@ import type { GamePhase } from './types'
  * Phases du GDD/spec, classées par nature :
  *  - persistées (états de repos, une intention attendue) :
  *      waiting · awaiting_roll · awaiting_jail · awaiting_purchase ·
- *      awaiting_card · turn_cleanup · finished
+ *      awaiting_card · awaiting_market · turn_cleanup · finished
  *  - transitoires (traversées atomiquement dans `takeTurn` / `resolveMovement`,
  *    jamais persistées) : rolling · moving · resolving_tile
  *  - réservée (à venir) : awaiting_trade
@@ -22,6 +22,7 @@ export const SPEC_TURN_PHASES = [
   'awaiting_purchase',
   'awaiting_card',
   'awaiting_trade',
+  'awaiting_market',
   'turn_cleanup',
   'finished',
 ] as const
@@ -40,6 +41,8 @@ export type IntentType =
   | 'unmortgage'
   | 'bid'
   | 'passBid'
+  | 'marketBuy'
+  | 'marketUse'
 
 /** Gestion des établissements/hypothèques : autorisée dans les phases de repos du tour. */
 const MANAGE: IntentType[] = ['build', 'sellBuilding', 'mortgage', 'unmortgage']
@@ -53,6 +56,7 @@ export const PHASE_INTENTS: Record<GamePhase, IntentType[]> = {
   awaiting_card: ['ackCard'],
   awaiting_trade: ['endTurn'],
   awaiting_auction: ['bid', 'passBid'],
+  awaiting_market: ['marketBuy'],
   turn_cleanup: ['endTurn', ...MANAGE],
   finished: [],
 }

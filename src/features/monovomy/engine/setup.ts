@@ -2,6 +2,7 @@ import type { GameConfig, GameState, PlayerSetup, PlayerState } from './types'
 import { STARTING_CASH } from './constants'
 import { createGameRng } from './rng'
 import { buildTurnOrder, compensationForRank } from './order'
+import { fillMarketStock } from './market'
 
 /**
  * Crée l’état initial d’une partie. `cardPool` = identifiants des cartes action
@@ -30,6 +31,7 @@ export function createGame(
     jailCards: 0,
     bankrupt: false,
     eliminated: false,
+    marketCards: [],
   }))
   // Compensation : le k-ième joueur dans l’ordre reçoit un bonus croissant.
   order.forEach((playerIndex, rank) => {
@@ -38,7 +40,7 @@ export function createGame(
   })
 
   const durationMs = Math.max(0, config.durationMinutes) * 60_000
-  return {
+  const state: GameState = {
     config,
     players,
     currentPlayerIndex: order[0] ?? 0,
@@ -68,5 +70,14 @@ export function createGame(
     activeRules: [],
     cardsPlayed: 0,
     turnStep: 0,
+    market: null,
+    lastRent: null,
+    marketLog: [],
+    marketSeq: 0,
+    marketDraws: 0,
+    shieldedCardId: null,
   }
+  // Stock initial du Marché Noir : visible dès le lancement (objectif partagé).
+  fillMarketStock(state)
+  return state
 }

@@ -1,7 +1,14 @@
 import type { BoardTheme } from '../content/schema'
 import type { GameState, PlayerState } from './types'
 import { cloneState } from './clone'
-import { JAIL_CARD_TRADE_VALUE, TRADE_BALANCE_THRESHOLD, TRADE_MAX_KEPT, TRADE_TTL_MS } from './constants'
+import {
+  JAIL_CARD_TRADE_VALUE,
+  MARKET_MAX_CARDS,
+  TRADE_BALANCE_THRESHOLD,
+  TRADE_MAX_KEPT,
+  TRADE_TTL_MS,
+} from './constants'
+import { getMarketCardById } from '../content/market'
 
 /**
  * Négociation / échanges en temps réel (Phase 7).
@@ -11,13 +18,12 @@ import { JAIL_CARD_TRADE_VALUE, TRADE_BALANCE_THRESHOLD, TRADE_MAX_KEPT, TRADE_T
  * une offre — elle expire au bout de `TRADE_TTL_MS`). Tout est pur et sérialisable ;
  * le temps entre par un `now` injecté (déterminisme, comme l’horloge).
  *
- * On n’échange JAMAIS de gorgées : uniquement cash, propriétés et cartes conservables
- * (jetons « sortie de prison »). L’immunité temporaire n’existe pas dans le pack actif ;
- * la structure `TradeBundle` pourra l’accueillir sans rupture.
+ * On n’échange JAMAIS de gorgées : uniquement cash, propriétés, jetons « sortie de
+ * prison » et cartes du Marché Noir. Le plafond d’inventaire (`MARKET_MAX_CARDS`)
+ * est vérifié à l’acceptation : un échange ne peut pas faire déborder les poches.
  */
 
 export const TRADE_STATUSES = [
-  'draft',
   'pending',
   'accepted',
   'declined',
@@ -27,14 +33,13 @@ export const TRADE_STATUSES = [
 ] as const
 export type TradeStatus = (typeof TRADE_STATUSES)[number]
 
-export const TRADE_REACTIONS = ['too_expensive', 'add_property', 'deal', 'never', 'last_offer'] as const
-export type TradeReaction = (typeof TRADE_REACTIONS)[number]
-
 /** Actifs d’un côté de l’échange (jamais de gorgées). */
 export interface TradeBundle {
   cash: number
   properties: string[]
   jailCards: number
+  /** Cartes du Marché Noir cédées (identifiants, doublons possibles). */
+  cards: string[]
 }
 
 export interface TradeOffer {
@@ -46,7 +51,6 @@ export interface TradeOffer {
   status: TradeStatus
   createdAt: number
   expiresAt: number
-  lastReaction: { by: string; reaction: TradeReaction } | null
 }
 
 export type TradeError =
@@ -60,6 +64,7 @@ export type TradeError =
   | 'not_sender'
   | 'not_participant'
   | 'asset_unavailable'
+  | 'inventory_full'
   | 'expired'
 
 export interface TradeResult {
@@ -69,19 +74,24 @@ export interface TradeResult {
 }
 
 export function emptyBundle(): TradeBundle {
-  return { cash: 0, properties: [], jailCards: 0 }
+  return { cash: 0, properties: [], jailCards: 0, cards: [] }
 }
 
-/** Normalise un bundle : cash/jailCards entiers ≥ 0, propriétés dédupliquées. */
+/**
+ * Normalise un bundle : cash/jailCards entiers ≥ 0, propriétés dédupliquées,
+ * cartes bornées au plafond d’inventaire (les doublons sont légitimes : deux
+ * Boucliers restent deux Boucliers).
+ */
 export function normalizeBundle(b: Partial<TradeBundle> | undefined): TradeBundle {
   const cash = Math.max(0, Math.floor(b?.cash ?? 0))
   const jailCards = Math.max(0, Math.floor(b?.jailCards ?? 0))
   const properties = Array.from(new Set(b?.properties ?? []))
-  return { cash, properties, jailCards }
+  const cards = (b?.cards ?? []).slice(0, MARKET_MAX_CARDS)
+  return { cash, properties, jailCards, cards }
 }
 
 function bundleEmpty(b: TradeBundle): boolean {
-  return b.cash === 0 && b.jailCards === 0 && b.properties.length === 0
+  return b.cash === 0 && b.jailCards === 0 && b.properties.length === 0 && b.cards.length === 0
 }
 
 function findPlayer(state: GameState, id: string): PlayerState | undefined {
@@ -96,7 +106,20 @@ function ownsBundle(state: GameState, player: PlayerState, bundle: TradeBundle):
     if (state.ownership[spaceId] !== player.id) return false
     if (!player.ownedSpaceIds.includes(spaceId)) return false
   }
+  // Cartes : chaque exemplaire cédé doit exister dans la main (doublons compris).
+  const hand = [...(player.marketCards ?? [])]
+  for (const cardId of bundle.cards) {
+    const at = hand.indexOf(cardId)
+    if (at < 0) return false
+    hand.splice(at, 1)
+  }
   return true
+}
+
+/** L’échange laisse-t-il les deux mains sous le plafond d’inventaire ? */
+function fitsInventory(player: PlayerState, given: TradeBundle, received: TradeBundle): boolean {
+  const size = (player.marketCards ?? []).length - given.cards.length + received.cards.length
+  return size <= MARKET_MAX_CARDS
 }
 
 /** Transfert atomique d’un bundle d’un joueur vers un autre (mute un état déjà cloné). */
@@ -105,6 +128,15 @@ function moveBundle(state: GameState, from: PlayerState, to: PlayerState, bundle
   to.cash += bundle.cash
   from.jailCards -= bundle.jailCards
   to.jailCards += bundle.jailCards
+  if (bundle.cards.length > 0) {
+    const hand = [...(from.marketCards ?? [])]
+    for (const cardId of bundle.cards) {
+      const at = hand.indexOf(cardId)
+      if (at >= 0) hand.splice(at, 1)
+    }
+    from.marketCards = hand
+    to.marketCards = [...(to.marketCards ?? []), ...bundle.cards]
+  }
   for (const spaceId of bundle.properties) {
     from.ownedSpaceIds = from.ownedSpaceIds.filter((id) => id !== spaceId)
     to.ownedSpaceIds.push(spaceId)
@@ -158,7 +190,6 @@ export function createOffer(
     status: 'pending',
     createdAt: now,
     expiresAt: now + TRADE_TTL_MS,
-    lastReaction: null,
   }
   pushOffer(next, offer)
   return { state: next, offer, error: null }
@@ -202,6 +233,13 @@ export function respondOffer(
   // Re-validation au moment T de l’acceptation (les actifs ont pu bouger).
   if (!ownsBundle(state, sender, offer.offeredAssets)) return { state, offer: null, error: 'asset_unavailable' }
   if (!ownsBundle(state, receiver, offer.requestedAssets)) return { state, offer: null, error: 'asset_unavailable' }
+  // Plafond d’inventaire : un deal ne peut pas faire déborder les poches.
+  if (!fitsInventory(sender, offer.offeredAssets, offer.requestedAssets)) {
+    return { state, offer: null, error: 'inventory_full' }
+  }
+  if (!fitsInventory(receiver, offer.requestedAssets, offer.offeredAssets)) {
+    return { state, offer: null, error: 'inventory_full' }
+  }
 
   const next = cloneState(state)
   const s2 = findPlayer(next, offer.senderId)!
@@ -246,25 +284,6 @@ export function cancelOffer(state: GameState, offerId: string, byId: string): Tr
   return { state: next, offer: updated, error: null }
 }
 
-/** Réaction rapide (émetteur ou destinataire). N’altère pas le statut. */
-export function reactOffer(
-  state: GameState,
-  offerId: string,
-  byId: string,
-  reaction: TradeReaction,
-  now: number,
-): TradeResult {
-  const found = activePending(state, offerId, now)
-  if (typeof found === 'string') return { state, offer: null, error: found }
-  const offer = found
-  if (offer.senderId !== byId && offer.receiverId !== byId) {
-    return { state, offer: null, error: 'not_participant' }
-  }
-  const next = cloneState(state)
-  const updated = replaceOffer(next, offerId, { lastReaction: { by: byId, reaction } })
-  return { state: next, offer: updated, error: null }
-}
-
 /** Passe en `expired` toute offre `pending` échue. Appelé par le tick de l’hôte. */
 export function expireTrades(state: GameState, now: number): { state: GameState; changed: boolean } {
   const hasExpired = state.trades.some((o) => o.status === 'pending' && now >= o.expiresAt)
@@ -289,6 +308,9 @@ export function bundleValue(board: BoardTheme, bundle: TradeBundle): number {
   for (const spaceId of bundle.properties) {
     const space = board.spaces.find((s) => s.id === spaceId)
     if (space && 'price' in space) value += space.price
+  }
+  for (const cardId of bundle.cards) {
+    value += getMarketCardById(cardId)?.priceCash ?? 0
   }
   return value
 }

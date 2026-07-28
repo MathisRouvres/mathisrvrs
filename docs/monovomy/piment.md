@@ -5,6 +5,7 @@ frustrante, fin qui traîne, économie 100 % argent) en faisant de l'alcool une 
 et un vrai levier tactique**, pas une simple décoration sur les cases.
 
 > Réservoir d'idées beaucoup plus large : [piment-catalogue.md](./piment-catalogue.md) (volume 2, ~130 entrées).
+> **Sélection retenue, spécifiée pour implémentation : [piment-specs.md](./piment-specs.md).**
 
 Chaque mécanique ci-dessous est classée par **coût d'implémentation** dans l'archi actuelle :
 

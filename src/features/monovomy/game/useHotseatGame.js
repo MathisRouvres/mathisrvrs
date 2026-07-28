@@ -17,7 +17,6 @@ import {
   respondOffer,
   counterOffer,
   cancelOffer,
-  reactOffer,
   expireTrades,
   activateRule,
   advanceIntensity,
@@ -32,6 +31,9 @@ import {
   unmortgage,
   placeBid,
   passBid,
+  buyMarketCard,
+  skipMarket,
+  playMarketCard,
   stampAuctionTimer,
   auctionTimedOut,
   resolveAuction,
@@ -42,7 +44,7 @@ const CARD_POOL = actionCards.map((card) => card.id)
 const TICK_MS = 1000
 
 /** Dérive l’objet `result` (affichage) depuis un résultat de tour/prison. */
-function deriveResult(config, turnResult) {
+function deriveResult(config, turnResult, shieldedCardId = null) {
   const mult = DIFFICULTY_MULTIPLIER[config.difficulty] ?? 1
   const outcome = turnResult.outcome
   let card = null
@@ -51,7 +53,8 @@ function deriveResult(config, turnResult) {
     const found = getCardById(outcome.cardId)
     if (found) {
       card = found
-      sips = sipsForCard(found.baseSips, config.difficulty)
+      // Bouclier consommé au tirage par le moteur : la sanction est absorbée.
+      sips = shieldedCardId === outcome.cardId ? 0 : sipsForCard(found.baseSips, config.difficulty)
     }
   } else if (outcome.kind === 'pay_rent' || outcome.kind === 'tax') {
     sips = outcome.sips * mult
@@ -121,7 +124,7 @@ export function useHotseatGame() {
     setState((prev) => {
       if (!prev || prev.phase !== 'awaiting_roll') return prev
       const turnResult = takeTurn(prev, soireeBoard)
-      setResult(deriveResult(prev.config, turnResult))
+      setResult(deriveResult(prev.config, turnResult, turnResult.state.shieldedCardId ?? null))
       return turnResult.state
     })
   }, [])
@@ -139,6 +142,27 @@ export function useHotseatGame() {
       if (r.outcome.kind === 'jail_out') setResult(null)
       else setResult(deriveResult(prev.config, r))
       return r.state
+    })
+  }, [])
+
+  // Marché Noir : achat sur la case (argent ou gorgées), ou passage.
+  const marketBuy = useCallback((cardId, pay = 'cash') => {
+    setState((prev) => {
+      if (!prev || prev.phase !== 'awaiting_market') return prev
+      if (cardId === null) return skipMarket(prev)
+      const me = prev.players[prev.currentPlayerIndex]
+      if (!me) return prev
+      const r = buyMarketCard(prev, me.id, cardId, pay)
+      return r.error ? prev : r.state
+    })
+  }, [])
+
+  // Marché Noir : jouer une carte (hors machine à états du tour).
+  const marketUse = useCallback((playerId, cardId, targetId = null) => {
+    setState((prev) => {
+      if (!prev || prev.finished) return prev
+      const r = playMarketCard(prev, playerId, cardId, targetId)
+      return r.error ? prev : r.state
     })
   }, [])
 
@@ -178,7 +202,6 @@ export function useHotseatGame() {
       else if (intent.type === 'tradeRespond') r = respondOffer(prev, intent.offerId, me.id, intent.accept, now)
       else if (intent.type === 'tradeCounter') r = counterOffer(prev, intent.offerId, me.id, intent.offered, intent.requested, now)
       else if (intent.type === 'tradeCancel') r = cancelOffer(prev, intent.offerId, me.id)
-      else if (intent.type === 'tradeReact') r = reactOffer(prev, intent.offerId, me.id, intent.reaction, now)
       return r && !r.error ? r.state : prev
     })
   }, [])
@@ -250,6 +273,8 @@ export function useHotseatGame() {
     roll,
     jail,
     buy,
+    marketBuy,
+    marketUse,
     next,
     sendTrade,
     manage,

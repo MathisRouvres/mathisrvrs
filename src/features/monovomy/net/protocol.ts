@@ -1,5 +1,5 @@
 import type { BankruptcyInfo, DiceRoll, GameState, SpaceOutcome } from '../engine/types'
-import type { TradeBundle, TradeReaction } from '../engine/trade'
+import type { TradeBundle } from '../engine/trade'
 
 export type ClientId = string
 export type RoomCode = string
@@ -60,7 +60,11 @@ export type Intent =
   | { type: 'tradeRespond'; offerId: string; accept: boolean }
   | { type: 'tradeCounter'; offerId: string; offered: TradeBundle; requested: TradeBundle }
   | { type: 'tradeCancel'; offerId: string }
-  | { type: 'tradeReact'; offerId: string; reaction: TradeReaction }
+  // ── Marché Noir : achat sur la case (phase awaiting_market) ────────────
+  /** `cardId: null` = quitter le marché sans acheter. `pay` = argent ou gorgées. */
+  | { type: 'marketBuy'; cardId: string | null; pay: 'cash' | 'sips' }
+  // ── Marché Noir : jouer une carte (canal parallèle, même hors de son tour) ──
+  | { type: 'marketUse'; cardId: string; targetId?: string | null }
   // ── Ambiance : bascule de mode de boisson (soft à tout moment) ──────────
   | { type: 'setDrinkMode'; mode: DrinkMode }
 

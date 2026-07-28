@@ -79,6 +79,8 @@ export default function OnlineApp({ onExit, initialJoinCode = '' }) {
         onManage={(intent) => g.sendIntent(intent)}
         onBid={(_pid, amount) => g.sendIntent({ type: 'bid', amount })}
         onPass={() => g.sendIntent({ type: 'passBid' })}
+        onMarketBuy={(cardId, pay) => g.sendIntent({ type: 'marketBuy', cardId, pay })}
+        onMarketUse={(_pid, cardId, targetId) => g.sendIntent({ type: 'marketUse', cardId, targetId })}
         auctionControllableIds={g.myId ? [g.myId] : []}
         onFinish={() => g.sendIntent({ type: 'endGame' })}
         mode="online"

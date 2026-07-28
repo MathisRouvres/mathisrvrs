@@ -96,7 +96,7 @@ export function useOnlineGame() {
     setGameState(state)
     if (sync) {
       const current = state.players[state.currentPlayerIndex]
-      const derived = describeOutcome(sync.outcome, state.config.difficulty)
+      const derived = describeOutcome(sync.outcome, state.config.difficulty, state.shieldedCardId ?? null)
       const bankruptcy = sync.bankruptcy
       const mult = DIFFICULTY_MULTIPLIER[state.config.difficulty] ?? 1
       setResult({
@@ -137,7 +137,7 @@ export function useOnlineGame() {
     const snap = snapRef.current
     if (!snap) return
     const stamp = Date.now()
-    const isSide = typeof intent.type === 'string' && (intent.type.startsWith('trade') || intent.type === 'setDrinkMode')
+    const isSide = typeof intent.type === 'string' && (intent.type.startsWith('trade') || intent.type === 'setDrinkMode' || intent.type === 'marketUse')
 
     if (meta) {
       const r = applyStampedIntent(snap, soireeBoard, fromClientId, { ...meta, intent, protocolVersion: meta.protocolVersion || PROTOCOL_VERSION }, stamp)

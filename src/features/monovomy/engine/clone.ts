@@ -4,7 +4,14 @@ import type { GameState } from './types'
 export function cloneState(state: GameState): GameState {
   return {
     ...state,
-    players: state.players.map((p) => ({ ...p, ownedSpaceIds: [...p.ownedSpaceIds] })),
+    players: state.players.map((p) => ({
+      ...p,
+      ownedSpaceIds: [...p.ownedSpaceIds],
+      ...(p.marketCards ? { marketCards: [...p.marketCards] } : {}),
+    })),
+    market: state.market ? { stock: [...state.market.stock] } : state.market,
+    lastRent: state.lastRent ? { ...state.lastRent } : state.lastRent,
+    marketLog: state.marketLog ? [...state.marketLog] : state.marketLog,
     ownership: { ...state.ownership },
     buildings: { ...(state.buildings ?? {}) },
     mortgaged: { ...(state.mortgaged ?? {}) },

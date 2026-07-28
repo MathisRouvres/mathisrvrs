@@ -20,6 +20,7 @@ import { getBuildingLevel, isMortgaged, groupComplete } from './buildings'
 import { auctionsEnabled, beginAuction } from './auction'
 import { createGameRng, rollDice } from './rng'
 import { intensityRank, cardAllowedAtIntensity } from './ambiance'
+import { consumeShield, fillMarketStock, marketStock } from './market'
 import { getCardById } from '../content/cards'
 import type { DrinkMode } from './constants'
 
@@ -171,7 +172,14 @@ function resolveLanding(
     case 'tax': {
       const payment = payToBank(player, space.amount)
       const bankruptcy = payment.shortfall > 0 ? applyBankruptcy(state, player) : null
-      return { outcome: { kind: 'tax', name: space.name, amount: payment.paid, sips: space.sips }, bankruptcy }
+      // Bouclier : absorbe les gorgées, jamais l'argent.
+      const sips = consumeShield(player) ? 0 : space.sips
+      return { outcome: { kind: 'tax', name: space.name, amount: payment.paid, sips }, bankruptcy }
+    }
+    case 'market': {
+      // Le stock est re-tiré à chaque visite : l'offre n'est jamais figée.
+      fillMarketStock(state)
+      return { outcome: { kind: 'market', name: space.name, offers: marketStock(state) }, bankruptcy: null }
     }
     case 'action': {
       const cardId = drawWeightedCard(state)
@@ -179,6 +187,9 @@ function resolveLanding(
       if (!cardId) return { outcome: { kind: 'nothing', name: space.name }, bankruptcy: null }
       state.pendingCardId = cardId
       state.cardsPlayed += 1
+      // Bouclier : absorbé dès le tirage, l'affichage lit `shieldedCardId`.
+      const drawn = getCardById(cardId)
+      state.shieldedCardId = drawn && drawn.baseSips > 0 && consumeShield(player) ? cardId : null
       return { outcome: { kind: 'draw_card', cardId }, bankruptcy: null }
     }
     case 'property':
@@ -199,6 +210,16 @@ function resolveLanding(
       const rent = computeRent(space, roll, state, board, ownerId)
       const payment = transfer(player, owner, rent)
       const bankruptcy = payment.shortfall > 0 ? applyBankruptcy(state, player) : null
+      const sips = consumeShield(player) ? 0 : space.sipTier
+      // Mémorise le loyer : le Passe-Droit peut l'annuler pendant le même tour.
+      state.lastRent = {
+        payerId: player.id,
+        ownerId: owner.id,
+        spaceId: space.id,
+        amount: payment.paid,
+        sips,
+        turnStep: state.turnStep,
+      }
       return {
         outcome: {
           kind: 'pay_rent',
@@ -206,7 +227,7 @@ function resolveLanding(
           toPlayerId: owner.id,
           toName: owner.name,
           amount: payment.paid,
-          sips: space.sipTier,
+          sips,
         },
         bankruptcy,
       }
@@ -220,6 +241,7 @@ function resolveLanding(
 function phaseForOutcome(outcome: SpaceOutcome): GameState['phase'] {
   if (outcome.kind === 'buy_offer') return 'awaiting_purchase'
   if (outcome.kind === 'draw_card') return 'awaiting_card'
+  if (outcome.kind === 'market') return 'awaiting_market'
   return 'turn_cleanup'
 }
 
@@ -263,15 +285,24 @@ export function resolveMovement(
   }
 }
 
+/** Retient le lancer au total le plus élevé (Dé Truqué). */
+function bestOf(a: DiceRoll, b: DiceRoll): DiceRoll {
+  return b.total > a.total ? b : a
+}
+
 /** Lance le dé pour le joueur courant (hors prison), le déplace et résout la case. */
 export function takeTurn(state: GameState, board: BoardTheme): TurnResult {
   if (state.phase !== 'awaiting_roll' || state.finished) {
     throw new Error('takeTurn: phase invalide')
   }
   const rng = createGameRng(state.config.seed, state.rngState)
-  const roll = rollDice(rng)
+  // Dé Truqué (Marché Noir) : deux lancers, le plus haut total est retenu.
+  const loaded = currentPlayer(state).loadedDie === true
+  const first = rollDice(rng)
+  const roll = loaded ? bestOf(first, rollDice(rng)) : first
   const next = cloneState(state)
   next.rngState = rng.getState()
+  if (loaded) currentPlayer(next).loadedDie = false
 
   // 3e double consécutif → direction la prison, sans se déplacer.
   if (roll.isDouble && (next.doublesStreak ?? 0) + 1 >= 3) {

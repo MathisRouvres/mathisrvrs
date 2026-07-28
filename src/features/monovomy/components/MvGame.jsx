@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } fro
 import { MonovomyButton } from '../MonovomyShell'
 import MvTrade from './MvTrade'
 import MvAuction from './MvAuction'
+import MvMarket from './MvMarket'
+import MvCards from './MvCards'
 import MvHud from './MvHud'
 import MvPlayerBar from './MvPlayerBar'
 import MvCoach from './MvCoach'
@@ -10,7 +12,7 @@ import MvCenter from './MvCenter'
 import MvActionBar from './MvActionBar'
 import MvDock from './MvDock'
 import MvToasts from './MvToasts'
-import { soireeBoard } from '../content'
+import { soireeBoard, getMarketCardById } from '../content'
 import { centerPanelKind } from '../game/centerPanel'
 import { incomingOffers, softAlternative, evaluateReminder } from '../engine'
 import { completeGroups } from '../game/boardInsights'
@@ -43,6 +45,8 @@ export default function MvGame({
   onManage,
   onBid,
   onPass,
+  onMarketBuy,
+  onMarketUse,
   auctionControllableIds = [],
   onFinish,
   canAct = true,
@@ -54,6 +58,7 @@ export default function MvGame({
   onSendChat,
 }) {
   const [showTrade, setShowTrade] = useState(false)
+  const [showCards, setShowCards] = useState(false)
   const reducedMotion = useReducedMotion()
 
   // Événement de scène centrale (transient) — déclaré tôt (utilisé par des effets).
@@ -89,6 +94,20 @@ export default function MvGame({
     prevRulesRef.current = keys
   }, [state.activeRules, pushToast])
 
+  // Toast : carte du Marché Noir jouée (annonce publique, jamais silencieuse).
+  const prevMarketSeqRef = useRef(state.marketSeq ?? 0)
+  useEffect(() => {
+    const log = state.marketLog ?? []
+    const last = log[log.length - 1]
+    if (last && last.seq > prevMarketSeqRef.current) {
+      const by = state.players.find((p) => p.id === last.byId)?.name ?? 'Quelqu’un'
+      const card = getMarketCardById(last.cardId)
+      const on = last.targetId ? state.players.find((p) => p.id === last.targetId)?.name : null
+      pushToast(card?.emoji ?? '🃏', `${by} joue ${card?.name ?? 'une carte'}${on ? ` sur ${on}` : ''}`, 'info')
+    }
+    prevMarketSeqRef.current = state.marketSeq ?? 0
+  }, [state.marketSeq, state.marketLog, state.players, pushToast])
+
   // Toast : reconnexion réseau retrouvée.
   const prevNetRef = useRef(netStatus)
   useEffect(() => {
@@ -96,6 +115,8 @@ export default function MvGame({
     prevNetRef.current = netStatus
   }, [netStatus, pushToast])
   const tradeCount = myId ? incomingOffers(state, myId, now).length : 0
+  const me = myId ? state.players.find((p) => p.id === myId) : null
+  const myCards = me?.marketCards?.length ?? 0
   const myMode = myId ? state.players.find((p) => p.id === myId)?.drinkMode : null
 
   // Rappel de modération sur transition d’ambiance (chaos / avant finale).
@@ -390,11 +411,18 @@ export default function MvGame({
           registerChip={registerChip}
         />
 
-        {myId && onSendTrade && (
+        {myId && (onSendTrade || onMarketUse) && (
           <div className="mv-actions mv-actions--sec">
-            <MonovomyButton variant="secondary" onClick={() => setShowTrade(true)} aria-label="Échanger">
-              🤝<span className="mv-lbl-lg"> Échanger</span>{tradeCount ? ` (${tradeCount})` : ''}
-            </MonovomyButton>
+            {onSendTrade && (
+              <MonovomyButton variant="secondary" onClick={() => setShowTrade(true)} aria-label="Échanger">
+                🤝<span className="mv-lbl-lg"> Échanger</span>{tradeCount ? ` (${tradeCount})` : ''}
+              </MonovomyButton>
+            )}
+            {onMarketUse && (
+              <MonovomyButton variant="secondary" onClick={() => setShowCards(true)} aria-label="Mes cartes">
+                🃏<span className="mv-lbl-lg"> Cartes</span>{myCards ? ` (${myCards})` : ''}
+              </MonovomyButton>
+            )}
           </div>
         )}
       </div>
@@ -443,6 +471,24 @@ export default function MvGame({
 
       {showTrade && myId && onSendTrade && (
         <MvTrade state={state} myId={myId} now={now} onSend={onSendTrade} onClose={() => setShowTrade(false)} />
+      )}
+
+      {state.phase === 'awaiting_market' && canAct && onMarketBuy && result?.outcome?.kind === 'market' && (
+        <MvMarket
+          offers={result.outcome.offers}
+          player={active}
+          difficulty={state.config.difficulty}
+          onBuy={(cardId, pay) => onMarketBuy(cardId, pay)}
+        />
+      )}
+
+      {showCards && me && onMarketUse && (
+        <MvCards
+          player={me}
+          players={state.players}
+          onUse={onMarketUse}
+          onClose={() => setShowCards(false)}
+        />
       )}
 
       {state.phase === 'awaiting_auction' && state.auction && (
