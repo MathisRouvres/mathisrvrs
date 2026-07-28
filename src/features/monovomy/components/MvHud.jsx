@@ -82,7 +82,11 @@ export default function MvHud({
         <span className="mv-hud2__spacer" />
         {gameLeft >= 0 && <span className={`mv-hud2__timer ${gameLeft <= 60000 ? 'is-low' : ''}`}>🕒 {fmt(gameLeft)}</span>}
         {turnLeft >= 0 && <span className={`mv-hud2__timer is-turn ${turnUrgent ? 'is-alert' : ''}`}>⏱ {fmt(turnLeft)}</span>}
-        <span className="mv-hud2__intensity" style={{ '--c': it.color }}>{it.emoji} {it.label}</span>
+        {/* Sur téléphone la pastille se réduit à son emoji : le libellé coûtait
+            60 px sur une ligne qui n'en a pas à perdre. */}
+        <span className="mv-hud2__intensity" style={{ '--c': it.color }} title={it.label}>
+          {it.emoji}<span className="mv-lbl-lg"> {it.label}</span>
+        </span>
         <span className={`mv-hud2__net ${netStatus === 'reconnecting' || netStatus === 'syncing' ? 'is-busy' : ''}`} title={netLabel || 'Connecté'}>
           <i style={{ background: net.dot }} />
           {netLabel && <small>{netLabel}</small>}

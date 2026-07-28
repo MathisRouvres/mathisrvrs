@@ -24,13 +24,33 @@ const FOV_MIN = 26
 const FOV_MAX = 62
 
 /**
+ * Profondeur du coin de scène le PLUS PROCHE de la caméra, mesurée le long de l'axe
+ * de visée. C'est elle qui commande le cadrage : en perspective, le bord proche est
+ * grossi, et cadrer sur la distance au centre le laissait sortir de l'écran — la
+ * rangée de cases devant le joueur était coupée à gauche et à droite.
+ */
+function nearestDepth(camPos, half) {
+  const cam = new THREE.Vector3(...camPos)
+  // Cible = centre du plateau : l'axe de visée est l'opposé de la position.
+  const dir = cam.clone().negate().normalize()
+  let min = Infinity
+  for (const x of [-half, half]) {
+    for (const z of [-half, half]) {
+      const depth = new THREE.Vector3(x, 0, z).sub(cam).dot(dir)
+      if (depth < min) min = depth
+    }
+  }
+  return min
+}
+
+/**
  * Cadrage adaptatif : un FOV vertical figé cadre bien un canvas 4/3 et gaspille la
  * moitié de l'écran sur un canvas portrait (le champ horizontal, lui, dépend du
  * ratio). On dérive donc le FOV du ratio réel pour que la scène remplisse toujours
- * la LARGEUR utile. La distance de référence est celle du cadrage de départ, pas
+ * la LARGEUR utile. La profondeur de référence est celle du cadrage de départ, pas
  * la distance courante : les zooms du joueur ne doivent pas recadrer la scène.
  */
-function CameraFit({ dist, halfWidth = FIT_HALF_WIDTH }) {
+function CameraFit({ depth, halfWidth = FIT_HALF_WIDTH }) {
   const last = useRef({ w: 0, h: 0 })
 
   useFrame((s) => {
@@ -38,7 +58,7 @@ function CameraFit({ dist, halfWidth = FIT_HALF_WIDTH }) {
     if (last.current.w === width && last.current.h === height) return
     last.current = { w: width, h: height }
     const aspect = width / Math.max(1, height)
-    const fov = 2 * THREE.MathUtils.radToDeg(Math.atan(halfWidth / dist / aspect))
+    const fov = 2 * THREE.MathUtils.radToDeg(Math.atan(halfWidth / depth / aspect))
     s.camera.fov = THREE.MathUtils.clamp(fov, FOV_MIN, FOV_MAX)
     s.camera.updateProjectionMatrix()
   })
@@ -60,16 +80,14 @@ export default function MvBoard3D({ state, dice, reducedMotion = false, onManage
   // large qui écrase le plateau. Sur téléphone il cède la place ; les propriétés
   // restent consultables (et de tous les joueurs) dans la feuille « Biens ».
   const showEstates = !isMobile
-  // Mobile : caméra plus haute / moins inclinée → cases lisibles sur petit écran.
-  // Le cadrage doit inclure la BANDE PROCHE de la table (z ≈ 7,5 à 8,4) : c'est là
-  // que vit le rail des titres de propriété, qui doit rester à portée sans reculer.
   // Mobile : vue quasi zénithale (68° au lieu de 43°). En perspective rasante, les
   // cases du fond font la moitié de celles du bord — à 430 px de large c'est la
   // différence entre « petit » et « illisible ». À la verticale, les 40 cases ont
   // la même taille et le texte n'est plus écrasé par la fuite.
   const camera = isMobile ? { position: [0, 17, 6.9], fov: 54 } : { position: [0, 10.8, 16], fov: 47 }
-  // Distance de repos (caméra → centre du plateau), base du cadrage adaptatif.
-  const camDist = Math.hypot(...camera.position)
+  // Base du cadrage : demi-largeur à couvrir, et profondeur du coin le plus proche.
+  const fitHalf = showEstates ? FIT_HALF_WIDTH : FIT_HALF_WIDTH_BARE
+  const fitDepth = nearestDepth(camera.position, fitHalf)
   // Ambiance visuelle pilotée par l'intensité de soirée (Warm-up → Finale).
   const amb = ambianceFor(state.partyIntensity)
   const selectedSpace = selected != null ? soireeBoard.spaces[selected] : null
@@ -226,7 +244,7 @@ export default function MvBoard3D({ state, dice, reducedMotion = false, onManage
             />
           </Suspense>
           {/* Cadrage : ajuste le FOV au ratio du canvas (jamais la position). */}
-          <CameraFit dist={camDist} halfWidth={showEstates ? FIT_HALF_WIDTH : FIT_HALF_WIDTH_BARE} />
+          <CameraFit depth={fitDepth} halfWidth={fitHalf} />
           {/* Seul composant autorisé à bouger la caméra. */}
           <CameraDirector
             shot={shot}
