@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { MonovomyButton } from '../MonovomyShell'
+import MvPortal from './MvPortal'
 import { soireeBoard } from '../content'
 import { bundleValue, estimateTrade, incomingOffers } from '../engine'
 
@@ -63,6 +64,7 @@ export default function MvTrade({ state, myId, now, onSend, onClose }) {
   }
 
   return (
+    <MvPortal>
     <div className="mv-trade">
       <header className="mv-trade__head">
         <h3>🤝 Négociation</h3>
@@ -153,5 +155,6 @@ export default function MvTrade({ state, myId, now, onSend, onClose }) {
         <MonovomyButton onClick={send} disabled={!canSend}>Envoyer l’offre →</MonovomyButton>
       </section>
     </div>
+    </MvPortal>
   )
 }

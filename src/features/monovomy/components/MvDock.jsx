@@ -8,6 +8,7 @@ import { useWakeLockConsent } from '../pwa/useWakeLock'
 import MvChat from './MvChat'
 import MvRules from './MvRules'
 import MvLegal from './MvLegal'
+import MvPortal from './MvPortal'
 
 const GROUP_COLOR = {
   brun: '#c07a3a', cyan: '#22c1c3', rose: '#ec4899', orange: '#f97316',
@@ -33,15 +34,17 @@ function DockIcon({ name }) {
 
 function Sheet({ title, onClose, children }) {
   return (
-    <div className="mv-sheet" onClick={onClose}>
-      <div className="mv-sheet__card mv-surface-3" onClick={(e) => e.stopPropagation()}>
-        <div className="mv-sheet__head">
-          <span>{title}</span>
-          <button type="button" className="mv-sheet__close" onClick={onClose} aria-label="Fermer">✕</button>
+    <MvPortal>
+      <div className="mv-sheet" onClick={onClose}>
+        <div className="mv-sheet__card mv-surface-3" onClick={(e) => e.stopPropagation()}>
+          <div className="mv-sheet__head">
+            <span>{title}</span>
+            <button type="button" className="mv-sheet__close" onClick={onClose} aria-label="Fermer">✕</button>
+          </div>
+          <div className="mv-sheet__body">{children}</div>
         </div>
-        <div className="mv-sheet__body">{children}</div>
       </div>
-    </div>
+    </MvPortal>
   )
 }
 
@@ -60,10 +63,48 @@ function PlayersSheet({ state }) {
   )
 }
 
+/**
+ * Patrimoine. Sur téléphone le rail 3D des titres est masqué (illisible à cette
+ * taille) : cette feuille est la SEULE vue des propriétés, elle doit donc donner
+ * accès à celles de tout le monde, pas seulement aux siennes.
+ */
 function GoodsSheet({ state, ownerId, canManage, managePlayerId, onManage }) {
-  const owned = ownerId ? state.players.find((p) => p.id === ownerId)?.ownedSpaceIds ?? [] : []
-  if (!owned.length) return <p className="mv-sheet__empty">Aucune propriété pour l’instant. Achète des cases !</p>
+  const [shown, setShown] = useState(ownerId)
+  const current = state.players.find((p) => p.id === shown) ?? state.players.find((p) => p.id === ownerId) ?? state.players[0]
+  const owned = current?.ownedSpaceIds ?? []
+
+  const picker = (
+    <div className="mv-goods__who">
+      {state.players.map((p, i) => (
+        <button
+          key={p.id}
+          type="button"
+          className={`mv-goods__whobtn ${p.id === current?.id ? 'is-on' : ''} ${p.eliminated ? 'is-out' : ''}`}
+          style={{ '--pc': playerColor(i) }}
+          onClick={() => setShown(p.id)}
+        >
+          <span className="mv-goods__whoav">{p.avatar}</span>
+          <span className="mv-goods__wholbl">{p.name}</span>
+          <span className="mv-goods__whon">{p.ownedSpaceIds.length}</span>
+        </button>
+      ))}
+    </div>
+  )
+
+  if (!owned.length) {
+    return (
+      <>
+        {picker}
+        <p className="mv-sheet__empty">
+          {current?.id === ownerId ? 'Aucune propriété pour l’instant. Achète des cases !' : `${current?.name ?? 'Ce joueur'} ne possède rien.`}
+        </p>
+      </>
+    )
+  }
+
   return (
+    <>
+    {picker}
     <ul className="mv-goods">
       {owned.map((sid) => {
         const space = soireeBoard.spaces.find((s) => s.id === sid)
@@ -89,6 +130,7 @@ function GoodsSheet({ state, ownerId, canManage, managePlayerId, onManage }) {
         )
       })}
     </ul>
+    </>
   )
 }
 
@@ -113,7 +155,7 @@ function RulesSheet({ state }) {
   )
 }
 
-function SettingsSheet({ onSoft, myMode, onOpenDoc }) {
+function SettingsSheet({ onSoft, myMode, onOpenDoc, onFinish }) {
   const [muted, setMuted] = useState(() => sound.isMuted())
   const [haptic, setHaptic] = useState(() => haptics.isEnabled())
   const wake = useWakeLockConsent()
@@ -145,6 +187,11 @@ function SettingsSheet({ onSoft, myMode, onOpenDoc }) {
       <button type="button" className="mv-settings__row" onClick={() => onOpenDoc('legal')}>
         <span>⚖️ Mentions légales</span><b>›</b>
       </button>
+      {onFinish && (
+        <button type="button" className="mv-settings__row is-danger" onClick={onFinish}>
+          <span>🏁 Terminer la partie</span><b>›</b>
+        </button>
+      )}
     </div>
   )
 }
@@ -162,6 +209,7 @@ export default function MvDock({
   managePlayerId = null,
   onSoft,
   myMode,
+  onFinish = null,
 }) {
   const [sheet, setSheet] = useState(null)
   const rulesCount = state.activeRules.length
@@ -204,7 +252,7 @@ export default function MvDock({
 
       {sheet === 'players' && <Sheet title="👥 Joueurs" onClose={() => setSheet(null)}><PlayersSheet state={state} /></Sheet>}
       {sheet === 'goods' && (
-        <Sheet title="🏠 Mes biens" onClose={() => setSheet(null)}>
+        <Sheet title="🏠 Propriétés" onClose={() => setSheet(null)}>
           <GoodsSheet state={state} ownerId={goodsOwner} canManage={canManage} managePlayerId={managePlayerId} onManage={onManage} />
         </Sheet>
       )}
@@ -214,7 +262,7 @@ export default function MvDock({
       )}
       {sheet === 'settings' && (
         <Sheet title="⚙️ Réglages" onClose={() => setSheet(null)}>
-          <SettingsSheet onSoft={onSoft} myMode={myMode} onOpenDoc={setSheet} />
+          <SettingsSheet onSoft={onSoft} myMode={myMode} onOpenDoc={setSheet} onFinish={onFinish} />
         </Sheet>
       )}
       {sheet === 'howto' && <Sheet title="📖 Comment jouer" onClose={() => setSheet('settings')}><MvRules /></Sheet>}

@@ -15,7 +15,11 @@ export function useDeviceProfile() {
     const isMobile = Boolean(narrow || (coarse && /Mobi|Android|iPhone|iPad|iPod/i.test(ua)))
     const mem = navigator.deviceMemory ?? 8
     const cores = navigator.hardwareConcurrency ?? 8
-    const lowPerf = isMobile || mem <= 4 || cores <= 4
-    return { isMobile, lowPerf }
+    // `weak` = appareil réellement limité. À distinguer de `lowPerf`, qui coupe les
+    // effets sur TOUT téléphone : un iPhone récent n'a pas besoin des reflets, mais
+    // il a largement de quoi rendre à sa définition native.
+    const weak = mem <= 4 || cores <= 4
+    const lowPerf = isMobile || weak
+    return { isMobile, lowPerf, weak }
   }, [])
 }

@@ -379,8 +379,9 @@ export default function MvGame({
 
       {hydrate && <p className="mv-hydrate">💧 Pense à boire de l’eau entre les tours</p>}
 
-      {/* Bandeau joueurs et actions secondaires partagent UNE seule rangée : sur
-          mobile chaque ligne prise ici est prise au plateau. */}
+      {/* Bandeau joueurs et échange partagent UNE seule rangée : sur mobile chaque
+          ligne prise ici est prise au plateau. « Terminer la partie » est une action
+          rare et sans retour : elle vit dans Réglages, pas sous le pouce. */}
       <div className="mv-strip">
         <MvPlayerBar
           players={state.players}
@@ -389,18 +390,13 @@ export default function MvGame({
           registerChip={registerChip}
         />
 
-        <div className="mv-actions mv-actions--sec">
-          {myId && onSendTrade && (
+        {myId && onSendTrade && (
+          <div className="mv-actions mv-actions--sec">
             <MonovomyButton variant="secondary" onClick={() => setShowTrade(true)} aria-label="Échanger">
               🤝<span className="mv-lbl-lg"> Échanger</span>{tradeCount ? ` (${tradeCount})` : ''}
             </MonovomyButton>
-          )}
-          {showFinish && (
-            <MonovomyButton variant="ghost" onClick={onFinish} aria-label="Terminer la partie">
-              🏁<span className="mv-lbl-lg"> Terminer la partie</span>
-            </MonovomyButton>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* CTA principal unique, contextuel, au pouce. */}
@@ -478,6 +474,7 @@ export default function MvGame({
         managePlayerId={active ? active.id : null}
         onSoft={onSetDrinkMode ? handleSoft : null}
         myMode={myMode}
+        onFinish={showFinish ? onFinish : null}
       />
 
       <MvCoach />

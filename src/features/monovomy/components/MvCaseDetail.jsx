@@ -1,4 +1,5 @@
 import { MonovomyButton } from '../MonovomyShell'
+import MvPortal from './MvPortal'
 
 const GROUP_LABEL = {
   brun: 'Brun', cyan: 'Cyan', rose: 'Rose', orange: 'Orange',
@@ -54,6 +55,7 @@ export default function MvCaseDetail({
     m && m.isProperty && (m.level > 0 || m.mortgaged || m.canBuild || m.canSell || m.canMortgage || m.canUnmortgage)
 
   return (
+    <MvPortal>
     <div className="mv-casedetail" onClick={onClose}>
       <div className="mv-casedetail__card" style={{ '--accent': accent }} onClick={(e) => e.stopPropagation()}>
         <span className="mv-casedetail__glow" aria-hidden="true" />
@@ -148,5 +150,6 @@ export default function MvCaseDetail({
         )}
       </div>
     </div>
+    </MvPortal>
   )
 }

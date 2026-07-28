@@ -1,4 +1,5 @@
 import { MonovomyButton } from '../MonovomyShell'
+import MvPortal from './MvPortal'
 import { playerColor } from './board3d/playerColors'
 
 function fmt(ms) {
@@ -23,6 +24,7 @@ export default function MvAuction({ auction, players, now = 0, controllableIds =
   const idxById = Object.fromEntries(players.map((p, i) => [p.id, i]))
 
   return (
+    <MvPortal>
     <div className="mv-auction" role="dialog" aria-label="Enchère">
       <div className="mv-auction__card">
         <header className="mv-auction__head">
@@ -88,5 +90,6 @@ export default function MvAuction({ auction, players, now = 0, controllableIds =
         </div>
       </div>
     </div>
+    </MvPortal>
   )
 }

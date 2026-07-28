@@ -894,7 +894,7 @@ function DiceSet({ dice }) {
   )
 }
 
-export default function Scene3D({ state, onSelect, dice, reducedMotion = false, lite = false, topDown = false, ambiance, monopolySpaces, buildings, mortgaged, justOwned, targetSpace, controlsRef, fx = null, center = null, centerSlot = null }) {
+export default function Scene3D({ state, onSelect, dice, reducedMotion = false, lite = false, topDown = false, showEstates = true, ambiance, monopolySpaces, buildings, mortgaged, justOwned, targetSpace, controlsRef, fx = null, center = null, centerSlot = null }) {
   // Re-génère les textures une fois les polices web prêtes (sinon fallback système).
   const [fontTick, setFontTick] = useState(0)
   useEffect(() => {
@@ -1016,8 +1016,10 @@ export default function Scene3D({ state, onSelect, dice, reducedMotion = false, 
           />
         ),
       )}
-      {/* Titres de propriété posés sur la table, un présentoir par joueur. */}
-      <Estates3D state={state} onSelect={onSelect} reducedMotion={reducedMotion} lite={lite} />
+      {/* Titres de propriété posés sur la table, un présentoir par joueur. Masqués
+          sur téléphone : illisibles à cette taille, et leur largeur imposait un
+          cadrage qui rapetissait le plateau (voir la feuille « Biens »). */}
+      {showEstates && <Estates3D state={state} onSelect={onSelect} reducedMotion={reducedMotion} lite={lite} />}
       <DiceSet dice={dice} />
     </>
   )

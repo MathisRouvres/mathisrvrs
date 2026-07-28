@@ -1,5 +1,8 @@
+import MvPortal from './MvPortal'
+
 export default function MvModal({ title, onClose, children }) {
   return (
+    <MvPortal>
     <div className="mv-modal" role="dialog" aria-modal="true" onClick={onClose}>
       <div className="mv-modal__card" onClick={(e) => e.stopPropagation()}>
         <div className="mv-modal__head">
@@ -11,5 +14,6 @@ export default function MvModal({ title, onClose, children }) {
         <div className="mv-modal__body">{children}</div>
       </div>
     </div>
+    </MvPortal>
   )
 }

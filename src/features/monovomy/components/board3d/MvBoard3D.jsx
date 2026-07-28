@@ -15,9 +15,11 @@ import MvCaseDetail from '../MvCaseDetail'
 const INTRO_MS = 1800
 const DICE_MS = 1400
 
-// Demi-largeur à cadrer : le rail des titres (RAIL_WIDTH = 15) est l'élément le
-// plus large de la scène, pas le plateau lui-même.
+// Demi-largeur à cadrer. Avec le rail des titres (RAIL_WIDTH = 15) c'est lui, et
+// non le plateau, qui dicte le cadrage. Sans rail, on serre sur le plateau seul
+// (11 cases de 1 unité + une marge) : sur téléphone il gagne ainsi ~25 % de taille.
 const FIT_HALF_WIDTH = 7.6
+const FIT_HALF_WIDTH_BARE = 6
 const FOV_MIN = 26
 const FOV_MAX = 62
 
@@ -47,9 +49,17 @@ function CameraFit({ dist, halfWidth = FIT_HALF_WIDTH }) {
 export default function MvBoard3D({ state, dice, reducedMotion = false, onManage, canManage = false, managePlayerId = null, justOwned = null, centerSlot = null, center = null, fx = null }) {
   const [selected, setSelected] = useState(null)
   const controlsRef = useRef(null)
-  const { isMobile, lowPerf } = useDeviceProfile()
-  // Rendu allégé (reflets/bloom/ombres off, dpr bas) : mouvement réduit OU faible perf.
+  const { isMobile, lowPerf, weak } = useDeviceProfile()
+  // Rendu allégé (reflets, bloom, ombres) : mouvement réduit OU faible perf.
   const lite = reducedMotion || lowPerf
+  // La DÉFINITION, elle, ne suit plus le rendu allégé. Un écran à 3 dpr rendu à
+  // 1,25 affiche une image agrandie 2,4× : c'est ce qui rendait les cases floues
+  // et crénelées sur téléphone. Seuls les appareils vraiment limités restent bas.
+  const maxDpr = weak ? 1.5 : isMobile ? 2.5 : 2
+  // Rail des titres : illisible sous ~800 px de large, et il impose un cadrage
+  // large qui écrase le plateau. Sur téléphone il cède la place ; les propriétés
+  // restent consultables (et de tous les joueurs) dans la feuille « Biens ».
+  const showEstates = !isMobile
   // Mobile : caméra plus haute / moins inclinée → cases lisibles sur petit écran.
   // Le cadrage doit inclure la BANDE PROCHE de la table (z ≈ 7,5 à 8,4) : c'est là
   // que vit le rail des titres de propriété, qui doit rester à portée sans reculer.
@@ -176,9 +186,11 @@ export default function MvBoard3D({ state, dice, reducedMotion = false, onManage
       <div className="mv-board3d__stage" onDoubleClick={recenter}>
         <Canvas
           shadows={!lite}
-          dpr={[1, lite ? 1.25 : 2]}
+          dpr={[1, maxDpr]}
           camera={camera}
           gl={{
+            // À 2 dpr l'escalier est déjà discret : le MSAA ne paie plus son prix
+            // sur mobile, il reste sur les rendus complets.
             antialias: !lite,
             powerPreference: 'high-performance',
             // ACES : compresse les hautes lumières des néons au lieu de les cramer.
@@ -196,6 +208,7 @@ export default function MvBoard3D({ state, dice, reducedMotion = false, onManage
               reducedMotion={reducedMotion}
               lite={lite}
               topDown={isMobile}
+              showEstates={showEstates}
               ambiance={amb}
               monopolySpaces={monopolySpaces}
               buildings={state.buildings}
@@ -209,7 +222,7 @@ export default function MvBoard3D({ state, dice, reducedMotion = false, onManage
             />
           </Suspense>
           {/* Cadrage : ajuste le FOV au ratio du canvas (jamais la position). */}
-          <CameraFit dist={camDist} />
+          <CameraFit dist={camDist} halfWidth={showEstates ? FIT_HALF_WIDTH : FIT_HALF_WIDTH_BARE} />
           {/* Seul composant autorisé à bouger la caméra. */}
           <CameraDirector
             shot={shot}
