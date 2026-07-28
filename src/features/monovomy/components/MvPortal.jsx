@@ -9,5 +9,8 @@ import { createPortal } from 'react-dom'
  */
 export default function MvPortal({ children }) {
   if (typeof document === 'undefined') return null
-  return createPortal(children, document.body)
+  // `.mv-portal` rejoue les variables du thème : hors de `.mv-root`, elles ne sont
+  // plus héritées et tous les `var(--mv-*)` retomberaient à vide (fond transparent,
+  // texte à la couleur du portfolio).
+  return createPortal(<div className="mv-portal">{children}</div>, document.body)
 }

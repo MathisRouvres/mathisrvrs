@@ -111,3 +111,58 @@ describe('createTileTexture — lisibilité', () => {
     })
   })
 })
+
+/**
+ * Version téléphone : une case ne mesure qu'une trentaine de pixels à l'écran. Le
+ * nom doit y être nettement plus gros que sur grand écran, sans jamais déborder
+ * ni se faire tronquer pour autant.
+ */
+describe('createTileTexture — version téléphone', () => {
+  const win = () => globalThis.window as unknown as { innerWidth: number; innerHeight: number }
+  const wide = { innerWidth: 1440, innerHeight: 900 }
+  const phone = { innerWidth: 430, innerHeight: 932 }
+
+  const render = (space: unknown, i: number, size: { innerWidth: number; innerHeight: number }) => {
+    Object.assign(win(), size)
+    drawn = []
+    createTileTexture(space, i)
+    return drawn.slice()
+  }
+
+  it('grossit nettement le nom par rapport au grand écran', () => {
+    soireeBoard.spaces.forEach((space, i) => {
+      const big = Math.max(...render(space, i, wide).map((d) => d.size))
+      const small = Math.max(...render(space, i, phone).map((d) => d.size))
+      expect(small, `case ${i}`).toBeGreaterThan(big)
+    })
+    Object.assign(win(), wide)
+  })
+
+  it('ne déborde ni ne tronque, coins compris', async () => {
+    // @ts-expect-error -- pas de .d.ts pour tileTexture.js
+    const { shortLabel } = await import('./tileTexture.js')
+    soireeBoard.spaces.forEach((space, i) => {
+      const painted = render(space, i, phone)
+      const max = i % 10 === 0 ? 300 : 512 - 2 * (14 + 16)
+      const text = painted.map((d) => d.text).join(' ')
+      expect(text, `case ${i}`).not.toContain('…')
+      for (const w of shortLabel(space.name).split(/\s+/)) {
+        expect(text, `case ${i} — mot « ${w} »`).toContain(w)
+      }
+      for (const d of painted) expect(d.width, `case ${i} — « ${d.text} »`).toBeLessThanOrEqual(max)
+    })
+    Object.assign(win(), wide)
+  })
+
+  it('ne raccourcit que les noms bâtis sur un type de voie', async () => {
+    // @ts-expect-error -- pas de .d.ts pour tileTexture.js
+    const { shortLabel } = await import('./tileTexture.js')
+    expect(shortLabel('Boulevard de la Bière')).toBe('BIÈRE')
+    expect(shortLabel('Rue de l’Apéro')).toBe('APÉRO')
+    expect(shortLabel('Place du Grand Cru')).toBe('GRAND CRU')
+    // Sans type de voie en tête, amputer donnerait « CHANCE BOIRE » : on n'y touche pas.
+    expect(shortLabel('Chance à Boire')).toBe('CHANCE À BOIRE')
+    expect(shortLabel('Au Poste !')).toBe('AU POSTE !')
+    expect(shortLabel('En Cuve (visite)')).toBe('EN CUVE')
+  })
+})

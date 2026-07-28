@@ -184,6 +184,71 @@ const PAD = 14
 const RADIUS = 44
 const BAND_H = 126
 
+/**
+ * Case achetable, version téléphone. Une case y fait ~36 px : la hiérarchie
+ * complète (bandeau + icône + nom + pastille de prix) ne tient pas, tout finit
+ * sous le seuil de lisibilité. On sacrifie donc l'icône et la pastille pour
+ * donner au NOM presque toute la surface — il triple de taille — et le prix
+ * revient en simple ligne dorée.
+ */
+function drawPropertyFaceCompact(ctx, { name, color, price }) {
+  const bandH = 74
+  const bg = ctx.createLinearGradient(0, PAD, 0, S - PAD)
+  bg.addColorStop(0, '#160f2a'); bg.addColorStop(1, '#08050f')
+  ctx.fillStyle = bg
+  roundRect(ctx, PAD, PAD, S - 2 * PAD, S - 2 * PAD, RADIUS); ctx.fill()
+
+  ctx.save()
+  roundRect(ctx, PAD, PAD, S - 2 * PAD, S - 2 * PAD, RADIUS); ctx.clip()
+  const band = ctx.createLinearGradient(0, PAD, 0, PAD + bandH)
+  band.addColorStop(0, mix(color, '#ffffff', 0.2))
+  band.addColorStop(1, mix(color, '#000000', 0.12))
+  ctx.fillStyle = band
+  ctx.fillRect(PAD, PAD, S - 2 * PAD, bandH)
+  ctx.restore()
+
+  ctx.strokeStyle = color; ctx.lineWidth = 7
+  roundRect(ctx, PAD + 3, PAD + 3, S - 2 * PAD - 6, S - 2 * PAD - 6, RADIUS - 3); ctx.stroke()
+
+  // Le libellé court occupe toute la hauteur restante, sur 3 lignes au besoin.
+  const fit = fitText(ctx, shortLabel(name), { max: S - 2 * (PAD + 16), maxLines: 3, start: 168, min: 42, tracking: '-1px' })
+  shadowOn(ctx)
+  drawBlock(ctx, fit, S / 2, PAD + bandH + (S - 2 * PAD - bandH - 92) / 2, '#ffffff')
+
+  ctx.letterSpacing = '0px'
+  ctx.font = `800 76px ${FONT}`
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  ctx.fillStyle = '#f7c33a'
+  ctx.fillText(`${price}€`, S / 2, S - PAD - 52)
+  shadowOff(ctx)
+}
+
+/** Case spéciale, version téléphone : grande icône et nom, sans pastille. */
+function drawSpecialFaceCompact(ctx, { name, color, icon, angle }) {
+  const ink = inkOn(color)
+  const g = ctx.createLinearGradient(0, PAD, 0, S - PAD)
+  g.addColorStop(0, mix(color, '#ffffff', 0.16))
+  g.addColorStop(1, mix(color, '#000000', 0.24))
+  ctx.fillStyle = g
+  roundRect(ctx, PAD, PAD, S - 2 * PAD, S - 2 * PAD, RADIUS); ctx.fill()
+
+  ctx.strokeStyle = 'rgba(0,0,0,0.42)'; ctx.lineWidth = 12
+  roundRect(ctx, PAD + 4, PAD + 4, S - 2 * PAD - 8, S - 2 * PAD - 8, RADIUS - 4); ctx.stroke()
+
+  const corner = angle !== 0
+  ctx.save()
+  if (corner) { ctx.translate(S / 2, S / 2); ctx.rotate(angle); ctx.translate(-S / 2, -S / 2) }
+
+  const nameMax = corner ? 300 : S - 2 * (PAD + 18)
+  const fit = fitText(ctx, shortLabel(name), { max: nameMax, maxLines: 2, start: 132, min: 40, weight: 800, tracking: '-1px' })
+  shadowOn(ctx)
+  drawBlock(ctx, fit, S / 2, corner ? S / 2 - 96 : 150, ink)
+  shadowOff(ctx)
+  drawIcon(ctx, icon, S / 2, corner ? S / 2 + 78 : 330, corner ? 190 : 168, ink, 0.3)
+
+  ctx.restore()
+}
+
 /** Case achetable : bandeau groupe → nom → prix. Hiérarchie stricte, fond sombre. */
 function drawPropertyFace(ctx, { name, color, icon, price }) {
   const bg = ctx.createLinearGradient(0, PAD, 0, S - PAD)
@@ -269,8 +334,42 @@ function drawSpecialFace(ctx, { name, color, icon, label, angle }) {
 export function texScale() {
   if (typeof window === 'undefined') return 1
   const dpr = window.devicePixelRatio || 1
-  const small = Math.min(window.innerWidth, window.innerHeight) < 820
-  return small ? 1 : Math.min(dpr, 2)
+  return isSmallScreen() ? 1 : Math.min(dpr, 2)
+}
+
+/** Écran de téléphone : une case y mesure ~36 px de côté, tout doit y grossir. */
+export function isSmallScreen() {
+  if (typeof window === 'undefined') return false
+  return Math.min(window.innerWidth, window.innerHeight) < 820
+}
+
+// Mots qui n'identifient rien : type de voie en tête, puis liaisons. « Rue de la
+// Soif » et « Rue de la Vodka » ne se distinguent que par leur dernier mot.
+const STREET_TYPE = new Set(['RUE', 'AVENUE', 'PLACE', 'BOULEVARD', 'IMPASSE', 'ALLÉE', 'PASSAGE', 'QUAI', 'CHEMIN', 'SQUARE', 'VILLA'])
+const LINK = new Set(['DE', 'DU', 'DES', 'LA', 'LE', 'LES', 'À', 'AU', 'AUX', 'D', 'L'])
+
+/**
+ * Libellé court d'une case, pour les écrans où elle ne fait qu'une trentaine de
+ * pixels. « Boulevard de la Bière » → « BIÈRE » : un seul mot tient deux fois
+ * plus gros que quatre, et c'est lui qui identifie la case.
+ *
+ * Le raccourci ne s'applique qu'aux noms bâtis sur un type de voie, seul motif où
+ * la tête est purement décorative. « Chance à Boire » ou « Au Poste ! » ne perdent
+ * rien : les amputer donnerait « CHANCE BOIRE ». Le nom complet reste partout
+ * ailleurs — fiche de case, feuille des biens, journal.
+ */
+export function shortLabel(name) {
+  const words = name
+    .toUpperCase()
+    .replace(/\([^)]*\)/g, ' ')
+    // Élisions : « L’AUBE » → « L AUBE », pour que la liaison tombe seule.
+    .replace(/[’']/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+  if (!words.length) return name.toUpperCase()
+  if (!STREET_TYPE.has(words[0])) return words.join(' ')
+  const kept = words.slice(1).filter((w) => !LINK.has(w))
+  return kept.length ? kept.join(' ') : words.join(' ')
 }
 
 /**
@@ -301,8 +400,12 @@ export function createTileTexture(space, index = -1) {
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
 
+  const compact = isSmallScreen()
   if (iconOnly) {
-    drawSpecialFace(ctx, { name: space.name, color, icon, label: SPECIAL_LABEL[kind] || 'SPÉCIAL', angle })
+    if (compact) drawSpecialFaceCompact(ctx, { name: space.name, color, icon, angle })
+    else drawSpecialFace(ctx, { name: space.name, color, icon, label: SPECIAL_LABEL[kind] || 'SPÉCIAL', angle })
+  } else if (compact) {
+    drawPropertyFaceCompact(ctx, { name: space.name, color, price: space.price })
   } else {
     drawPropertyFace(ctx, { name: space.name, color, icon, price: space.price })
   }

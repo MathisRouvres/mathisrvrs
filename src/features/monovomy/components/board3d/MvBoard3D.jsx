@@ -63,7 +63,11 @@ export default function MvBoard3D({ state, dice, reducedMotion = false, onManage
   // Mobile : caméra plus haute / moins inclinée → cases lisibles sur petit écran.
   // Le cadrage doit inclure la BANDE PROCHE de la table (z ≈ 7,5 à 8,4) : c'est là
   // que vit le rail des titres de propriété, qui doit rester à portée sans reculer.
-  const camera = isMobile ? { position: [0, 12.5, 13.5], fov: 54 } : { position: [0, 10.8, 16], fov: 47 }
+  // Mobile : vue quasi zénithale (68° au lieu de 43°). En perspective rasante, les
+  // cases du fond font la moitié de celles du bord — à 430 px de large c'est la
+  // différence entre « petit » et « illisible ». À la verticale, les 40 cases ont
+  // la même taille et le texte n'est plus écrasé par la fuite.
+  const camera = isMobile ? { position: [0, 17, 6.9], fov: 54 } : { position: [0, 10.8, 16], fov: 47 }
   // Distance de repos (caméra → centre du plateau), base du cadrage adaptatif.
   const camDist = Math.hypot(...camera.position)
   // Ambiance visuelle pilotée par l'intensité de soirée (Warm-up → Finale).

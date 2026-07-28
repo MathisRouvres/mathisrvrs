@@ -1,5 +1,9 @@
-/* MonoVomy — thème néon nocturne (voir charte graphique). */
-.mv-root {
+/* MonoVomy — thème néon nocturne (voir charte graphique).
+   `.mv-portal` = racine des calques plein écran montés dans `document.body`
+   (feuilles, modales, détail de case). Ils sortent de `.mv-root` : sans cette
+   seconde déclaration, aucune variable du thème ne leur parvient. */
+.mv-root,
+.mv-portal {
   --mv-nuit: #0a0613;
   --mv-carte: #211441;
   --mv-violet-nuit: #1c1033;
@@ -20,13 +24,23 @@
   --mv-s-line: rgba(255, 255, 255, 0.16);
   --mv-s-line-2: rgba(124, 58, 237, 0.42);
 
+  color: var(--mv-texte);
+  font-family: 'Poppins', system-ui, sans-serif;
+}
+
+.mv-root {
   min-height: 100dvh;
   background:
     radial-gradient(900px 500px at 12% -5%, rgba(124, 58, 237, 0.28), transparent 60%),
     radial-gradient(800px 460px at 92% 4%, rgba(236, 30, 121, 0.22), transparent 60%),
     var(--mv-nuit);
-  color: var(--mv-texte);
-  font-family: 'Poppins', system-ui, sans-serif;
+}
+
+/* Le conteneur des calques n'occupe aucune place : seuls ses enfants, fixés,
+   se déploient. Il ne doit surtout rien transformer ni rogner — ce serait
+   redéfinir le bloc conteneur de ses enfants fixés. */
+.mv-portal {
+  position: static;
 }
 
 
@@ -993,8 +1007,8 @@
 .mv-modfooter { text-align: center; font-size: 0.72rem; color: var(--mv-muted); padding: 1rem; border-top: 1px solid var(--mv-bordure); }
 
 /* --- Modales génériques + doc --- */
-.mv-modal { position: fixed; inset: 0; z-index: 70; display: flex; align-items: center; justify-content: center; padding: 1rem; background: rgba(10, 6, 19, 0.6); backdrop-filter: blur(3px); }
-.mv-modal__card { width: 100%; max-width: 460px; max-height: 85vh; overflow-y: auto; background: linear-gradient(180deg, var(--mv-carte), var(--mv-violet-nuit)); border: 1px solid var(--mv-bordure); border-radius: 18px; padding: 1.4rem; }
+.mv-modal { position: fixed; inset: 0; z-index: 70; display: flex; align-items: center; padding: 1rem; background: rgba(10, 6, 19, 0.6); backdrop-filter: blur(3px); }
+.mv-modal__card { width: 100%; max-width: 460px; margin: 0 auto; max-height: 85vh; overflow-y: auto; background: linear-gradient(180deg, var(--mv-carte), var(--mv-violet-nuit)); border: 1px solid var(--mv-bordure); border-radius: 18px; padding: 1.4rem; }
 .mv-modal__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.8rem; }
 .mv-modal__title { font-family: 'Fredoka', 'Poppins', sans-serif; font-size: 1.2rem; }
 .mv-modal__close { background: transparent; border: none; color: var(--mv-muted); font-size: 1.1rem; cursor: pointer; }
@@ -1018,11 +1032,12 @@
 .mv-case__owned { position: absolute; top: 1px; right: 1px; width: 5px; height: 5px; border-radius: 50%; background: var(--mv-or); box-shadow: 0 0 4px var(--mv-or); }
 .mv-hydrate { text-align: center; color: var(--mv-cyan); font-size: 0.85rem; margin: 0.25rem 0; }
 
-.mv-casedetail { position: fixed; inset: 0; z-index: 65; display: flex; align-items: flex-end; justify-content: center; padding: 1rem; background: rgba(8, 5, 16, 0.62); backdrop-filter: blur(3px); }
+.mv-casedetail { position: fixed; inset: 0; z-index: 65; display: flex; align-items: flex-end; padding: 1rem; background: rgba(8, 5, 16, 0.62); backdrop-filter: blur(3px); }
 .mv-casedetail__card {
   position: relative;
   width: 100%;
   max-width: 380px;
+  margin: 0 auto;
   overflow: hidden;
   border-radius: 22px;
   padding: 1.4rem 1.25rem 1.25rem;
@@ -1639,13 +1654,14 @@
   z-index: 50;
   display: flex;
   align-items: flex-end;
-  justify-content: center;
   background: rgba(6, 4, 12, 0.6);
   backdrop-filter: blur(4px);
   padding: 0.8rem;
 }
 .mv-auction__card {
-  width: min(30rem, 100%);
+  width: 100%;
+  max-width: 30rem;
+  margin: 0 auto;
   max-height: 82vh;
   overflow-y: auto;
   background: rgba(28, 16, 51, 0.98);
@@ -1923,11 +1939,14 @@
 /* --- Feuilles (sheets) du dock --- */
 .mv-sheet {
   position: fixed; inset: 0; z-index: 66;
-  display: flex; align-items: flex-end; justify-content: center;
+  display: flex; align-items: flex-end;
   background: rgba(8, 5, 16, 0.6); backdrop-filter: blur(3px);
 }
+/* Centrage par marges automatiques, pas par `justify-content` : une marge auto
+   ne peut pas déporter la carte hors du cadre, même si celle-ci est plus large
+   que prévu. Le calage horizontal ne dépend alors plus du contexte flex. */
 .mv-sheet__card {
-  width: min(30rem, 100%); max-height: 70vh;
+  width: 100%; max-width: 30rem; margin: 0 auto; max-height: 70dvh;
   display: flex; flex-direction: column;
   border-radius: 18px 18px 0 0;
   animation: mv-rise 0.28s ease both;
@@ -2498,11 +2517,15 @@
   .mv-lbl-lg { display: none; }
 
   /* --- Coque : plein écran, aucun défilement de page --- */
+  /* Coque fixée plutôt que « 100dvh + overflow: hidden » : Safari iOS rogne les
+     calques fixes descendant d'un conteneur qui masque son débordement, ce qui
+     envoyait les feuilles hors écran. Les calques sont désormais portés dans
+     `body`, la coque peut donc être un cadre fixe sans effet de bord. */
   .mv-root:has(.mv-game) {
-    height: 100dvh;
+    position: fixed;
+    inset: 0;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
     /* Le double-tap sur un bouton ne doit pas zoomer la page : un zoom navigateur
        décale les calques fixes (feuilles, CTA) hors de l'écran. Le pincement du
        plateau, lui, est géré par le canvas (touch-action: none). */
@@ -2556,17 +2579,22 @@
   .mv-hud2__cash { font-size: 1.45rem; }
   .mv-hud2__cash i { font-size: 0.8rem; }
   .mv-hud2__who { font-size: 0.92rem; }
+  .mv-hud2__main { min-width: 0; }
   .mv-hud2__sub {
-    flex: none;
+    /* Compressible : plutôt tronquer la case que pousser le HUD hors de l'écran. */
+    flex: 0 1 auto;
+    min-width: 0;
     margin: 0;
     padding: 0;
     border-top: 0;
     flex-wrap: nowrap;
     gap: 0.3rem;
   }
+  /* Le libellé d'action doublonne le CTA. La CASE, elle, reste : c'est
+     l'information que les cases du plateau ne peuvent pas porter à cette taille. */
   .mv-hud2__action,
-  .mv-hud2__pos,
   .mv-hud2__spacer { display: none; }
+  .mv-hud2__pos { max-width: 8rem; font-size: 0.74rem; }
   .mv-hud2__timer { font-size: 0.68rem; padding: 0.08rem 0.32rem; }
   .mv-hud2__intensity { font-size: 0.64rem; padding: 0.08rem 0.42rem; }
 
