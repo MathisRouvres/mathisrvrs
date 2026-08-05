@@ -13,7 +13,8 @@ import { ownerColorBySpace as ownerColorMap } from '../../game/boardInsights'
 import { ambianceFor } from './ambiance'
 import { cellFor } from './boardCells'
 import Effects from './effects/Effects'
-import Environment3D, { TABLE_TOP } from './Environment3D'
+import BoardEnvironment from './environment/BoardEnvironment'
+import { TABLE_TOP } from './environment/stage'
 import Estates3D from './Estates3D'
 import CenterStage from './CenterStage'
 
@@ -894,7 +895,7 @@ function DiceSet({ dice }) {
   )
 }
 
-export default function Scene3D({ state, onSelect, dice, reducedMotion = false, lite = false, topDown = false, showEstates = true, freeCam = false, ambiance, monopolySpaces, buildings, mortgaged, justOwned, targetSpace, controlsRef, fx = null, center = null, centerSlot = null }) {
+export default function Scene3D({ state, onSelect, dice, reducedMotion = false, lite = false, topDown = false, showEstates = true, freeCam = false, ambiance, monopolySpaces, buildings, mortgaged, justOwned, targetSpace, controlsRef, fx = null, center = null, centerSlot = null, environmentId = null, compact = false, presence = null }) {
   // Re-génère les textures une fois les polices web prêtes (sinon fallback système).
   const [fontTick, setFontTick] = useState(0)
   useEffect(() => {
@@ -951,89 +952,100 @@ export default function Scene3D({ state, onSelect, dice, reducedMotion = false, 
           lieu de ±11) → même carte d'ombre, deux fois plus de texels par mètre. */}
       <directionalLight castShadow position={[7, 16, 7]} intensity={1.5} shadow-mapSize-width={2048} shadow-mapSize-height={2048} shadow-camera-far={44} shadow-camera-left={-7} shadow-camera-right={7} shadow-camera-top={7} shadow-camera-bottom={-7} shadow-bias={-0.0004} />
 
-      {/* Décor : table de bar + dôme + faisceaux. Il remplace l'ancien sol infini,
-          c'est lui qui porte le plateau (surface réfléchissante comprise). */}
-      <Environment3D ambiance={amb} lite={lite} />
-      {/* Vignette : éteint les bords du reflet, garde le centre lisible.
-          Inutile en rendu allégé (pas de miroir) → un mesh transparent de moins. */}
-      {!lite && (
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, TABLE_TOP + 0.015, 0]} raycast={() => null}>
-          <circleGeometry args={[13.4, 48]} />
-          <meshBasicMaterial ref={vignetteMatRef} map={vignetteTex} transparent depthWrite={false} toneMapped={false} opacity={0.45 + 0.55 * amb.vignette} />
-        </mesh>
-      )}
-      {/* Halo radial autour du plateau : la lueur des néons sur la table. */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, TABLE_TOP + 0.03, 0]} raycast={() => null}>
-        <planeGeometry args={[20, 20]} />
-        <meshBasicMaterial map={haloTex} transparent depthWrite={false} blending={THREE.AdditiveBlending} toneMapped={false} opacity={0.6} />
-      </mesh>
-
-      {/* Socle deux niveaux + chanfrein, fusionné en une géométrie (1 draw call,
-          comme l'ancienne boîte unique) — les deux tons passent par les sommets. */}
-      <mesh geometry={baseGeometry} receiveShadow>
-        <meshStandardMaterial vertexColors metalness={0.6} roughness={0.35} />
-      </mesh>
-      <mesh position={[0, -0.02, 0]} receiveShadow>
-        <boxGeometry args={[9.1, 0.06, 9.1]} />
-        <meshStandardMaterial color="#0d0722" emissive="#140a34" emissiveIntensity={0.5} roughness={0.5} />
-      </mesh>
-      {/* Centre en volume : podium, logo billboardé, jauge de temps, carte 3D. */}
-      <CenterStage
-        texture={centerTex}
+      {/* Environnement : pièce, mobilier, places des joueurs, atmosphère. Il
+          ENTOURE le plateau, qui lui est passé en enfant et rendu une seule fois
+          — changer de décor ne remonte ni les cases, ni les pions. */}
+      <BoardEnvironment
+        environmentId={environmentId}
+        state={state}
         ambiance={amb}
         intensity={state.partyIntensity}
+        lite={lite}
         reducedMotion={reducedMotion}
-        panel={center?.panel ?? null}
-        turn={center?.turn ?? state.turn}
-        timerLeft={center?.timerLeft ?? -1}
-        timerTotal={center?.timerTotal ?? 0}
-        centerSlot={centerSlot}
-      />
-      <NeonFrame ambiance={amb} reducedMotion={reducedMotion} />
-      {/* Liserés des 40 cases : une seule géométrie fusionnée = un seul draw call. */}
-      <mesh geometry={rimGeometry}>
-        <meshBasicMaterial vertexColors toneMapped={false} />
-      </mesh>
-      {soireeBoard.spaces.map((space, i) => (
-        <Tile
-          key={space.id}
-          i={i}
-          texture={textures[i]}
-          onSelect={onSelect}
-          ownerColor={ownerColorBySpace[space.id]}
-          tint={accentColor(space)}
-          special={!isPurchasable(space)}
-          isMonopoly={monopolySet.has(space.id)}
-          level={buildings?.[space.id] ?? 0}
-          mortgaged={mortgaged?.[space.id] === true}
-          pulse={justOwned === space.id}
+        compact={compact}
+        presence={presence}
+      >
+        {/* Vignette : éteint les bords du reflet, garde le centre lisible.
+            Inutile en rendu allégé (pas de miroir) → un mesh transparent de moins. */}
+        {!lite && (
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, TABLE_TOP + 0.015, 0]} raycast={() => null}>
+            <circleGeometry args={[13.4, 48]} />
+            <meshBasicMaterial ref={vignetteMatRef} map={vignetteTex} transparent depthWrite={false} toneMapped={false} opacity={0.45 + 0.55 * amb.vignette} />
+          </mesh>
+        )}
+        {/* Halo radial autour du plateau : la lueur des néons sur la table. */}
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, TABLE_TOP + 0.03, 0]} raycast={() => null}>
+          <planeGeometry args={[20, 20]} />
+          <meshBasicMaterial map={haloTex} transparent depthWrite={false} blending={THREE.AdditiveBlending} toneMapped={false} opacity={0.6} />
+        </mesh>
+
+        {/* Socle deux niveaux + chanfrein, fusionné en une géométrie (1 draw call,
+            comme l'ancienne boîte unique) — les deux tons passent par les sommets. */}
+        <mesh geometry={baseGeometry} receiveShadow>
+          <meshStandardMaterial vertexColors metalness={0.6} roughness={0.35} />
+        </mesh>
+        <mesh position={[0, -0.02, 0]} receiveShadow>
+          <boxGeometry args={[9.1, 0.06, 9.1]} />
+          <meshStandardMaterial color="#0d0722" emissive="#140a34" emissiveIntensity={0.5} roughness={0.5} />
+        </mesh>
+        {/* Centre en volume : podium, logo billboardé, jauge de temps, carte 3D. */}
+        <CenterStage
+          texture={centerTex}
+          ambiance={amb}
+          intensity={state.partyIntensity}
           reducedMotion={reducedMotion}
+          panel={center?.panel ?? null}
+          turn={center?.turn ?? state.turn}
+          timerLeft={center?.timerLeft ?? -1}
+          timerTotal={center?.timerTotal ?? 0}
+          centerSlot={centerSlot}
         />
-      ))}
-      {targetSpace != null && <TargetHighlight cell={targetSpace} reducedMotion={reducedMotion} />}
-      {/* Effets ponctuels (achat, monopole, loyer, faillite, montée d'intensité) :
-          une seule prop `fx` en entrée, la file est gérée dans <Effects>. */}
-      <Effects fx={fx} reducedMotion={reducedMotion} players={state.players} ownership={state.ownership} />
-      {state.players.map((p, i) =>
-        p.eliminated ? null : (
-          <Pawn3D
-            key={p.id}
-            target={p.position}
-            color={PLAYER_COLORS[i % PLAYER_COLORS.length]}
-            seatOffset={i}
-            shapeIndex={p.pawn}
-            isActive={i === state.currentPlayerIndex}
+        <NeonFrame ambiance={amb} reducedMotion={reducedMotion} />
+        {/* Liserés des 40 cases : une seule géométrie fusionnée = un seul draw call. */}
+        <mesh geometry={rimGeometry}>
+          <meshBasicMaterial vertexColors toneMapped={false} />
+        </mesh>
+        {soireeBoard.spaces.map((space, i) => (
+          <Tile
+            key={space.id}
+            i={i}
+            texture={textures[i]}
+            onSelect={onSelect}
+            ownerColor={ownerColorBySpace[space.id]}
+            tint={accentColor(space)}
+            special={!isPurchasable(space)}
+            isMonopoly={monopolySet.has(space.id)}
+            level={buildings?.[space.id] ?? 0}
+            mortgaged={mortgaged?.[space.id] === true}
+            pulse={justOwned === space.id}
             reducedMotion={reducedMotion}
-            name={p.name}
-            cash={p.cash}
           />
-        ),
-      )}
-      {/* Titres de propriété posés sur la table, un présentoir par joueur. Masqués
-          sur téléphone : illisibles à cette taille, et leur largeur imposait un
-          cadrage qui rapetissait le plateau (voir la feuille « Biens »). */}
-      {showEstates && <Estates3D state={state} onSelect={onSelect} reducedMotion={reducedMotion} lite={lite} />}
-      <DiceSet dice={dice} />
+        ))}
+        {targetSpace != null && <TargetHighlight cell={targetSpace} reducedMotion={reducedMotion} />}
+        {/* Effets ponctuels (achat, monopole, loyer, faillite, montée d'intensité) :
+            une seule prop `fx` en entrée, la file est gérée dans <Effects>. */}
+        <Effects fx={fx} reducedMotion={reducedMotion} players={state.players} ownership={state.ownership} />
+        {state.players.map((p, i) =>
+          p.eliminated ? null : (
+            <Pawn3D
+              key={p.id}
+              target={p.position}
+              color={PLAYER_COLORS[i % PLAYER_COLORS.length]}
+              seatOffset={i}
+              shapeIndex={p.pawn}
+              isActive={i === state.currentPlayerIndex}
+              reducedMotion={reducedMotion}
+              name={p.name}
+              cash={p.cash}
+            />
+          ),
+        )}
+        {/* Titres de propriété posés sur la table, un présentoir par joueur. Masqués
+            sur téléphone : illisibles à cette taille, et leur largeur imposait un
+            cadrage qui rapetissait le plateau (voir la feuille « Biens »). */}
+        {showEstates && <Estates3D state={state} onSelect={onSelect} reducedMotion={reducedMotion} lite={lite} />}
+        <DiceSet dice={dice} />
+      </BoardEnvironment>
     </>
   )
 }

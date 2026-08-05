@@ -8,7 +8,7 @@ import { createDeedTexture, createNamePlateTexture } from './deedTexture'
 import { isPurchasable } from './tileTexture'
 import { cellFor, INDEX_BY_ID } from './boardCells'
 import { layoutFan, CARD_W, CARD_H } from './estateLayout'
-import { TABLE_TOP } from './Environment3D'
+import { TABLE_TOP } from './environment/stage'
 
 /**
  * Titres de propriété PHYSIQUES : de vrais cartons posés sur la table, pas un calque

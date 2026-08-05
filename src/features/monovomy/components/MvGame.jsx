@@ -62,6 +62,15 @@ export default function MvGame({
   const [showCards, setShowCards] = useState(false)
   const reducedMotion = useReducedMotion()
 
+  // Voyants de connexion des places du plateau. Le moteur ne connaît pas la
+  // connexion : on ne renseigne que la place dont l'état est réellement
+  // observable ici — la nôtre, en ligne. Les autres n'affichent aucun voyant,
+  // plutôt qu'un voyant faux. Mémoïsé : le décor est mémoïsé sur ses props.
+  const presence = useMemo(
+    () => (mode === 'online' && myId ? { [myId]: netStatus === 'connected' } : null),
+    [mode, myId, netStatus],
+  )
+
   // Événement de scène centrale (transient) — déclaré tôt (utilisé par des effets).
   const [event, setEvent] = useState(null)
   const eventId = useRef(0)
@@ -397,6 +406,7 @@ export default function MvGame({
           justOwned={justOwned}
           fx={boardFx}
           center={centerData}
+          presence={presence}
           centerSlot={
             <MvCenter
               state={state}

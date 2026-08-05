@@ -6,6 +6,8 @@ import { sound } from '../game/sound'
 import { haptics } from '../game/haptics'
 import { useWakeLockConsent } from '../pwa/useWakeLock'
 import { useFreeCam } from '../game/freeCam'
+import { useEnvironmentId } from './board3d/environment/environmentPref'
+import { resolveEnvironment } from './board3d/environment/environmentPresets'
 import { APP_BUILD } from '../pwa/buildInfo'
 import MvChat from './MvChat'
 import MvRules from './MvRules'
@@ -162,6 +164,12 @@ function SettingsSheet({ onSoft, myMode, onOpenDoc, onFinish }) {
   const [haptic, setHaptic] = useState(() => haptics.isEnabled())
   const wake = useWakeLockConsent()
   const cam = useFreeCam()
+  // Décor du plateau : préférence locale, hors état de jeu. Elle est ici et non
+  // derrière un drapeau de développement parce qu'elle doit rester testable
+  // depuis un vrai téléphone, sur le build déployé. Le jour où l'hôte le choisira
+  // depuis le lobby, cette ligne deviendra un repli.
+  const env = useEnvironmentId()
+  const envPreset = resolveEnvironment(env.id)
   return (
     <div className="mv-settings">
       <button type="button" className="mv-settings__row" onClick={() => { const n = !muted; sound.setMuted(n); setMuted(n) }}>
@@ -179,6 +187,9 @@ function SettingsSheet({ onSoft, myMode, onOpenDoc, onFinish }) {
       )}
       <button type="button" className="mv-settings__row" onClick={cam.toggle} aria-pressed={cam.free}>
         <span>🎥 Caméra libre</span><b>{cam.free ? 'Active' : 'Non'}</b>
+      </button>
+      <button type="button" className="mv-settings__row" onClick={env.cycle} title={envPreset.description}>
+        <span>🪩 Décor</span><b>{envPreset.name}</b>
       </button>
       {onSoft && (
         <button type="button" className="mv-settings__row" onClick={() => onSoft(myMode === 'soft' ? 'alcohol' : 'soft')}>

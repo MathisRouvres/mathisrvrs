@@ -1527,6 +1527,72 @@
 }
 .mv-pawnlabel__name { font-weight: 700; }
 .mv-pawnlabel__cash { color: var(--mv-or); font-weight: 700; }
+
+/* --- Places des joueurs (décor 3D) ----------------------------------------
+   Ces plaques sont ancrées SUR la plaque physique posée devant chaque siège :
+   elles suivent la perspective (`distanceFactor`), elles ne flottent pas.
+   `pointer-events: none` est vital — le décor ne doit jamais voler un tap
+   destiné au plateau. */
+.mv-seat-wrap { pointer-events: none; }
+.mv-seat {
+  display: flex;
+  align-items: center;
+  gap: 0.34rem;
+  white-space: nowrap;
+  padding: 0.24rem 0.5rem 0.24rem 0.34rem;
+  border-radius: 0.55rem;
+  font-family: 'Fredoka', 'Poppins', sans-serif;
+  font-size: 0.74rem;
+  line-height: 1;
+  color: var(--mv-texte);
+  /* Un dégradé et une bordure : moins cher qu'un backdrop-filter, et le décor
+     n'a pas à flouter ce qu'il y a derrière — il y a la table. */
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--pc, #7c3aed) 22%, rgba(14, 9, 24, 0.9)),
+    rgba(7, 4, 14, 0.94)
+  );
+  border: 1px solid color-mix(in srgb, var(--pc, #7c3aed) 45%, transparent);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.5);
+}
+.mv-seat.is-compact { font-size: 0.68rem; padding: 0.2rem 0.42rem 0.2rem 0.3rem; }
+.mv-seat__pip {
+  width: 0.34rem;
+  height: 1.05rem;
+  border-radius: 999px;
+  flex: none;
+  background: var(--pc, #7c3aed);
+  box-shadow: 0 0 6px var(--pc, #7c3aed);
+}
+.mv-seat__avatar { font-size: 0.92rem; line-height: 1; }
+.mv-seat__id { display: flex; flex-direction: column; gap: 0.12rem; }
+.mv-seat__name { font-weight: 700; }
+.mv-seat__cash { color: var(--mv-or); font-weight: 700; font-size: 0.66rem; }
+.mv-seat__net {
+  width: 0.36rem;
+  height: 0.36rem;
+  border-radius: 999px;
+  flex: none;
+  margin-left: 0.1rem;
+}
+.mv-seat__net.is-on { background: #22c55e; box-shadow: 0 0 5px #22c55e; }
+.mv-seat__net.is-off { background: #e11d48; box-shadow: 0 0 5px #e11d48; }
+/* Joueur actif : la plaque monte d'un cran de luminosité — jamais plus que les
+   cases, qui restent la partie la plus contrastée de la scène. */
+.mv-seat.is-active {
+  border-color: var(--pc, #7c3aed);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--pc, #7c3aed) 55%, transparent), 0 4px 14px rgba(0, 0, 0, 0.55);
+  animation: mv-seat-breathe 3.2s ease-in-out infinite;
+}
+.mv-seat.is-out { opacity: 0.42; filter: saturate(0.25); }
+.mv-seat.is-out .mv-seat__cash { color: var(--mv-muted); }
+@keyframes mv-seat-breathe {
+  0%, 100% { box-shadow: 0 0 0 1px color-mix(in srgb, var(--pc, #7c3aed) 45%, transparent), 0 4px 14px rgba(0, 0, 0, 0.55); }
+  50% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--pc, #7c3aed) 70%, transparent), 0 4px 18px rgba(0, 0, 0, 0.55); }
+}
+/* Accords par décor : la plaque appartient au lieu, pas à un thème unique. */
+.mv-env--apartment .mv-seat { border-radius: 0.75rem; background: linear-gradient(180deg, color-mix(in srgb, var(--pc, #7c3aed) 16%, rgba(20, 16, 32, 0.92)), rgba(11, 9, 20, 0.94)); }
+.mv-env--underground .mv-seat { border-radius: 0.2rem; letter-spacing: 0.01em; }
 /* Outils du plateau, groupés dans un même coin : caméra libre puis recentrage. */
 .mv-board3d__tools {
   position: absolute;
@@ -3065,4 +3131,7 @@
 @media (prefers-reduced-motion: reduce) {
   .mv-pbar__chip.is-paying,
   .mv-pbar__chip.is-cashing { animation: none; }
+  /* La plaque du joueur actif reste distincte (bordure pleine), elle cesse
+     seulement de respirer. */
+  .mv-seat.is-active { animation: none; }
 }

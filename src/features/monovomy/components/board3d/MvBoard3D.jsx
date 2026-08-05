@@ -9,6 +9,8 @@ import { completeGroups } from '../../game/boardInsights'
 import { useDeviceProfile } from '../../game/useDeviceProfile'
 import { useFreeCam } from '../../game/freeCam'
 import { ambianceFor } from './ambiance'
+import { useEnvironmentId } from './environment/environmentPref'
+import { environmentAmbiance, resolveEnvironment } from './environment/environmentPresets'
 import { propertyManagement, ranking } from '../../engine'
 import CameraDirector from './CameraDirector'
 import MvCaseDetail from '../MvCaseDetail'
@@ -20,7 +22,10 @@ const DICE_MS = 1400
 // non le plateau, qui dicte le cadrage. Sans rail, on serre sur le plateau seul
 // (11 cases de 1 unité + une marge) : sur téléphone il gagne ainsi ~25 % de taille.
 const FIT_HALF_WIDTH = 7.6
-const FIT_HALF_WIDTH_BARE = 6
+// Sans rail (téléphone), le cadrage doit tout de même laisser entrer la rangée de
+// places, posée à 7,45 du centre. 6,6 est le compromis : le plateau perd ~9 % par
+// rapport au serrage sur les seules cases, et les joueurs cessent d'être hors champ.
+const FIT_HALF_WIDTH_BARE = 6.6
 const FOV_MIN = 26
 const FOV_MAX = 62
 
@@ -67,11 +72,15 @@ function CameraFit({ depth, halfWidth = FIT_HALF_WIDTH }) {
   return null
 }
 
-export default function MvBoard3D({ state, dice, reducedMotion = false, onManage, canManage = false, managePlayerId = null, justOwned = null, centerSlot = null, center = null, fx = null }) {
+export default function MvBoard3D({ state, dice, reducedMotion = false, onManage, canManage = false, managePlayerId = null, justOwned = null, centerSlot = null, center = null, fx = null, environmentId = null, presence = null }) {
   const [selected, setSelected] = useState(null)
   const controlsRef = useRef(null)
   const { isMobile, lowPerf, weak } = useDeviceProfile()
   const freeCam = useFreeCam()
+  // Décor : préférence locale d'appareil, sauf si l'appelant en impose un (le
+  // jour où l'hôte le choisira depuis le lobby, c'est ce chemin qui servira).
+  const localEnv = useEnvironmentId()
+  const envId = environmentId ?? localEnv.id
   // Rendu allégé (reflets, bloom, ombres) : mouvement réduit OU faible perf.
   const lite = reducedMotion || lowPerf
   // La DÉFINITION, elle, ne suit plus le rendu allégé. Un écran à 3 dpr rendu à
@@ -90,8 +99,11 @@ export default function MvBoard3D({ state, dice, reducedMotion = false, onManage
   // Base du cadrage : demi-largeur à couvrir, et profondeur du coin le plus proche.
   const fitHalf = showEstates ? FIT_HALF_WIDTH : FIT_HALF_WIDTH_BARE
   const fitDepth = nearestDepth(camera.position, fitHalf)
-  // Ambiance visuelle pilotée par l'intensité de soirée (Warm-up → Finale).
-  const amb = ambianceFor(state.partyIntensity)
+  // Ambiance visuelle pilotée par l'intensité de soirée (Warm-up → Finale), puis
+  // MODULÉE par le décor : un appartement reste calme en finale, un warehouse
+  // reste contrasté au warm-up — mais c'est toujours le moteur qui donne le ton.
+  const preset = resolveEnvironment(envId)
+  const amb = environmentAmbiance(preset, ambianceFor(state.partyIntensity))
   const selectedSpace = selected != null ? soireeBoard.spaces[selected] : null
   const active = state.players[state.currentPlayerIndex]
 
@@ -206,7 +218,7 @@ export default function MvBoard3D({ state, dice, reducedMotion = false, onManage
   const recenter = () => controlsRef.current?.reset?.()
 
   return (
-    <div className="mv-board3d">
+    <div className={`mv-board3d ${preset.className}`}>
       <div className="mv-board3d__stage" onDoubleClick={recenter}>
         <Canvas
           shadows={!lite}
@@ -244,6 +256,9 @@ export default function MvBoard3D({ state, dice, reducedMotion = false, onManage
               fx={fxEvent}
               center={center}
               centerSlot={centerSlot}
+              environmentId={envId}
+              compact={!showEstates}
+              presence={presence}
             />
           </Suspense>
           {/* Cadrage : ajuste le FOV au ratio du canvas (jamais la position). */}
