@@ -58,6 +58,21 @@ Repli unique : `DEFAULT_BOARD_MAP_ID = 'classic_square'`. Une partie **sans** `m
 retombe dessus ; un `mapId` **présent mais inconnu** échoue bruyamment
 (`resolveBoardMapId` renvoie `null`, `getBoardMap` lève) — jamais de bascule silencieuse.
 
+### Choix de la map et synchronisation
+
+L'hôte est seul décideur. Le lobby porte des `RoomSettings { mapId }` et trois
+intentions validées par `net/lobbyReducer.ts` (pur, testé) :
+`select_map`, `update_room_settings`, `start_game`.
+
+Refus explicites : `not_host`, `unknown_map`, `game_started`, `unsupported_player_count`.
+Les intentions reçues du réseau passent d'abord par `parseLobbyIntent` (Zod).
+
+Au lancement, `createGame` fige `mapId` / `mapVersion` dans le `GameState` ; ils ne
+changent plus. Le snapshot les recopie, et `restoreSnapshot` refuse
+`unknown_map` / `incompatible_map` plutôt que de basculer sur un autre plateau.
+`applyStampedIntent` rejette (`map_mismatch`) toute intention résolue sur une map
+différente de celle du snapshot.
+
 ### Ajouter une nouvelle map
 
 1. déclarer son identifiant dans `BOARD_MAP_IDS` (`maps/types.ts`) ;

@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { MonovomyButton } from '../MonovomyShell'
 import MvBackdrop from './MvBackdrop'
+import MvMapPicker from './MvMapPicker'
 import { PAWNS, PAWN_COUNT } from './board3d/pawnCatalog'
 import { playerColor } from './board3d/playerColors'
+import { DEFAULT_BOARD_MAP_ID } from '../content'
 import {
   DIFFICULTY_IDS,
   DIFFICULTY_LABELS,
@@ -19,6 +21,7 @@ function makeSeed() {
 
 export default function MvLobby({ onStart, version, onExit }) {
   const [difficulty, setDifficulty] = useState('inter')
+  const [mapId, setMapId] = useState(DEFAULT_BOARD_MAP_ID)
   const [duration, setDuration] = useState(60)
   const [turnSeconds, setTurnSeconds] = useState(null)
   const [fair, setFair] = useState(true)
@@ -54,6 +57,7 @@ export default function MvLobby({ onStart, version, onExit }) {
       startCompensation: fair,
       auctionOnPass: auction,
       themeId: 'soiree',
+      mapId,
       seed: makeSeed(),
     }
     const setups = players.map((p, i) => {
@@ -75,6 +79,8 @@ export default function MvLobby({ onStart, version, onExit }) {
         </h1>
         <p className="mv-hero__sub">Hot-seat · un téléphone qui tourne · contenu v{version}</p>
       </section>
+
+      <MvMapPicker value={mapId} onSelect={setMapId} playerCount={players.length} />
 
       <section className="mv-card">
         <h2 className="mv-card__title"><span className="mv-card__ic">🎯</span> Difficulté</h2>

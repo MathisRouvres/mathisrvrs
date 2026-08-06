@@ -3,8 +3,9 @@ import { createGameRng } from './rng'
 import { buildTurnOrder, compensationForRank } from './order'
 import { fillMarketStock } from './market'
 import { startIndex, startingCashOf } from '../content/maps/navigation'
-import type { NavigableBoard } from '../content/maps/types'
-import { defaultBoardMap } from '../content/maps/registry'
+import { DEFAULT_BOARD_MAP_ID, isBoardMapId, type NavigableBoard } from '../content/maps/types'
+import { hasBoardMap, getBoardMap, resolveBoardMapId } from '../content/maps/registry'
+import { boardForMapId } from './board'
 
 /**
  * Crée l’état initial d’une partie. `cardPool` = identifiants des cartes action
@@ -13,12 +14,15 @@ import { defaultBoardMap } from '../content/maps/registry'
  * L’ordre de jeu est mélangé (si `config.shuffleOrder`) avec le PRNG seedé, et
  * une compensation de départ par rang peut être appliquée (`config.startCompensation`).
  * L’horloge n’est pas démarrée ici : appeler `startClock(state, now)` au lancement.
+ *
+ * Le plateau est résolu depuis `config.mapId` (repli : plateau classique) et
+ * **figé** dans l’état (`mapId` / `mapVersion`) : il ne change plus ensuite.
  */
 export function createGame(
   config: GameConfig,
   setups: PlayerSetup[],
   cardPool: readonly string[],
-  map: NavigableBoard = defaultBoardMap(),
+  map: NavigableBoard = boardForMapId(config.mapId),
 ): GameState {
   const rng = createGameRng(config.seed)
   const deck = rng.shuffle(cardPool)
@@ -46,9 +50,18 @@ export function createGame(
     if (player) player.cash += compensationForRank(config, rank)
   })
 
+  // Identité de la map figée dans l'état : un snapshot / replay recharge
+  // exactement ce plateau, jamais celui sélectionné plus tard dans le lobby.
+  const mapId = isBoardMapId(map.id)
+    ? map.id
+    : resolveBoardMapId(config.mapId) ?? DEFAULT_BOARD_MAP_ID
+  const mapVersion = map.version ?? (hasBoardMap(mapId) ? getBoardMap(mapId).version : '0.0.0')
+
   const durationMs = Math.max(0, config.durationMinutes) * 60_000
   const state: GameState = {
     config,
+    mapId,
+    mapVersion,
     players,
     currentPlayerIndex: order[0] ?? 0,
     turn: 1,

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { soireeBoard, actionCards } from '../content'
+import { actionCards } from '../content'
 import {
+  boardForState,
   createGame,
   startClock,
   tickGameClock,
@@ -17,6 +18,10 @@ import {
 } from '../engine'
 import {
   applyIntent,
+  applyLobbyIntent,
+  defaultRoomSettings,
+  parseLobbyIntent,
+  startBlocker,
   defaultIntentForPhase,
   initSnapshot,
   commitState,
@@ -31,6 +36,7 @@ import {
   PROTOCOL_VERSION,
 } from '../net'
 import { createSupabaseChannel } from '../net/supabaseTransport'
+import { getBoardMap } from '../content'
 import { SUPABASE_CONFIG, SUPABASE_ENABLED } from '../../../config/features'
 import { describeOutcome } from './describeOutcome'
 
@@ -74,6 +80,8 @@ export function useOnlineGame() {
   const [now, setNow] = useState(() => Date.now())
   const [meId, setMeId] = useState(null)
   const [netStatus, setNetStatus] = useState('idle')
+  // Réglages de room (plateau) : l'hôte décide, tout le monde reçoit.
+  const [settings, setSettings] = useState(() => defaultRoomSettings())
 
   const channelRef = useRef(null)
   const meRef = useRef(null)
@@ -87,6 +95,7 @@ export function useOnlineGame() {
   const stamperRef = useRef(null)
   const storeRef = useRef(null)
   const lastHostAtRef = useRef(0)
+  const settingsRef = useRef(defaultRoomSettings())
 
   const broadcast = useCallback((msg) => {
     channelRef.current?.publish({ kind: 'server', from: meRef.current?.clientId ?? 'host', msg })
@@ -140,7 +149,7 @@ export function useOnlineGame() {
     const isSide = typeof intent.type === 'string' && (intent.type.startsWith('trade') || intent.type === 'setDrinkMode' || intent.type === 'marketUse')
 
     if (meta) {
-      const r = applyStampedIntent(snap, soireeBoard, fromClientId, { ...meta, intent, protocolVersion: meta.protocolVersion || PROTOCOL_VERSION }, stamp)
+      const r = applyStampedIntent(snap, boardForState(snap.state), fromClientId, { ...meta, intent, protocolVersion: meta.protocolVersion || PROTOCOL_VERSION }, stamp)
       snapRef.current = r.snapshot // seen mis à jour même sur doublon/rejet
       if (r.outcome === 'rejected') { broadcast({ t: 'error', to: fromClientId, message: r.error }); return }
       if (r.outcome !== 'applied') return // doublon / séquence périmée / spoof → ignoré
@@ -154,7 +163,7 @@ export function useOnlineGame() {
 
     // Action locale hôte : validation métier directe puis commit versionné.
     const seatByClient = Object.fromEntries(membersRef.current.map((m) => [m.clientId, m.seat]))
-    const res = applyIntent(snap.state, fromClientId, seatByClient, intent, soireeBoard, stamp)
+    const res = applyIntent(snap.state, fromClientId, seatByClient, intent, boardForState(snap.state), stamp)
     if (res.error) { broadcast({ t: 'error', to: fromClientId, message: res.error }); return }
     let state = res.state
     if (intent.type === 'endTurn' && !state.finished) state = stampTurnTimer(state, stamp)
@@ -185,10 +194,25 @@ export function useOnlineGame() {
         membersRef.current = [...membersRef.current, { ...msg.hello, seat, isHost: false, connected: true }]
         setMembers(membersRef.current)
       }
-      broadcast({ t: 'lobby', members: membersRef.current })
+      broadcast({ t: 'lobby', members: membersRef.current, settings: settingsRef.current })
       if (snapRef.current) sendSnapshotTo(msg.hello.clientId) // partie déjà lancée → resync
     } else if (msg.t === 'resync') {
       sendSnapshotTo(msg.clientId)
+    } else if (msg.t === 'lobbyIntent') {
+      // Réglages de room : seul l'hôte est autorisé, la validation reste ici.
+      const intent = parseLobbyIntent(msg.intent)
+      if (!intent) { broadcast({ t: 'error', to: msg.clientId, message: 'invalid_lobby_intent' }); return }
+      const room = {
+        hostId: meRef.current?.clientId ?? '',
+        started: Boolean(snapRef.current),
+        memberCount: membersRef.current.length,
+        settings: settingsRef.current,
+      }
+      const r = applyLobbyIntent(room, msg.clientId, intent)
+      if (r.error) { broadcast({ t: 'error', to: msg.clientId, message: r.error }); return }
+      settingsRef.current = r.room.settings
+      setSettings(r.room.settings)
+      broadcast({ t: 'lobby', members: membersRef.current, settings: settingsRef.current })
     } else if (msg.t === 'intent') {
       hostApply(msg.clientId, msg.intent, msg.meta)
     } else if (msg.t === 'chat') {
@@ -197,7 +221,7 @@ export function useOnlineGame() {
     } else if (msg.t === 'leave') {
       membersRef.current = membersRef.current.map((m) => (m.clientId === msg.clientId ? { ...m, connected: false } : m))
       setMembers(membersRef.current)
-      broadcast({ t: 'lobby', members: membersRef.current })
+      broadcast({ t: 'lobby', members: membersRef.current, settings: settingsRef.current })
     }
   }, [broadcast, hostApply, hostChat, sendSnapshotTo])
 
@@ -220,6 +244,8 @@ export function useOnlineGame() {
     if (msg.t === 'lobby') {
       membersRef.current = msg.members
       setMembers(msg.members)
+      // Le plateau affiché suit toujours la sélection de l'hôte.
+      if (msg.settings) { settingsRef.current = msg.settings; setSettings(msg.settings) }
     } else if (msg.t === 'state' || msg.t === 'tradeState') {
       // Rejet des messages d’une ancienne époque (ancien hôte) et de l’ordre inversé.
       if (msg.hostEpoch != null && !acceptServerEpoch(epochRef.current, msg.hostEpoch)) return
@@ -268,6 +294,8 @@ export function useOnlineGame() {
     } catch (err) { setError(String(err instanceof Error ? err.message : err)); return }
     membersRef.current = [{ ...me, seat: 0, isHost: true, connected: true }]
     storeRef.current = makeStore()
+    settingsRef.current = defaultRoomSettings()
+    setSettings(settingsRef.current)
     configRef.current = {
       difficulty, durationMinutes: 60, turnSeconds: 45, bankruptcy: 'none',
       shuffleOrder: true, startCompensation: true, auctionOnPass: true, themeId: 'soiree',
@@ -318,8 +346,19 @@ export function useOnlineGame() {
   const hostStart = useCallback(() => {
     if (role !== 'host' || !configRef.current) return
     const ordered = membersRef.current.slice().sort((a, b) => a.seat - b.seat)
+    // La map doit accepter le nombre de joueurs présents avant tout lancement.
+    const blocker = startBlocker({
+      hostId: meRef.current?.clientId ?? '',
+      started: Boolean(snapRef.current),
+      memberCount: ordered.length,
+      settings: settingsRef.current,
+    })
+    if (blocker) { setError(blocker); return }
+    const map = getBoardMap(settingsRef.current.mapId)
+    const config = { ...configRef.current, mapId: map.id }
+    configRef.current = config
     const setups = ordered.map((m) => ({ id: `p${m.seat + 1}`, name: m.name, avatar: m.avatar, drinkMode: m.drinkMode }))
-    const state = startClock(createGame(configRef.current, setups, POOL), Date.now())
+    const state = startClock(createGame(config, setups, POOL, map), Date.now())
     const roomMembers = ordered.map((m) => ({
       clientId: m.clientId, playerId: `p${m.seat + 1}`, name: m.name, avatar: m.avatar,
       drinkMode: m.drinkMode, seat: m.seat, connected: m.connected !== false, lastSeenAt: Date.now(),
@@ -343,7 +382,7 @@ export function useOnlineGame() {
       let side = snap.state
       const expT = expireTrades(side, stamp); side = expT.state
       const expR = expireRules(side, stamp); side = expR.state
-      const amb = advanceIntensity(side, soireeBoard, stamp); side = amb.state
+      const amb = advanceIntensity(side, boardForState(side), stamp); side = amb.state
       if (expT.changed || expR.changed || amb.changed) {
         commitAndBroadcast(commitState(snapRef.current, side, stamp), null, { type: 'tradeState' }, true)
       }
@@ -359,7 +398,7 @@ export function useOnlineGame() {
           const stamped = stampAuctionTimer(auc, stamp)
           if (stamped !== auc) commitAndBroadcast(commitState(snapRef.current, stamped, stamp), null, { type: 'tradeState' }, true)
         } else if (auctionTimedOut(auc, stamp)) {
-          commitAndBroadcast(commitState(snapRef.current, resolveAuction(auc, soireeBoard), stamp), null, { type: 'roll' }, false)
+          commitAndBroadcast(commitState(snapRef.current, resolveAuction(auc, boardForState(auc)), stamp), null, { type: 'roll' }, false)
         }
         return
       }
@@ -413,6 +452,23 @@ export function useOnlineGame() {
     channelRef.current?.publish({ kind: 'client', from: me.clientId, msg: { t: 'intent', clientId: me.clientId, intent, meta, protocolVersion: PROTOCOL_VERSION } })
   }, [role, hostApply])
 
+  /** Choix du plateau. Hôte : appliqué localement puis diffusé. Client : refusé. */
+  const selectMap = useCallback((mapId) => {
+    const me = meRef.current
+    if (!me) return
+    const room = {
+      hostId: role === 'host' ? me.clientId : (membersRef.current.find((m) => m.isHost)?.clientId ?? ''),
+      started: Boolean(snapRef.current),
+      memberCount: membersRef.current.length,
+      settings: settingsRef.current,
+    }
+    const r = applyLobbyIntent(room, me.clientId, { type: 'select_map', mapId })
+    if (r.error) { setError(r.error); return }
+    settingsRef.current = r.room.settings
+    setSettings(r.room.settings)
+    broadcast({ t: 'lobby', members: membersRef.current, settings: settingsRef.current })
+  }, [role, broadcast])
+
   const sendChat = useCallback((text) => {
     const me = meRef.current
     const clean = (text || '').trim()
@@ -427,6 +483,7 @@ export function useOnlineGame() {
     channelRef.current = null; membersRef.current = []; stateRef.current = null; syncRef.current = null
     snapRef.current = null; stamperRef.current = null; storeRef.current = null
     epochRef.current = 0; versionRef.current = 0
+    settingsRef.current = defaultRoomSettings(); setSettings(settingsRef.current)
     clearSession()
     setRole(null); setRoomCode(''); setMembers([]); setGameState(null); setResult(null)
     setChat([]); setError(null); setMeId(null); setNetStatus('idle'); setScreen('home')
@@ -445,12 +502,12 @@ export function useOnlineGame() {
   const myId = useMemo(() => (mySeat != null && gameState ? gameState.players[mySeat]?.id ?? null : null), [mySeat, gameState])
   const active = gameState ? gameState.players[gameState.currentPlayerIndex] : null
   const canAct = Boolean(gameState && !gameState.finished && mySeat === gameState.currentPlayerIndex)
-  const results = useMemo(() => (gameState ? ranking(gameState, soireeBoard) : []), [gameState])
+  const results = useMemo(() => (gameState ? ranking(gameState, boardForState(gameState)) : []), [gameState])
 
   return {
     screen, role, roomCode, members, gameState, result, chat, error, active, canAct, results,
-    now, myId, netStatus, configured: SUPABASE_ENABLED,
-    hostCreate, clientJoin, hostStart, sendIntent, sendChat, reset, resume,
+    now, myId, netStatus, configured: SUPABASE_ENABLED, settings, mapId: settings.mapId,
+    hostCreate, clientJoin, hostStart, selectMap, sendIntent, sendChat, reset, resume,
     hasSavedSession: Boolean(readSession()),
   }
 }

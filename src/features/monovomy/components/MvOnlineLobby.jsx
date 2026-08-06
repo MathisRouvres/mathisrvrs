@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { MonovomyButton } from '../MonovomyShell'
+import MvMapPicker from './MvMapPicker'
 import { DIFFICULTY_IDS, DIFFICULTY_LABELS, DIFFICULTY_MULTIPLIER } from '../engine'
 
 export default function MvOnlineLobby({
@@ -9,6 +10,8 @@ export default function MvOnlineLobby({
   roomCode,
   members,
   error,
+  mapId,
+  onSelectMap,
   presetCode = '',
   presetName = '',
   presetDrinkMode = 'alcohol',
@@ -74,6 +77,12 @@ export default function MvOnlineLobby({
             ))}
           </ul>
         </section>
+        <MvMapPicker
+          value={mapId}
+          onSelect={onSelectMap}
+          canEdit={role === 'host'}
+          playerCount={members.length}
+        />
         <div className="mv-actions">
           {role === 'host' ? (
             <MonovomyButton onClick={onStart}>Lancer la partie</MonovomyButton>

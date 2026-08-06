@@ -1,6 +1,7 @@
 export * from './protocol'
 export * from './transport'
 export * from './hostReducer'
+export * from './lobbyReducer'
 export * from './autoplay'
 export * from './session'
 export * from './snapshotStore'

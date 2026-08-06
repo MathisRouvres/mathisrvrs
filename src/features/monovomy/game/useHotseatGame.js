@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { soireeBoard, actionCards, getCardById, getRuleById, MONOVOMY_CONTENT_VERSION } from '../content'
+import { actionCards, getCardById, getRuleById, MONOVOMY_CONTENT_VERSION } from '../content'
 import {
+  boardForState,
   createGame,
   startClock,
   tickGameClock,
@@ -103,11 +104,11 @@ export function useHotseatGame() {
       let base = cur
       base = expireTrades(base, stamp).state
       base = expireRules(base, stamp).state
-      base = advanceIntensity(base, soireeBoard, stamp).state
+      base = advanceIntensity(base, boardForState(base), stamp).state
       // Enchère : estampille le timer, résout à l'expiration.
       if (base.phase === 'awaiting_auction' && base.auction) {
         if (base.auction.endsAt === 0) base = stampAuctionTimer(base, stamp)
-        else if (auctionTimedOut(base, stamp)) base = resolveAuction(base, soireeBoard)
+        else if (auctionTimedOut(base, stamp)) base = resolveAuction(base, boardForState(base))
       }
       const { state: ticked, justEnded } = tickGameClock(base, stamp)
       if (justEnded) {
@@ -123,7 +124,7 @@ export function useHotseatGame() {
   const roll = useCallback(() => {
     setState((prev) => {
       if (!prev || prev.phase !== 'awaiting_roll') return prev
-      const turnResult = takeTurn(prev, soireeBoard)
+      const turnResult = takeTurn(prev, boardForState(prev))
       setResult(deriveResult(prev.config, turnResult, turnResult.state.shieldedCardId ?? null))
       return turnResult.state
     })
@@ -136,7 +137,7 @@ export function useHotseatGame() {
       let r = null
       if (action === 'bail') r = jailPayBail(prev)
       else if (action === 'card' && me && me.jailCards > 0) r = jailUseCard(prev)
-      else if (action === 'double') r = jailAttemptDouble(prev, soireeBoard)
+      else if (action === 'double') r = jailAttemptDouble(prev, boardForState(prev))
       if (!r) return prev
       // Sortie par caution/carte (jail_out) → le joueur va ensuite lancer : pas de reveal bloquant.
       if (r.outcome.kind === 'jail_out') setResult(null)
@@ -168,7 +169,7 @@ export function useHotseatGame() {
 
   const buy = useCallback((yes) => {
     setState((prev) =>
-      prev && prev.phase === 'awaiting_purchase' ? decideBuy(prev, soireeBoard, yes) : prev,
+      prev && prev.phase === 'awaiting_purchase' ? decideBuy(prev, boardForState(prev), yes) : prev,
     )
   }, [])
 
@@ -214,10 +215,11 @@ export function useHotseatGame() {
       if (!me) return prev
       const id = intent.spaceId
       let r = null
-      if (intent.type === 'build') r = build(prev, soireeBoard, me.id, id)
-      else if (intent.type === 'sellBuilding') r = sellBuilding(prev, soireeBoard, me.id, id)
-      else if (intent.type === 'mortgage') r = mortgage(prev, soireeBoard, me.id, id)
-      else if (intent.type === 'unmortgage') r = unmortgage(prev, soireeBoard, me.id, id)
+      const board = boardForState(prev)
+      if (intent.type === 'build') r = build(prev, board, me.id, id)
+      else if (intent.type === 'sellBuilding') r = sellBuilding(prev, board, me.id, id)
+      else if (intent.type === 'mortgage') r = mortgage(prev, board, me.id, id)
+      else if (intent.type === 'unmortgage') r = unmortgage(prev, board, me.id, id)
       return r && !r.error ? r.state : prev
     })
   }, [])
@@ -233,7 +235,7 @@ export function useHotseatGame() {
   const auctionPass = useCallback((playerId) => {
     setState((prev) => {
       if (!prev || prev.phase !== 'awaiting_auction') return prev
-      const r = passBid(prev, playerId, soireeBoard)
+      const r = passBid(prev, playerId, boardForState(prev))
       return r.error ? prev : r.state
     })
   }, [])
@@ -257,7 +259,7 @@ export function useHotseatGame() {
     setScreen('lobby')
   }, [])
 
-  const results = useMemo(() => (state ? ranking(state, soireeBoard) : []), [state])
+  const results = useMemo(() => (state ? ranking(state, boardForState(state)) : []), [state])
   const active = state && !state.finished ? currentPlayer(state) : null
   const myId = active ? active.id : null
 

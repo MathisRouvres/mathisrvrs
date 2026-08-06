@@ -274,6 +274,76 @@
 }
 .mv-choice.is-active small { color: var(--mv-magenta); }
 
+/* --- Sélection du plateau (mobile-first : 1 colonne, 2 dès 480px) --- */
+.mv-card__hint {
+  margin-left: 0.5rem;
+  font-size: 0.72rem;
+  color: var(--mv-muted);
+  font-weight: 500;
+}
+.mv-mapgrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.7rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+@media (min-width: 480px) {
+  .mv-mapgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.mv-mapcard {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.35rem;
+  padding: 0.7rem;
+  border-radius: 16px;
+  border: 1px solid var(--mv-bordure);
+  background: var(--mv-violet-nuit);
+  color: var(--mv-texte);
+  font-family: 'Fredoka', 'Poppins', sans-serif;
+  text-align: left;
+  cursor: pointer;
+  transition: 0.15s;
+}
+.mv-mapcard:disabled { cursor: default; opacity: 0.85; }
+.mv-mapcard.is-active {
+  border-color: var(--mv-magenta);
+  box-shadow: 0 0 0 1px var(--mv-magenta), 0 8px 20px rgba(236, 30, 121, 0.18);
+}
+.mv-mapcard:focus-visible { outline: none; box-shadow: 0 0 0 2px rgba(34, 193, 195, 0.6); }
+.mv-mapcard__name { font-size: 0.98rem; font-weight: 600; }
+.mv-mapcard__desc { font-size: 0.76rem; color: var(--mv-muted); line-height: 1.3; }
+.mv-mapcard__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  font-size: 0.7rem;
+  color: var(--mv-muted);
+}
+.mv-mapcard__meta span {
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid var(--mv-bordure);
+}
+.mv-mapcard.is-active .mv-mapcard__meta span { border-color: rgba(236, 30, 121, 0.45); }
+.mv-mapcard__warn { font-size: 0.7rem; color: var(--mv-magenta); }
+.mv-mapthumb {
+  width: 100%;
+  height: 92px;
+  display: block;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.22);
+}
+.mv-mapthumb__track { fill: none; stroke: rgba(255, 255, 255, 0.22); stroke-width: 2.4; }
+.mv-mapthumb__bridge { fill: none; stroke: rgba(34, 193, 195, 0.85); stroke-width: 3.2; stroke-linecap: round; }
+.mv-mapthumb__tile { fill: rgba(255, 255, 255, 0.45); }
+.mv-mapthumb__tile.is-start { fill: var(--mv-magenta); }
+.mv-mapcard.is-active .mv-mapthumb__track { stroke: rgba(236, 30, 121, 0.55); }
+.mv-mapcard.is-active .mv-mapthumb__tile { fill: rgba(255, 255, 255, 0.7); }
+
 .mv-counter { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; }
 .mv-counter__value {
   font-family: 'Fredoka', 'Poppins', sans-serif;

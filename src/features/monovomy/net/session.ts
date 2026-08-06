@@ -1,6 +1,8 @@
 import type { BoardTheme } from '../content/schema'
 import type { GameState } from '../engine/types'
 import { MONOVOMY_CONTENT_VERSION } from '../content'
+import type { BoardMapId } from '../content/maps/types'
+import { getBoardMap, resolveBoardMapId } from '../content/maps/registry'
 import { applyIntent } from './hostReducer'
 import { PROTOCOL_VERSION, type Intent, type IntentMeta } from './protocol'
 
@@ -47,6 +49,10 @@ export interface Snapshot {
   hostId: string
   hostEpoch: number
   seed: string
+  /** Plateau joué (= state.mapId). Absent = snapshot antérieur au multi-map. */
+  mapId?: BoardMapId
+  /** Version de contenu de la map jouée (= state.mapVersion). */
+  mapVersion?: string
   /** Compteur PRNG (= state.rngState) au moment du snapshot. */
   rngState: number
   createdAt: number
@@ -66,6 +72,7 @@ export type ApplyOutcome =
   | 'unknown_sender'
   | 'wrong_game'
   | 'protocol_mismatch'
+  | 'map_mismatch'
   | 'rejected'
 
 export interface ApplyStampedResult {
@@ -96,6 +103,23 @@ export function gameIdForSeed(seed: string): string {
   return `g-${seed}`
 }
 
+/**
+ * La map d'un snapshot est-elle jouable par ce build ? On ne restaure jamais
+ * silencieusement sur un autre plateau : une map absente du registre est une erreur.
+ * Un snapshot **sans** `mapId` (antérieur au multi-map) est accepté (plateau classique).
+ */
+export function isMapCompatible(mapId: unknown, mapVersion?: string): boolean {
+  const resolved = resolveBoardMapId(mapId)
+  if (!resolved) return false
+  if (mapVersion === undefined) return true
+  return major(mapVersion) === major(getBoardMap(resolved).version)
+}
+
+/** Identifiant de map d'un snapshot, normalisé. `null` = map inconnue. */
+export function snapshotMapId(snap: Pick<Snapshot, 'mapId' | 'state'>): BoardMapId | null {
+  return resolveBoardMapId(snap.mapId ?? snap.state?.mapId)
+}
+
 /** Construit le snapshot initial (version 1, époque 1) d’une partie démarrée. */
 export function initSnapshot(
   state: GameState,
@@ -111,6 +135,8 @@ export function initSnapshot(
     hostId,
     hostEpoch: 1,
     seed: state.config.seed,
+    mapId: state.mapId,
+    mapVersion: state.mapVersion,
     rngState: state.rngState,
     createdAt: now,
     updatedAt: now,
@@ -159,6 +185,9 @@ export function applyStampedIntent(
 
   if (!isProtocolCompatible(stamped.protocolVersion)) return fail('protocol_mismatch', 'protocol_mismatch')
   if (stamped.gameId !== snap.gameId) return fail('wrong_game', 'wrong_game')
+  // Garde-fou : l'hôte doit résoudre la partie sur la map figée dans le snapshot.
+  const expectedMapId = snapshotMapId(snap)
+  if (expectedMapId && board.id && board.id !== expectedMapId) return fail('map_mismatch', 'map_mismatch')
 
   const sender = memberByClient(snap, senderClientId)
   if (!sender) return fail('unknown_sender', 'unknown_sender')
@@ -253,7 +282,20 @@ export function acceptServerEpoch(knownEpoch: number, msgEpoch: number): boolean
 export function restoreSnapshot(snap: Snapshot): { snapshot: Snapshot | null; error: string | null } {
   if (!isProtocolCompatible(snap.protocolVersion)) return { snapshot: null, error: 'incompatible_protocol' }
   if (!isContentCompatible(snap.contentVersion)) return { snapshot: null, error: 'incompatible_content' }
-  return { snapshot: cloneSnapshot(snap), error: null }
+  // Map : identifiant inconnu ou version majeure incompatible → échec explicite.
+  const mapId = snapshotMapId(snap)
+  if (!mapId) return { snapshot: null, error: 'unknown_map' }
+  if (!isMapCompatible(mapId, snap.mapVersion ?? snap.state?.mapVersion)) {
+    return { snapshot: null, error: 'incompatible_map' }
+  }
+  // Ancien snapshot sans mapId : on matérialise le repli une seule fois, ici.
+  const restored = cloneSnapshot(snap)
+  restored.mapId = mapId
+  restored.mapVersion = snap.mapVersion ?? snap.state?.mapVersion ?? getBoardMap(mapId).version
+  if (restored.state && !restored.state.mapId) {
+    restored.state = { ...restored.state, mapId, mapVersion: restored.mapVersion }
+  }
+  return { snapshot: restored, error: null }
 }
 
 /** Un snapshot reçu est-il plus récent que celui détenu ? (gère l’ordre inversé.) */

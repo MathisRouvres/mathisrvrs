@@ -7,6 +7,7 @@ import type {
 } from './constants'
 import type { TradeOffer } from './trade'
 import type { ActiveRule } from './ambiance'
+import type { BoardMapId } from '../content/maps/types'
 
 /** Paramètres de partie choisis dans le lobby (voir GDD §4). */
 export interface GameConfig {
@@ -15,6 +16,8 @@ export interface GameConfig {
   durationMinutes: number
   bankruptcy: BankruptcyRule
   themeId: string
+  /** Plateau choisi par l’hôte. Absent = plateau classique (compat). */
+  mapId?: BoardMapId
   seed: string
   /** Limite de temps par tour en secondes ; `null`/absent = illimité. */
   turnSeconds?: number | null
@@ -129,6 +132,14 @@ export interface MarketAnnounce {
 /** État global d’une partie MonoVomy. */
 export interface GameState {
   config: GameConfig
+  /**
+   * Plateau de la partie. Fixé à la création, **immuable** ensuite : on ne
+   * change jamais de map en cours de partie. Les snapshots antérieurs au
+   * multi-map n’ont pas ce champ → repli `classic_square`.
+   */
+  mapId: BoardMapId
+  /** Version de contenu de la map jouée (un replay recharge cette version exacte). */
+  mapVersion: string
   players: PlayerState[]
   currentPlayerIndex: number
   turn: number

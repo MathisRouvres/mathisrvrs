@@ -1,5 +1,6 @@
 import type { BankruptcyInfo, DiceRoll, GameState, SpaceOutcome } from '../engine/types'
 import type { TradeBundle } from '../engine/trade'
+import type { BoardMapId } from '../content/maps/types'
 
 export type ClientId = string
 export type RoomCode = string
@@ -28,6 +29,20 @@ export interface LobbyMember {
   seat: number
   isHost: boolean
 }
+
+/**
+ * Réglages de room contrôlés par l’hôte (Phase multi-map). Diffusés à tout le
+ * lobby : aucun client ne peut imposer sa propre valeur.
+ */
+export interface RoomSettings {
+  mapId: BoardMapId
+}
+
+/** Intentions de lobby (avant lancement). Réservées à l’hôte. */
+export type LobbyIntent =
+  | { type: 'select_map'; mapId: BoardMapId }
+  | { type: 'update_room_settings'; settings: Partial<RoomSettings> }
+  | { type: 'start_game' }
 
 export interface HelloPayload {
   clientId: ClientId
@@ -82,6 +97,8 @@ export interface SyncResult {
 export type ClientMessage =
   | { t: 'hello'; hello: HelloPayload; protocolVersion?: string }
   | { t: 'intent'; clientId: ClientId; intent: Intent; meta?: IntentMeta; protocolVersion?: string }
+  /** Intention de lobby (choix du plateau, réglages, lancement) — hôte uniquement. */
+  | { t: 'lobbyIntent'; clientId: ClientId; intent: LobbyIntent; protocolVersion?: string }
   | { t: 'chat'; clientId: ClientId; text: string }
   | { t: 'leave'; clientId: ClientId }
   /** Demande de resynchronisation (reconnexion) : le client indique la version qu’il détient. */
@@ -89,7 +106,7 @@ export type ClientMessage =
 
 /** Messages émis par l’hôte (autorité) vers tous les clients. */
 export type ServerMessage =
-  | { t: 'lobby'; members: LobbyMember[] }
+  | { t: 'lobby'; members: LobbyMember[]; settings?: RoomSettings }
   | { t: 'state'; state: GameState; sync: SyncResult | null; hostEpoch?: number; snapshotVersion?: number }
   /** Mise à jour d’état liée à la négociation : ne touche pas au reveal du tour. */
   | { t: 'tradeState'; state: GameState; hostEpoch?: number; snapshotVersion?: number }

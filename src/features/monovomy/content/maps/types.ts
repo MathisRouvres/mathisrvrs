@@ -178,6 +178,8 @@ export const boardMapDefinitionSchema = z.object({
  * garde les anciennes signatures moteur valides pendant la migration.
  */
 export interface NavigableBoard {
+  id?: string
+  version?: string
   path?: readonly string[]
   tiles?: Readonly<Record<string, BoardSpace>>
   spaces: readonly BoardSpace[]
