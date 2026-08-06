@@ -32,6 +32,11 @@ export type DrinkMode = (typeof DRINK_MODES)[number]
 /** Économie de base — valeurs provisoires, à équilibrer par simulation. */
 export const STARTING_CASH = 1500
 export const SALARY_PER_LAP = 200
+/**
+ * @deprecated Le moteur ne suppose plus une taille de plateau fixe.
+ * Utiliser `boardSize(map)` (`content/maps/navigation`). Conservé comme
+ * référence historique du plateau classique.
+ */
 export const BOARD_SIZE = 40
 export const PLAYER_MIN = 3
 export const PLAYER_MAX = 8

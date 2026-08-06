@@ -10,11 +10,10 @@ import type {
 import type { EndReason } from './constants'
 import {
   BANKRUPTCY_PENALTY_SIPS,
-  BOARD_SIZE,
   JAIL_MAX_TURNS,
   RESCUE_CAPITAL,
-  SALARY_PER_LAP,
 } from './constants'
+import { advance, jailIndexOf, salaryOnPassStart, tileAt } from '../content/maps/navigation'
 import { cloneState } from './clone'
 import { getBuildingLevel, isMortgaged, groupComplete } from './buildings'
 import { auctionsEnabled, beginAuction } from './auction'
@@ -110,9 +109,12 @@ export function computeRent(
   return 0
 }
 
-/** Index de la case prison sur le plateau. */
+/**
+ * Index de la case prison sur le plateau actif. Résolu par identifiant déclaré
+ * par la map (repli : première case de genre `jail`) — jamais par index en dur.
+ */
 export function jailIndex(board: BoardTheme): number {
-  return board.spaces.findIndex((s) => s.kind === 'jail')
+  return jailIndexOf(board)
 }
 
 /**
@@ -256,13 +258,15 @@ export function resolveMovement(
   roll: DiceRoll,
 ): { result: TurnResult } {
   const player = currentPlayer(next)
-  const arrival = player.position + roll.total
-  const passedStart = arrival >= BOARD_SIZE
-  player.position = arrival % BOARD_SIZE
-  const salary = passedStart ? SALARY_PER_LAP : 0
+  // Déplacement purement logique : dépend du chemin de la map, pas de sa forme
+  // ni de sa taille (40 cases, 56 cases ou autre).
+  const step = advance(board, player.position, roll.total)
+  player.position = step.index
+  const passedStart = step.passedStart
+  const salary = passedStart ? salaryOnPassStart(board) * step.laps : 0
   if (salary > 0) player.cash += salary
 
-  const space = board.spaces[player.position]
+  const space = tileAt(board, player.position)
   if (!space) throw new Error('resolveMovement: case introuvable')
 
   const resolved = resolveLanding(next, space, roll, board)
@@ -349,7 +353,7 @@ export function decideBuy(state: GameState, board: BoardTheme, buy: boolean): Ga
   }
   const next = cloneState(state)
   const player = currentPlayer(next)
-  const space = board.spaces[player.position]
+  const space = tileAt(board, player.position)
   if (buy && space && 'price' in space && player.cash >= space.price) {
     player.cash -= space.price
     player.ownedSpaceIds.push(space.id)

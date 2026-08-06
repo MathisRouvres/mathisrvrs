@@ -14,6 +14,7 @@ import {
   sipsForCard,
 } from '../index'
 import { getCardById } from '../../content'
+import { tileAt } from '../../content/maps/navigation'
 
 export interface SimOptions {
   seed: string
@@ -72,7 +73,7 @@ export function simulateGame(options: SimOptions, board: BoardTheme, cardPool: r
     startCompensation: options.startCompensation ?? false,
     compensationStep: options.compensationStep,
   }
-  let state: GameState = createGame(config, buildSetups(options.playerCount), cardPool)
+  let state: GameState = createGame(config, buildSetups(options.playerCount), cardPool, board)
   let bankruptcies = 0
   let totalSips = 0
 
@@ -104,7 +105,7 @@ export function simulateGame(options: SimOptions, board: BoardTheme, cardPool: r
       }
       case 'awaiting_purchase': {
         const player = state.players[state.currentPlayerIndex]
-        const space = board.spaces[player?.position ?? 0]
+        const space = tileAt(board, player?.position ?? 0)
         const price = space && 'price' in space ? space.price : 0
         const canAfford = (player?.cash ?? 0) - price >= options.buyReserve
         state = decideBuy(state, board, canAfford)

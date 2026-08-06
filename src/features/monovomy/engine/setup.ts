@@ -1,8 +1,10 @@
 import type { GameConfig, GameState, PlayerSetup, PlayerState } from './types'
-import { STARTING_CASH } from './constants'
 import { createGameRng } from './rng'
 import { buildTurnOrder, compensationForRank } from './order'
 import { fillMarketStock } from './market'
+import { startIndex, startingCashOf } from '../content/maps/navigation'
+import type { NavigableBoard } from '../content/maps/types'
+import { defaultBoardMap } from '../content/maps/registry'
 
 /**
  * Crée l’état initial d’une partie. `cardPool` = identifiants des cartes action
@@ -16,15 +18,20 @@ export function createGame(
   config: GameConfig,
   setups: PlayerSetup[],
   cardPool: readonly string[],
+  map: NavigableBoard = defaultBoardMap(),
 ): GameState {
   const rng = createGameRng(config.seed)
   const deck = rng.shuffle(cardPool)
   const order = buildTurnOrder(rng, setups.length, config.shuffleOrder === true)
 
+  // Le capital de départ vient de l'économie de la map (repli : barème historique).
+  const startingCash = startingCashOf(map)
+  // Les pions démarrent sur la case Départ déclarée par la map (pas sur l'index 0 supposé).
+  const startPosition = Math.max(0, startIndex(map))
   const players: PlayerState[] = setups.map((setup) => ({
     ...setup,
-    position: 0,
-    cash: STARTING_CASH,
+    position: startPosition,
+    cash: startingCash,
     ownedSpaceIds: [],
     jailTurns: 0,
     inJail: false,

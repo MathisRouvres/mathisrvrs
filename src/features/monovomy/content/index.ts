@@ -24,6 +24,7 @@ export {
   type MarketEffect,
 } from './schema'
 export { soireeBoard } from './board.soiree'
+export * from './maps'
 export { actionCards, getCardById, cardsByFamily } from './cards'
 export { temporaryRules, getRuleById } from './rules'
 export { marketCards, getMarketCardById, marketCardPool } from './market'

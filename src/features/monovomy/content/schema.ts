@@ -62,7 +62,9 @@ export const boardThemeSchema = z.object({
   id: idSchema,
   name: z.string().min(1),
   description: z.string().min(1),
-  spaces: z.array(boardSpaceSchema).length(40),
+  // Le nombre de cases dépend de la map (40 pour le plateau classique) :
+  // aucune longueur n'est imposée ici, chaque map valide la sienne.
+  spaces: z.array(boardSpaceSchema).min(8),
 })
 export type BoardTheme = z.infer<typeof boardThemeSchema>
 
