@@ -44,6 +44,7 @@ export {
 } from './navigation'
 
 export { CLASSIC_SQUARE_TILES, classicSquareMap } from './classicSquare'
+export { INFINITY_PARTY_TILES, infinityPartyMap } from './infinityParty'
 
 export {
   defaultBoardMap,

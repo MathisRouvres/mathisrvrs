@@ -4,7 +4,7 @@ import MvBackdrop from './MvBackdrop'
 import MvMapPicker from './MvMapPicker'
 import { PAWNS, PAWN_COUNT } from './board3d/pawnCatalog'
 import { playerColor } from './board3d/playerColors'
-import { DEFAULT_BOARD_MAP_ID } from '../content'
+import { DEFAULT_BOARD_MAP_ID, getBoardMap, mapSupportsPlayerCount } from '../content'
 import {
   DIFFICULTY_IDS,
   DIFFICULTY_LABELS,
@@ -47,7 +47,11 @@ export default function MvLobby({ onStart, version, onExit }) {
     setPlayers((prev) => prev.map((p, i) => (i === index ? { ...p, ...patch } : p)))
   }
 
+  const map = getBoardMap(mapId)
+  const mapFitsPlayers = mapSupportsPlayerCount(map, players.length)
+
   const handleStart = () => {
+    if (!mapFitsPlayers) return
     const config = {
       difficulty,
       durationMinutes: duration,
@@ -212,13 +216,25 @@ export default function MvLobby({ onStart, version, onExit }) {
         </ul>
       </section>
 
+      {!mapFitsPlayers && (
+        <p className="mv-error" role="alert">
+          {map.name} se joue à {map.minPlayers}–{map.maxPlayers} joueurs. Ajuste le nombre de joueurs
+          ou choisis un autre plateau.
+        </p>
+      )}
+
       <div className="mv-actions mv-actions--row">
         {onExit && (
           <MonovomyButton variant="ghost" className="mv-btn--shine" onClick={onExit}>
             ← Menu
           </MonovomyButton>
         )}
-        <MonovomyButton className="mv-btn--shine mv-btn--lg" onClick={handleStart}>
+        <MonovomyButton
+          className="mv-btn--shine mv-btn--lg"
+          onClick={handleStart}
+          disabled={!mapFitsPlayers}
+          title={mapFitsPlayers ? undefined : `${map.name} se joue à ${map.minPlayers}–${map.maxPlayers} joueurs`}
+        >
           🎲 Lancer la partie
         </MonovomyButton>
       </div>

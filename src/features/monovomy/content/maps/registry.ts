@@ -1,4 +1,5 @@
 import { classicSquareMap } from './classicSquare'
+import { infinityPartyMap } from './infinityParty'
 import { DEFAULT_BOARD_MAP_ID, isBoardMapId, type BoardMapDefinition, type BoardMapId } from './types'
 
 /**
@@ -7,6 +8,7 @@ import { DEFAULT_BOARD_MAP_ID, isBoardMapId, type BoardMapDefinition, type Board
  */
 const REGISTRY: Partial<Record<BoardMapId, BoardMapDefinition>> = {
   classic_square: classicSquareMap,
+  infinity_party: infinityPartyMap,
 }
 
 /** Maps réellement jouables, dans l'ordre d'affichage du lobby. */

@@ -111,8 +111,15 @@ describe('lobby — sélection de la map par l’hôte', () => {
     expect(r.room.settings.mapId).toBe(defaultRoomSettings().mapId)
   })
 
-  it('refuse une map absente du registre', () => {
+  it('accepte de basculer sur Infinity Party', () => {
     const r = applyLobbyIntent(room(), 'c1', { type: 'select_map', mapId: 'infinity_party' })
+    expect(r.error).toBeNull()
+    expect(r.room.settings.mapId).toBe('infinity_party')
+  })
+
+  it('refuse une map absente du registre', () => {
+    // @ts-expect-error identifiant hors registre
+    const r = applyLobbyIntent(room(), 'c1', { type: 'select_map', mapId: 'atlantide' })
     expect(r.error).toBe('unknown_map')
   })
 

@@ -27,6 +27,8 @@ src/features/monovomy/
       types.ts             BoardMapDefinition, économie, géométrie visuelle
       navigation.ts        Déplacement générique sur `path` (toute taille)
       classicSquare.ts     Plateau Classique — 40 cases
+      infinityParty.ts     Infinity Party — 56 cases en 8
+      validate.ts          Validateur (`npm run mv:validate-content`)
       registry.ts          Registre + repli `classic_square`
       visual.ts            Accès aux positions visuelles
       maps.test.ts         Validation des maps + navigation
@@ -57,6 +59,26 @@ optionnels) : modifier une map n'affecte jamais l'autre.
 Repli unique : `DEFAULT_BOARD_MAP_ID = 'classic_square'`. Une partie **sans** `mapId`
 retombe dessus ; un `mapId` **présent mais inconnu** échoue bruyamment
 (`resolveBoardMapId` renvoie `null`, `getBoardMap` lève) — jamais de bascule silencieuse.
+
+### Plateaux disponibles
+
+| Map | Cases | Groupes | Joueurs | Capital | Salaire | Forme |
+|---|---|---|---|---|---|---|
+| `classic_square` | 40 | 8 | 3–8 | 1500 | 200 | anneau carré 11×11 |
+| `infinity_party` | 56 | 11 | 4–8 | 1800 | 280 | lemniscate (8 horizontal) |
+
+Infinity Party : 36 propriétés, 4 transports, 2 services, 6 cartes, 3 taxes.
+Le salaire suit la longueur du parcours (200/40 = 280/56 par case), donc la
+circulation d'argent reste comparable malgré 40 % de cases en plus.
+
+Le 8 est **visuel** : le chemin reste un cycle unique. Il traverse deux fois le
+centre, sur deux cases logiquement distinctes — `inf_pont_haut` (index 14,
+`layer` 2) et `inf_pont_bas` (index 42, `layer` 0) — écartées verticalement pour
+rester deux zones tactiles séparées. Aucune bifurcation, aucune téléportation.
+
+Les positions sont calculées une fois au chargement depuis une lemniscate de
+Gerono échantillonnée à pas d'arc constant (déterministe, sans `Math.random`),
+avec une rotation par case orientée vers le cœur de sa boucle.
 
 ### Choix de la map et synchronisation
 

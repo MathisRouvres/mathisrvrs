@@ -251,17 +251,17 @@ describe('navigation générique — indépendante de la taille et de la forme',
 })
 
 describe('registre des maps', () => {
-  it('expose le plateau classique', () => {
-    expect(listBoardMaps().map((m) => m.id)).toContain('classic_square')
+  it('expose les deux plateaux', () => {
+    expect(listBoardMaps().map((m) => m.id)).toEqual(['classic_square', 'infinity_party'])
     expect(getBoardMap('classic_square')).toBe(classicSquareMap)
     expect(defaultBoardMap().id).toBe(DEFAULT_BOARD_MAP_ID)
   })
 
   it('refuse une map inconnue au lieu de basculer silencieusement', () => {
-    expect(hasBoardMap('infinity_party')).toBe(false)
-    expect(() => getBoardMap('infinity_party')).toThrow(/unknown_map/)
+    expect(hasBoardMap('atlantide')).toBe(false)
+    // @ts-expect-error identifiant hors registre
+    expect(() => getBoardMap('atlantide')).toThrow(/unknown_map/)
     expect(resolveBoardMapId('nawak')).toBeNull()
-    expect(resolveBoardMapId('infinity_party')).toBeNull()
   })
 
   it('retombe sur le plateau classique quand aucun mapId n’est enregistré', () => {
