@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
-import { soireeBoard } from '../../content'
 import { estates } from '../../game/estates'
 import { PLAYER_COLORS } from './playerColors'
 import { createDeedTexture, createNamePlateTexture } from './deedTexture'
 import { isPurchasable } from './tileTexture'
-import { cellFor, INDEX_BY_ID } from './boardCells'
+import { boardGeometry } from './boardGeometry'
 import { layoutFan, CARD_W, CARD_H } from './estateLayout'
 import { TABLE_TOP } from './environment/stage'
 
@@ -39,12 +38,6 @@ const DAMP = 9
 const RAIL_TURN = 6        // vitesse de suivi de l'orbite
 
 const TMP_Q = new THREE.Quaternion()
-
-/** Altitude du dessus d'une case (les spéciales sont surélevées) — pour les faisceaux. */
-function tileTopY(i) {
-  const space = soireeBoard.spaces[((i % 40) + 40) % 40]
-  return (isPurchasable(space) ? 0.24 : 0.4) + 0.04
-}
 
 /** Maisons / hôtel posés sur le carton, à l'échelle du titre. */
 function DeedBuildings({ level, maxLevel }) {
@@ -147,10 +140,10 @@ function Deed({ item, texture, ownerColor, hitW, hovered, onHover, onPick, reduc
 }
 
 /** Faisceau + anneau sur la case du plateau correspondant au titre survolé. */
-function SpaceBeacon({ index, color, reducedMotion }) {
+function SpaceBeacon({ index, geo, color, reducedMotion }) {
   const ringRef = useRef()
   const beamMat = useRef()
-  const [r, c] = cellFor(index)
+  const [x, z] = geo.posOf(index)
   useFrame((s) => {
     if (reducedMotion) return
     const t = s.clock.elapsedTime
@@ -159,7 +152,7 @@ function SpaceBeacon({ index, color, reducedMotion }) {
     if (beamMat.current) beamMat.current.opacity = 0.2 + Math.sin(t * 5) * 0.07
   })
   return (
-    <group position={[c - 6, tileTopY(index), r - 6]}>
+    <group position={[x, geo.tileTopY(index), z]}>
       <mesh ref={ringRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]} raycast={() => null}>
         <ringGeometry args={[0.46, 0.58, 40]} />
         <meshBasicMaterial color={color} transparent opacity={0.9} depthWrite={false} toneMapped={false} />
@@ -205,17 +198,18 @@ function Rail({ children, reducedMotion }) {
   return <group ref={ref} position={[0, TABLE_TOP + 0.01, 0]}>{children}</group>
 }
 
-export default function Estates3D({ state, onSelect, reducedMotion = false, lite = false }) {
-  const list = useMemo(() => estates(state, soireeBoard, PLAYER_COLORS), [state])
+export default function Estates3D({ map, state, onSelect, reducedMotion = false, lite = false }) {
+  const geo = useMemo(() => boardGeometry(map), [map])
+  const list = useMemo(() => estates(state, map, PLAYER_COLORS), [state, map])
   const [hovered, setHovered] = useState(null)
 
   // Un carton par case achetable, généré une fois : la propriété ne fait que
   // déplacer les cartons d'une travée à l'autre.
   const deeds = useMemo(() => {
-    const map = new Map()
-    for (const s of soireeBoard.spaces) if (isPurchasable(s)) map.set(s.id, createDeedTexture(s))
-    return map
-  }, [])
+    const byId = new Map()
+    for (const s of map.spaces) if (isPurchasable(s)) byId.set(s.id, createDeedTexture(s))
+    return byId
+  }, [map])
   useEffect(() => () => { deeds.forEach((t) => t.dispose()) }, [deeds])
 
   // Plaques nominatives : refaites seulement si les noms ou les places changent.
@@ -234,10 +228,10 @@ export default function Estates3D({ state, onSelect, reducedMotion = false, lite
   const beacon = useMemo(() => {
     if (!hovered) return null
     const owner = list.find((e) => e.spaceIds.includes(hovered))
-    const index = INDEX_BY_ID.get(hovered)
+    const index = geo.indexById.get(hovered)
     if (index == null) return null
     return { index, color: owner?.color ?? '#ffffff' }
-  }, [hovered, list])
+  }, [hovered, list, geo])
 
   // Travées : largeur partagée, centrées sur le bord proche.
   const slot = Math.min(SLOT_MAX, RAIL_WIDTH / Math.max(1, list.length))
@@ -277,7 +271,7 @@ export default function Estates3D({ state, onSelect, reducedMotion = false, lite
           )
         })}
       </Rail>
-      {beacon && <SpaceBeacon index={beacon.index} color={beacon.color} reducedMotion={reducedMotion} />}
+      {beacon && <SpaceBeacon index={beacon.index} geo={geo} color={beacon.color} reducedMotion={reducedMotion} />}
     </>
   )
 }

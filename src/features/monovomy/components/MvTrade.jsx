@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
 import { MonovomyButton } from '../MonovomyShell'
 import MvPortal from './MvPortal'
-import { soireeBoard, getMarketCardById } from '../content'
+import { getMarketCardById } from '../content'
+import { boardForState } from '../engine'
 import { bundleValue, emptyBundle, incomingOffers } from '../engine'
 import { playerColor } from './board3d/playerColors'
 
@@ -22,8 +23,8 @@ import { playerColor } from './board3d/playerColors'
  * Aucune valeur n'est imposée : l'estimation reste indicative.
  */
 
-const spaceOf = (id) => soireeBoard.spaces.find((s) => s.id === id)
-const spaceName = (id) => spaceOf(id)?.name ?? id
+const spaceOf = (board, id) => board.spaces.find((s) => s.id === id)
+const spaceName = (board, id) => spaceOf(board, id)?.name ?? id
 
 /** Pastille d'actif sélectionnable (propriété, carte, jeton). */
 function Chip({ on, label, sub, onClick }) {
@@ -36,10 +37,10 @@ function Chip({ on, label, sub, onClick }) {
 }
 
 /** Récapitulatif compact d'un panier. */
-function Basket({ bundle }) {
+function Basket({ bundle, board }) {
   const parts = []
   if (bundle.cash > 0) parts.push(`${bundle.cash} €`)
-  for (const id of bundle.properties) parts.push(spaceName(id))
+  for (const id of bundle.properties) parts.push(spaceName(board, id))
   for (const id of bundle.cards) parts.push(getMarketCardById(id)?.name ?? id)
   if (bundle.jailCards > 0) parts.push(`🗝 ×${bundle.jailCards}`)
   return <span className="mv-deal__basket">{parts.length ? parts.join(' + ') : 'rien'}</span>
@@ -66,7 +67,7 @@ function CashSlider({ value, max, onChange, label }) {
 }
 
 /** Panier d'un joueur : argent + propriétés + cartes + jetons de cuve. */
-function Side({ title, player, bundle, onChange, tone }) {
+function Side({ title, player, bundle, onChange, tone, board }) {
   const toggle = (key, id) => {
     const list = bundle[key]
     onChange({
@@ -82,7 +83,7 @@ function Side({ title, player, bundle, onChange, tone }) {
       <header className="mv-deal__sidehead">
         <i className="mv-deal__dot" style={{ background: playerColor(idx) }} />
         <b>{title}</b>
-        <Basket bundle={bundle} />
+        <Basket bundle={bundle} board={board} />
       </header>
 
       <CashSlider
@@ -95,12 +96,12 @@ function Side({ title, player, bundle, onChange, tone }) {
       {player.ownedSpaceIds.length > 0 && (
         <div className="mv-deal__chips">
           {player.ownedSpaceIds.map((id) => {
-            const sp = spaceOf(id)
+            const sp = spaceOf(board, id)
             return (
               <Chip
                 key={id}
                 on={bundle.properties.includes(id)}
-                label={spaceName(id)}
+                label={spaceName(board, id)}
                 sub={sp && 'price' in sp ? `${sp.price} €` : null}
                 onClick={() => toggle('properties', id)}
               />
@@ -149,6 +150,7 @@ function Side({ title, player, bundle, onChange, tone }) {
 }
 
 export default function MvTrade({ state, myId, now, onSend, onClose }) {
+  const board = boardForState(state)
   const players = state.players
   const me = players.find((p) => p.id === myId)
   const others = players.filter((p) => p.id !== myId && !p.eliminated)
@@ -201,10 +203,10 @@ export default function MvTrade({ state, myId, now, onSend, onClose }) {
     onClose?.()
   }
 
-  const delta = bundleValue(soireeBoard, take) - bundleValue(soireeBoard, give)
+  const delta = bundleValue(board, take) - bundleValue(board, give)
   const empty =
-    bundleValue(soireeBoard, take) === 0 &&
-    bundleValue(soireeBoard, give) === 0 &&
+    bundleValue(board, take) === 0 &&
+    bundleValue(board, give) === 0 &&
     take.jailCards === 0 &&
     give.jailCards === 0
 
@@ -244,7 +246,7 @@ export default function MvTrade({ state, myId, now, onSend, onClose }) {
             <div className="mv-deal__inbox">
               {incoming.map((o) => {
                 const from = players.find((p) => p.id === o.senderId)
-                const d = bundleValue(soireeBoard, o.offeredAssets) - bundleValue(soireeBoard, o.requestedAssets)
+                const d = bundleValue(board, o.offeredAssets) - bundleValue(board, o.requestedAssets)
                 const v = verdict(d)
                 return (
                   <article key={o.id} className="mv-deal__offer">
@@ -253,8 +255,8 @@ export default function MvTrade({ state, myId, now, onSend, onClose }) {
                       <b>{from?.name ?? '???'}</b> te propose
                     </p>
                     <p className="mv-deal__flow">
-                      <span className="mv-deal__get">↓ tu reçois <Basket bundle={o.offeredAssets} /></span>
-                      <span className="mv-deal__give">↑ tu donnes <Basket bundle={o.requestedAssets} /></span>
+                      <span className="mv-deal__get">↓ tu reçois <Basket bundle={o.offeredAssets} board={board} /></span>
+                      <span className="mv-deal__give">↑ tu donnes <Basket bundle={o.requestedAssets} board={board} /></span>
                     </p>
                     <p className={`mv-deal__verdict is-${v.tone}`}>{v.text}</p>
                     <div className="mv-deal__acts">
@@ -309,6 +311,7 @@ export default function MvTrade({ state, myId, now, onSend, onClose }) {
                 bundle={take}
                 onChange={setTake}
                 tone="get"
+                board={board}
               />
               <Side
                 title="Tu donnes"
@@ -316,6 +319,7 @@ export default function MvTrade({ state, myId, now, onSend, onClose }) {
                 bundle={give}
                 onChange={setGive}
                 tone="give"
+                board={board}
               />
 
               <p className={`mv-deal__verdict is-${verdict(delta).tone}`}>

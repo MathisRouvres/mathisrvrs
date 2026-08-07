@@ -1,5 +1,6 @@
 import MvCardReveal from './MvCardReveal'
 import { centerPanelKind } from '../game/centerPanel'
+import { boardForState } from '../engine'
 
 function fmt(ms) {
   const s = Math.max(0, Math.ceil(ms / 1000))
@@ -54,6 +55,7 @@ export default function MvCenter({
           softActive={softActive}
           softAlt={softAlt}
           showActions={false}
+          board={boardForState(state)}
         />
       ) : auction ? (
         <div className="mv-centerauc">

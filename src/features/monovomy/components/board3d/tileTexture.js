@@ -384,14 +384,15 @@ export function shortLabel(name) {
  * `index` (0..39) sert à détecter les coins (0, 10, 20, 30) et à orienter leur
  * contenu à 45° vers l'extérieur du plateau.
  */
-export function createTileTexture(space, index = -1) {
+export function createTileTexture(space, index = -1, angleOverride = null) {
   const kind = space.kind
   const color = colorFor(kind, space.group)
   const icon = iconFor(kind, space.group)
   const iconOnly = ICON_ONLY.has(kind)
-  // Coins : 0 et 20 sur la diagonale « bas-droite / haut-gauche » → rotation -45°.
+  // Rotation du texte : imposée par la géométrie de la map (coins d'un plateau en
+  // grille). Repli historique sur l'index tant qu'aucun angle n'est fourni.
   const corner = index >= 0 && index % 10 === 0
-  const angle = corner ? (index % 20 === 0 ? -Math.PI / 4 : Math.PI / 4) : 0
+  const angle = angleOverride ?? (corner ? (index % 20 === 0 ? -Math.PI / 4 : Math.PI / 4) : 0)
 
   const scale = texScale()
   const cv = document.createElement('canvas')

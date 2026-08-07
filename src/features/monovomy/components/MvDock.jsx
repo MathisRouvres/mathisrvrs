@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ruleStepsLeft, propertyManagement } from '../engine'
-import { soireeBoard } from '../content'
+import { groupColor } from '../content'
+import { boardForState } from '../engine'
 import { playerColor } from './board3d/playerColors'
 import { sound } from '../game/sound'
 import { haptics } from '../game/haptics'
@@ -13,11 +14,6 @@ import MvChat from './MvChat'
 import MvRules from './MvRules'
 import MvLegal from './MvLegal'
 import MvPortal from './MvPortal'
-
-const GROUP_COLOR = {
-  brun: '#c07a3a', cyan: '#22c1c3', rose: '#ec4899', orange: '#f97316',
-  rouge: '#ef4d63', jaune: '#f5b21a', vert: '#34d17e', bleu: '#3b82f6',
-}
 
 // Icônes en trait : un seul jeu cohérent, à la place du mélange d'emojis.
 const ICON_PATHS = {
@@ -73,6 +69,7 @@ function PlayersSheet({ state }) {
  * accès à celles de tout le monde, pas seulement aux siennes.
  */
 function GoodsSheet({ state, ownerId, canManage, managePlayerId, onManage }) {
+  const board = boardForState(state)
   const [shown, setShown] = useState(ownerId)
   const current = state.players.find((p) => p.id === shown) ?? state.players.find((p) => p.id === ownerId) ?? state.players[0]
   const owned = current?.ownedSpaceIds ?? []
@@ -111,13 +108,13 @@ function GoodsSheet({ state, ownerId, canManage, managePlayerId, onManage }) {
     {picker}
     <ul className="mv-goods">
       {owned.map((sid) => {
-        const space = soireeBoard.spaces.find((s) => s.id === sid)
+        const space = board.spaces.find((s) => s.id === sid)
         if (!space) return null
-        const m = propertyManagement(state, soireeBoard, canManage ? managePlayerId : null, sid)
+        const m = propertyManagement(state, board, canManage ? managePlayerId : null, sid)
         const emit = (type) => () => onManage?.({ type, spaceId: sid })
         return (
           <li key={sid} className="mv-goods__row">
-            <span className="mv-goods__dot" style={{ background: GROUP_COLOR[space.group] ?? '#8b5cf6' }} />
+            <span className="mv-goods__dot" style={{ background: groupColor(space.group) }} />
             <div className="mv-goods__info">
               <b>{space.name}</b>
               <small>

@@ -4,14 +4,13 @@ import { useFrame } from '@react-three/fiber'
 import { OrbitControls, Html } from '@react-three/drei'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { RectAreaLightUniformsLib } from 'three/examples/jsm/lights/RectAreaLightUniformsLib.js'
-import { soireeBoard } from '../../content'
 import { createTileTexture, tileColor as accentColor, isPurchasable } from './tileTexture'
 import { createCenterTexture } from './centerArt'
 import { createDiceMaterials, TARGET_EULER } from './diceTexture'
 import { PLAYER_COLORS } from './playerColors'
 import { ownerColorBySpace as ownerColorMap } from '../../game/boardInsights'
 import { ambianceFor } from './ambiance'
-import { cellFor } from './boardCells'
+import { boardGeometry, TILE_H } from './boardGeometry'
 import Effects from './effects/Effects'
 import BoardEnvironment from './environment/BoardEnvironment'
 import { TABLE_TOP } from './environment/stage'
@@ -58,13 +57,6 @@ function createGroundVignette() {
 const LIFT_DUR = 1
 const LIFT_PEAK = Math.exp(-4.5 * 0.123) * Math.sin(9 * 0.123)
 
-// Hauteur des blocs de cases : les spéciales (non achetables) sont surélevées.
-const TILE_H = { prop: 0.24, special: 0.4 }
-/** Altitude de la surface d'une case — ce sur quoi pions et anneaux se posent. */
-function tileTopY(i) {
-  const space = soireeBoard.spaces[((i % 40) + 40) % 40]
-  return (isPurchasable(space) ? TILE_H.prop : TILE_H.special) + 0.04
-}
 
 // Temporaire réutilisé chaque frame (fondu d'ambiance) : zéro allocation.
 const TMP_COLOR = new THREE.Color()
@@ -233,9 +225,9 @@ function MonopolyBadge() {
 }
 
 /** Anneau de surbrillance sous la case active (destination / case à résoudre). */
-function TargetHighlight({ cell, reducedMotion }) {
+function TargetHighlight({ cell, geo, reducedMotion }) {
   const ref = useRef()
-  const [r, c] = cellFor(cell)
+  const [x, z] = geo.posOf(cell)
   useFrame((s) => {
     const g = ref.current
     if (!g) return
@@ -244,7 +236,7 @@ function TargetHighlight({ cell, reducedMotion }) {
     g.scale.setScalar(k)
   })
   return (
-    <mesh ref={ref} rotation={[-Math.PI / 2, 0, 0]} position={[c - 6, tileTopY(cell) + 0.005, r - 6]}>
+    <mesh ref={ref} rotation={[-Math.PI / 2, 0, 0]} position={[x, geo.tileTopY(cell) + 0.005, z]}>
       <ringGeometry args={[0.42, 0.5, 40]} />
       <meshBasicMaterial color="#22c1c3" transparent opacity={0.85} toneMapped={false} />
     </mesh>
@@ -305,19 +297,19 @@ function MortgageOverlay() {
 }
 
 /**
- * Liserés lumineux des 40 arêtes hautes, fusionnés en UNE géométrie à couleurs de
+ * Liserés lumineux des arêtes hautes, fusionnés en UNE géométrie à couleurs de
  * sommets : détache les cases les unes des autres pour un seul draw call (40 meshes
  * séparés coûtaient +24 appels/frame, soit −13 % de FPS sur le profil mobile).
  * La couleur porte déjà l'intensité voulue (0,25) : matériau non éclairé, la lumière
  * de la scène ne doit pas la faire varier d'une case à l'autre.
  */
-function buildTileRims() {
-  const parts = soireeBoard.spaces.map((space, i) => {
-    const [r, c] = cellFor(i)
-    const boxH = isPurchasable(space) ? 0.24 : 0.4
+function buildTileRims(geo) {
+  const parts = geo.tiles.map((tile) => {
+    const boxH = isPurchasable(tile.space) ? TILE_H.prop : TILE_H.special
     const g = new THREE.BoxGeometry(0.99, 0.028, 0.99)
-    g.translate(c - 6, boxH - 0.014, r - 6)
-    const col = new THREE.Color(accentColor(space)).multiplyScalar(0.55)
+    if (tile.rotY) g.rotateY(tile.rotY)
+    g.translate(tile.x, tile.elevation + boxH - 0.014, tile.z)
+    const col = new THREE.Color(accentColor(tile.space)).multiplyScalar(0.55)
     const n = g.attributes.position.count
     const colors = new Float32Array(n * 3)
     for (let k = 0; k < n; k++) { colors[k * 3] = col.r; colors[k * 3 + 1] = col.g; colors[k * 3 + 2] = col.b }
@@ -334,7 +326,7 @@ function buildTileRims() {
  * tronc de pyramide à base carrée). Matériau sombre et métallique : il ne renvoie
  * que les néons, ce qui creuse la silhouette au lieu de la laisser plate.
  */
-function buildBoardBase() {
+function buildBoardBase(geo) {
   const tint = (g, hex) => {
     const col = new THREE.Color(hex)
     const n = g.attributes.position.count
@@ -343,14 +335,23 @@ function buildBoardBase() {
     g.setAttribute('color', new THREE.BufferAttribute(colors, 3))
     return g
   }
+  // Les cotes historiques du plateau carré (13,5 / 12,75) sont dérivées de son
+  // emprise (11,5) : +2 pour le niveau bas, +1,25 pour la table de jeu.
+  const w = geo.extent.width
+  const d = geo.extent.depth
+  const square = Math.abs(w - d) < 0.01
   // Niveau bas débordant.
-  const low = new THREE.BoxGeometry(13.5, 0.34, 13.5).translate(0, -0.58, 0)
-  // Chanfrein : cylindre à 4 segments = tronc de pyramide (rayon = côté / √2),
-  // pivoté de 45° pour aligner ses faces sur celles du plateau. 13,5 → 12,75.
-  const bevel = new THREE.CylinderGeometry(12.75 / Math.SQRT2, 13.5 / Math.SQRT2, 0.16, 4, 1)
-  bevel.rotateY(Math.PI / 4).translate(0, -0.33, 0)
+  const low = new THREE.BoxGeometry(w + 2, 0.34, d + 2).translate(0, -0.58, 0)
+  // Chanfrein : sur un plateau carré, cylindre à 4 segments = tronc de pyramide
+  // (rayon = côté / √2), pivoté de 45°. Sur un plateau allongé, simple boîte
+  // intermédiaire — un tronc de pyramide rectangulaire n'apporterait rien de plus.
+  const bevel = square
+    ? new THREE.CylinderGeometry((w + 1.25) / Math.SQRT2, (w + 2) / Math.SQRT2, 0.16, 4, 1)
+      .rotateY(Math.PI / 4)
+      .translate(0, -0.33, 0)
+    : new THREE.BoxGeometry(w + 1.6, 0.16, d + 1.6).translate(0, -0.33, 0)
   // Niveau haut : la table de jeu, juste sous les cases.
-  const top = new THREE.BoxGeometry(12.75, 0.24, 12.75).translate(0, -0.13, 0)
+  const top = new THREE.BoxGeometry(w + 1.25, 0.24, d + 1.25).translate(0, -0.13, 0)
   const parts = [tint(low, '#07040e'), tint(bevel, '#0d0820'), tint(top, '#0a0616')]
   const merged = mergeGeometries(parts)
   parts.forEach((g) => g.dispose())
@@ -361,13 +362,15 @@ function buildBoardBase() {
  * Cadre néon : dégradé de la couleur A vers la couleur B de l'ambiance courante,
  * pulsation calée sur `ambiance.speed` (coupée en mouvement réduit).
  */
-function NeonFrame({ ambiance, reducedMotion }) {
+function NeonFrame({ ambiance, reducedMotion, geo }) {
   const mats = useRef([])
+  const hw = geo.extent.halfWidth + 0.4
+  const hd = geo.extent.halfDepth + 0.4
   const bars = [
-    [0, -6.15, [12.7, 0.08, 0.07]],
-    [0, 6.15, [12.7, 0.08, 0.07]],
-    [-6.15, 0, [0.07, 0.08, 12.7]],
-    [6.15, 0, [0.07, 0.08, 12.7]],
+    [0, -hd, [hw * 2 + 0.4, 0.08, 0.07]],
+    [0, hd, [hw * 2 + 0.4, 0.08, 0.07]],
+    [-hw, 0, [0.07, 0.08, hd * 2 + 0.4]],
+    [hw, 0, [0.07, 0.08, hd * 2 + 0.4]],
   ]
   const colors = useMemo(() => {
     const a = new THREE.Color(ambiance.lightA)
@@ -403,10 +406,9 @@ function NeonFrame({ ambiance, reducedMotion }) {
   )
 }
 
-// Mémoïsé : le survol des titres de propriété re-rend la scène, les 40 cases n'ont
+// Mémoïsé : le survol des titres de propriété re-rend la scène, les cases n'ont
 // aucune raison de suivre (leurs props sont des primitives + un setter stable).
-const Tile = memo(function Tile({ i, texture, onSelect, ownerColor, tint, special = false, isMonopoly, level = 0, mortgaged = false, pulse = false, reducedMotion }) {
-  const [r, c] = cellFor(i)
+const Tile = memo(function Tile({ i, x, z, rotY = 0, elevation = 0, texture, onSelect, ownerColor, tint, special = false, isMonopoly, level = 0, mortgaged = false, pulse = false, reducedMotion }) {
   const gref = useRef()
   // Base sombre ; la teinte de catégorie n'agit qu'en émissif discret (plus marqué
   // pour les cases spéciales non achetables), sans « repeindre » toute la case.
@@ -429,13 +431,14 @@ const Tile = memo(function Tile({ i, texture, onSelect, ownerColor, tint, specia
     if (lift.current.t < LIFT_DUR) {
       lift.current.t += dt
       const k = lift.current.t
-      g.position.y = reducedMotion ? 0 : 0.15 * (Math.exp(-4.5 * k) * Math.sin(9 * k)) / LIFT_PEAK
-    } else if (g.position.y !== 0) {
-      g.position.y = 0
+      const bounce = reducedMotion ? 0 : 0.15 * (Math.exp(-4.5 * k) * Math.sin(9 * k)) / LIFT_PEAK
+      g.position.y = elevation + bounce
+    } else if (g.position.y !== elevation) {
+      g.position.y = elevation
     }
   })
   return (
-    <group ref={gref} position={[c - 6, 0, r - 6]} onClick={(e) => { e.stopPropagation(); onSelect(i) }}>
+    <group ref={gref} position={[x, elevation, z]} rotation={[0, rotY, 0]} onClick={(e) => { e.stopPropagation(); onSelect(i) }}>
       <mesh castShadow receiveShadow position={[0, boxH / 2, 0]}>
         <boxGeometry args={[0.96, boxH, 0.96]} />
         <meshStandardMaterial color={baseColor} emissive={baseEmissive} emissiveIntensity={emissiveIntensity} roughness={special ? 0.45 : 0.7} metalness={special ? 0.35 : 0.2} toneMapped={!special} />
@@ -628,7 +631,7 @@ const DRINK_SHAPES = [
 ]
 
 /** Pion thématisé « boisson » (verre, chope, bouteille…), teinté par couleur joueur. */
-function Pawn3D({ target, color, seatOffset, shapeIndex, isActive, reducedMotion, name, cash }) {
+function Pawn3D({ target, geo, color, seatOffset, shapeIndex, isActive, reducedMotion, name, cash }) {
   const ref = useRef()       // groupe pion : position monde
   const bodyRef = useRef()   // groupe interne : squash & stretch + inclinaison
   const haloRef = useRef()
@@ -641,16 +644,21 @@ function Pawn3D({ target, color, seatOffset, shapeIndex, isActive, reducedMotion
 
   const ox = (seatOffset % 2) * 0.34 - 0.17
   const oz = Math.floor(seatOffset / 2) * 0.34 - 0.17
+  // Les décalages de place suivent l'orientation de la case : sur un plateau en
+  // courbe, un décalage fixe en X/Z ferait sortir les pions du chemin.
   const posOf = (i) => {
-    const [r, c] = cellFor(i)
-    return [c - 6 + ox, r - 6 + oz]
+    const [x, z] = geo.posOf(i)
+    const a = geo.rotOf(i)
+    const cos = Math.cos(a)
+    const sin = Math.sin(a)
+    return [x + ox * cos + oz * sin, z - ox * sin + oz * cos]
   }
-  // Décalage vertical pour se poser sur le dessus de la case (0 sur une propriété,
-  // +0,16 sur une case spéciale surélevée).
-  const standOf = (i) => tileTopY(i) - PAWN_BASE
+  // Décalage vertical pour se poser sur le dessus de la case (rampe du pont
+  // comprise, et +0,16 sur une case spéciale surélevée).
+  const standOf = (i) => geo.tileTopY(i) - PAWN_BASE
   const init = useMemo(() => {
-    const [r, c] = cellFor(target)
-    return [c - 6 + ox, standOf(target), r - 6 + oz]
+    const [x, z] = posOf(target)
+    return [x, standOf(target), z]
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -674,7 +682,7 @@ function Pawn3D({ target, color, seatOffset, shapeIndex, isActive, reducedMotion
       }
       if (!h.flying && h.to !== target) {
         h.from = h.to
-        h.to = (h.to + 1) % 40
+        h.to = (h.to + 1) % geo.size
         h.t = 0
         h.flying = true
       }
@@ -895,7 +903,7 @@ function DiceSet({ dice }) {
   )
 }
 
-export default function Scene3D({ state, onSelect, dice, reducedMotion = false, lite = false, topDown = false, showEstates = true, freeCam = false, ambiance, monopolySpaces, buildings, mortgaged, justOwned, targetSpace, controlsRef, fx = null, center = null, centerSlot = null, environmentId = null, compact = false, presence = null }) {
+export default function Scene3D({ map, state, onSelect, dice, reducedMotion = false, lite = false, topDown = false, showEstates = true, freeCam = false, ambiance, monopolySpaces, buildings, mortgaged, justOwned, targetSpace, controlsRef, fx = null, center = null, centerSlot = null, environmentId = null, compact = false, presence = null }) {
   // Re-génère les textures une fois les polices web prêtes (sinon fallback système).
   const [fontTick, setFontTick] = useState(0)
   useEffect(() => {
@@ -905,19 +913,26 @@ export default function Scene3D({ state, onSelect, dice, reducedMotion = false, 
     }
     return () => { alive = false }
   }, [])
-  // L'index sert à orienter les coins (0, 10, 20, 30) vers l'extérieur du plateau.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const textures = useMemo(() => soireeBoard.spaces.map((s, i) => createTileTexture(s, i)), [fontTick])
-  // Textures 512² × 40 : on libère le jeu précédent lors de la régénération (polices
-  // prêtes) et au démontage, sinon la VRAM double.
+  // Géométrie de la map active : positions, rotations, élévations, emprise.
+  const geo = useMemo(() => boardGeometry(map), [map])
+  // L'angle de texture vient de la géométrie (coins d'un plateau en grille).
+  // `fontTick` est une dépendance VOULUE : il ne sert qu'à forcer la
+  // régénération des textures une fois les polices web chargées.
+  const textures = useMemo(
+    () => geo.tiles.map((tile) => createTileTexture(tile.space, tile.index, geo.textureAngleOf(tile.index))),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [fontTick, geo],
+  )
+  // Textures 512² par case : on libère le jeu précédent lors de la régénération
+  // (polices prêtes) et au démontage, sinon la VRAM double.
   useEffect(() => () => { textures.forEach((t) => t.dispose()) }, [textures])
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const centerTex = useMemo(() => createCenterTexture(), [fontTick])
   const haloTex = useMemo(() => createHaloTexture(), [])
   const vignetteTex = useMemo(() => (lite ? null : createGroundVignette()), [lite])
   const vignetteMatRef = useRef()
-  const rimGeometry = useMemo(() => buildTileRims(), [])
-  const baseGeometry = useMemo(() => buildBoardBase(), [])
+  const rimGeometry = useMemo(() => buildTileRims(geo), [geo])
+  const baseGeometry = useMemo(() => buildBoardBase(geo), [geo])
   useEffect(() => () => { rimGeometry.dispose(); baseGeometry.dispose() }, [rimGeometry, baseGeometry])
   const amb = ambiance ?? ambianceFor('warmup')
   // Couleur du propriétaire par case (spaceId → couleur du joueur).
@@ -926,6 +941,10 @@ export default function Scene3D({ state, onSelect, dice, reducedMotion = false, 
     [state],
   )
   const monopolySet = monopolySpaces || new Set()
+  // Échelle du plateau rapportée au carré historique (emprise 11,5) : distances
+  // de caméra, halo, vignette et ombres suivent la taille réelle de la map.
+  const spread = Math.max(geo.extent.width, geo.extent.depth)
+  const k = spread / 11.5
 
   // La caméra n'est plus pilotée ici : tout passe par <CameraDirector> (suivi du
   // pion actif compris), seul endroit autorisé à la toucher.
@@ -939,8 +958,8 @@ export default function Scene3D({ state, onSelect, dice, reducedMotion = false, 
         enablePan={freeCam}
         enableDamping={!reducedMotion}
         dampingFactor={0.08}
-        minDistance={freeCam ? 3 : topDown ? 8 : 11}
-        maxDistance={freeCam ? 60 : 26}
+        minDistance={(freeCam ? 3 : topDown ? 8 : 11) * k}
+        maxDistance={(freeCam ? 60 : 26) * k}
         minPolarAngle={freeCam ? 0 : topDown ? 0.12 : 0.5}
         maxPolarAngle={freeCam ? 1.5 : 1.25}
         target={[0, 0, 0]}
@@ -950,7 +969,7 @@ export default function Scene3D({ state, onSelect, dice, reducedMotion = false, 
       <AmbianceLights ambiance={amb} reducedMotion={reducedMotion} lite={lite} vignetteRef={vignetteMatRef} />
       {/* Key : seule source d'ombres. Frustum resserré sur le plateau réel (±7 au
           lieu de ±11) → même carte d'ombre, deux fois plus de texels par mètre. */}
-      <directionalLight castShadow position={[7, 16, 7]} intensity={1.5} shadow-mapSize-width={2048} shadow-mapSize-height={2048} shadow-camera-far={44} shadow-camera-left={-7} shadow-camera-right={7} shadow-camera-top={7} shadow-camera-bottom={-7} shadow-bias={-0.0004} />
+      <directionalLight castShadow position={[7 * k, 16 * k, 7 * k]} intensity={1.5} shadow-mapSize-width={2048} shadow-mapSize-height={2048} shadow-camera-far={44 * k} shadow-camera-left={-7 * k} shadow-camera-right={7 * k} shadow-camera-top={7 * k} shadow-camera-bottom={-7 * k} shadow-bias={-0.0004} />
 
       {/* Environnement : pièce, mobilier, places des joueurs, atmosphère. Il
           ENTOURE le plateau, qui lui est passé en enfant et rendu une seule fois
@@ -969,13 +988,13 @@ export default function Scene3D({ state, onSelect, dice, reducedMotion = false, 
             Inutile en rendu allégé (pas de miroir) → un mesh transparent de moins. */}
         {!lite && (
           <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, TABLE_TOP + 0.015, 0]} raycast={() => null}>
-            <circleGeometry args={[13.4, 48]} />
+            <circleGeometry args={[13.4 * k, 48]} />
             <meshBasicMaterial ref={vignetteMatRef} map={vignetteTex} transparent depthWrite={false} toneMapped={false} opacity={0.45 + 0.55 * amb.vignette} />
           </mesh>
         )}
         {/* Halo radial autour du plateau : la lueur des néons sur la table. */}
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, TABLE_TOP + 0.03, 0]} raycast={() => null}>
-          <planeGeometry args={[20, 20]} />
+          <planeGeometry args={[20 * k, 20 * k]} />
           <meshBasicMaterial map={haloTex} transparent depthWrite={false} blending={THREE.AdditiveBlending} toneMapped={false} opacity={0.6} />
         </mesh>
 
@@ -985,7 +1004,7 @@ export default function Scene3D({ state, onSelect, dice, reducedMotion = false, 
           <meshStandardMaterial vertexColors metalness={0.6} roughness={0.35} />
         </mesh>
         <mesh position={[0, -0.02, 0]} receiveShadow>
-          <boxGeometry args={[9.1, 0.06, 9.1]} />
+          <boxGeometry args={[Math.max(1, geo.extent.width - 2.4), 0.06, Math.max(1, geo.extent.depth - 2.4)]} />
           <meshStandardMaterial color="#0d0722" emissive="#140a34" emissiveIntensity={0.5} roughness={0.5} />
         </mesh>
         {/* Centre en volume : podium, logo billboardé, jauge de temps, carte 3D. */}
@@ -1000,36 +1019,41 @@ export default function Scene3D({ state, onSelect, dice, reducedMotion = false, 
           timerTotal={center?.timerTotal ?? 0}
           centerSlot={centerSlot}
         />
-        <NeonFrame ambiance={amb} reducedMotion={reducedMotion} />
-        {/* Liserés des 40 cases : une seule géométrie fusionnée = un seul draw call. */}
+        <NeonFrame ambiance={amb} reducedMotion={reducedMotion} geo={geo} />
+        {/* Liserés de toutes les cases : une géométrie fusionnée = un draw call. */}
         <mesh geometry={rimGeometry}>
           <meshBasicMaterial vertexColors toneMapped={false} />
         </mesh>
-        {soireeBoard.spaces.map((space, i) => (
+        {geo.tiles.map((tile) => (
           <Tile
-            key={space.id}
-            i={i}
-            texture={textures[i]}
+            key={tile.tileId}
+            i={tile.index}
+            x={tile.x}
+            z={tile.z}
+            rotY={tile.rotY}
+            elevation={tile.elevation}
+            texture={textures[tile.index]}
             onSelect={onSelect}
-            ownerColor={ownerColorBySpace[space.id]}
-            tint={accentColor(space)}
-            special={!isPurchasable(space)}
-            isMonopoly={monopolySet.has(space.id)}
-            level={buildings?.[space.id] ?? 0}
-            mortgaged={mortgaged?.[space.id] === true}
-            pulse={justOwned === space.id}
+            ownerColor={ownerColorBySpace[tile.tileId]}
+            tint={accentColor(tile.space)}
+            special={!isPurchasable(tile.space)}
+            isMonopoly={monopolySet.has(tile.tileId)}
+            level={buildings?.[tile.tileId] ?? 0}
+            mortgaged={mortgaged?.[tile.tileId] === true}
+            pulse={justOwned === tile.tileId}
             reducedMotion={reducedMotion}
           />
         ))}
-        {targetSpace != null && <TargetHighlight cell={targetSpace} reducedMotion={reducedMotion} />}
+        {targetSpace != null && <TargetHighlight cell={targetSpace} geo={geo} reducedMotion={reducedMotion} />}
         {/* Effets ponctuels (achat, monopole, loyer, faillite, montée d'intensité) :
             une seule prop `fx` en entrée, la file est gérée dans <Effects>. */}
-        <Effects fx={fx} reducedMotion={reducedMotion} players={state.players} ownership={state.ownership} />
+        <Effects fx={fx} geo={geo} reducedMotion={reducedMotion} players={state.players} ownership={state.ownership} />
         {state.players.map((p, i) =>
           p.eliminated ? null : (
             <Pawn3D
               key={p.id}
               target={p.position}
+              geo={geo}
               color={PLAYER_COLORS[i % PLAYER_COLORS.length]}
               seatOffset={i}
               shapeIndex={p.pawn}
@@ -1043,7 +1067,7 @@ export default function Scene3D({ state, onSelect, dice, reducedMotion = false, 
         {/* Titres de propriété posés sur la table, un présentoir par joueur. Masqués
             sur téléphone : illisibles à cette taille, et leur largeur imposait un
             cadrage qui rapetissait le plateau (voir la feuille « Biens »). */}
-        {showEstates && <Estates3D state={state} onSelect={onSelect} reducedMotion={reducedMotion} lite={lite} />}
+        {showEstates && <Estates3D map={map} state={state} onSelect={onSelect} reducedMotion={reducedMotion} lite={lite} />}
         <DiceSet dice={dice} />
       </BoardEnvironment>
     </>

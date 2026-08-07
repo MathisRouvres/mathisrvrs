@@ -12,9 +12,9 @@ import MvCenter from './MvCenter'
 import MvActionBar from './MvActionBar'
 import MvDock from './MvDock'
 import MvToasts from './MvToasts'
-import { soireeBoard, getMarketCardById } from '../content'
+import { getMarketCardById } from '../content'
 import { centerPanelKind } from '../game/centerPanel'
-import { incomingOffers, softAlternative, evaluateReminder } from '../engine'
+import { boardForState, incomingOffers, softAlternative, evaluateReminder } from '../engine'
 import { completeGroups } from '../game/boardInsights'
 import { logEntryForResult } from '../game/journal'
 import { sound } from '../game/sound'
@@ -61,6 +61,8 @@ export default function MvGame({
   const [showTrade, setShowTrade] = useState(false)
   const [showCards, setShowCards] = useState(false)
   const reducedMotion = useReducedMotion()
+  // Plateau de la partie : tout ce qui parle de cases passe par lui.
+  const board = useMemo(() => boardForState(state), [state])
 
   // Voyants de connexion des places du plateau. Le moteur ne connaît pas la
   // connexion : on ne renseigne que la place dont l'état est réellement
@@ -311,7 +313,7 @@ export default function MvGame({
     if (result.bankruptcy) return { type: 'bankrupt', playerId: result.bankruptcy.playerId, id: `bank-${rollId}` }
     const o = result.outcome
     if (o.kind === 'pay_rent' && active) {
-      return { type: 'rent', spaceId: soireeBoard.spaces[active.position]?.id, playerId: o.toPlayerId, id: `rent-${rollId}` }
+      return { type: 'rent', spaceId: board.spaces[active.position]?.id, playerId: o.toPlayerId, id: `rent-${rollId}` }
     }
     return null
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -334,7 +336,7 @@ export default function MvGame({
   // Burst doré + journal quand un joueur COMPLÈTE un groupe (monopole).
   const prevMonoRef = useRef(null)
   useEffect(() => {
-    const groups = completeGroups(state, soireeBoard).monopolyGroupsByOwner
+    const groups = completeGroups(state, board).monopolyGroupsByOwner
     const prev = prevMonoRef.current
     if (prev) {
       for (const [ownerId, arr] of Object.entries(groups)) {
@@ -352,7 +354,7 @@ export default function MvGame({
       }
     }
     prevMonoRef.current = groups
-  }, [state, reducedMotion, pushLog, fireEvent])
+  }, [state, board, reducedMotion, pushLog, fireEvent])
 
   const handleBuyFx = (yes) => {
     if (yes && result?.outcome?.kind === 'buy_offer') {

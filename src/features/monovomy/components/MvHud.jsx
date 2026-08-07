@@ -1,4 +1,4 @@
-import { soireeBoard } from '../content'
+import { boardForState } from '../engine'
 import { playerColor } from './board3d/playerColors'
 import { useCountUp, useDelta } from '../game/useCountUp'
 import { useReducedMotion } from '../game/useReducedMotion'
@@ -44,7 +44,7 @@ export default function MvHud({
   const reducedMotion = useReducedMotion()
   const it = INTENSITY[state.partyIntensity] ?? INTENSITY.warmup
   const activeIdx = state.currentPlayerIndex
-  const spaceName = active ? soireeBoard.spaces[active.position]?.name ?? '—' : '—'
+  const spaceName = active ? boardForState(state).spaces[active.position]?.name ?? '—' : '—'
   const me = myId ? state.players.find((p) => p.id === myId) : null
   const turnUrgent = turnLeft >= 0 && turnLeft <= 5000
   const net = NET[netStatus] ?? NET.idle

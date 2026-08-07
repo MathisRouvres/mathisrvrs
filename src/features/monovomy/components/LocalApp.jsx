@@ -4,6 +4,7 @@ import MvGame from './MvGame'
 import MvRanking from './MvRanking'
 import { useWakeLock } from '../pwa/useWakeLock'
 import { useGameActivity } from '../pwa/useGameActivity'
+import { boardForState } from '../engine'
 
 export default function LocalApp({ onExit }) {
   const game = useHotseatGame()
@@ -39,7 +40,7 @@ export default function LocalApp({ onExit }) {
         />
       )}
 
-      {game.screen === 'finished' && <MvRanking results={game.results} onReplay={game.reset} />}
+      {game.screen === 'finished' && <MvRanking results={game.results} onReplay={game.reset} mapName={boardForState(game.state).name} />}
     </>
   )
 }

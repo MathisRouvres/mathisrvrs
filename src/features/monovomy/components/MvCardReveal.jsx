@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { MonovomyButton } from '../MonovomyShell'
 import { SOFT_CATEGORY_LABEL, buildCostFor } from '../engine'
-import { soireeBoard } from '../content'
+import { defaultBoardMap } from '../content'
 import { GROUP_COLORS, GROUP_LABEL } from '../game/groupColors'
 import { sound } from '../game/sound'
 import { haptics } from '../game/haptics'
@@ -63,12 +63,12 @@ function PipDie({ value }) {
 }
 
 /** Retrouve la case concernée : par identifiant si on l'a, par nom sinon. */
-function spaceOf(outcome) {
+function spaceOf(outcome, board) {
   if (outcome.spaceId) {
-    const byId = soireeBoard.spaces.find((s) => s.id === outcome.spaceId)
+    const byId = board.spaces.find((s) => s.id === outcome.spaceId)
     if (byId) return byId
   }
-  if (outcome.name) return soireeBoard.spaces.find((s) => s.name === outcome.name) ?? null
+  if (outcome.name) return board.spaces.find((s) => s.name === outcome.name) ?? null
   return null
 }
 
@@ -91,7 +91,7 @@ function cardText(result, active) {
  * Modèle d'affichage d'une révélation : bandeau, titre, corps, et surtout les
  * conséquences chiffrées isolées du texte — c'est ce qu'on lit en premier.
  */
-function faceOf(result, active) {
+function faceOf(result, active, board) {
   const outcome = result.outcome
   const isCard = outcome.kind === 'draw_card' && result.card
   const meta = isCard
@@ -173,7 +173,7 @@ function faceOf(result, active) {
     })
   }
 
-  const space = spaceOf(outcome)
+  const space = spaceOf(outcome, board)
   const showTitle = ['buy_offer', 'cannot_afford', 'own_property', 'pay_rent'].includes(outcome.kind)
   return {
     meta,
@@ -227,7 +227,7 @@ function PropertyTitle({ space }) {
  * Le retournement se joue sur un dos de carte : le texte n'apparaît qu'une fois la
  * face passée à plat (dernier quart de l'animation), donc jamais déformé.
  */
-export default function MvCardReveal({ result, active, isDecision, canAct, onBuy, onNext, softActive, softAlt, showActions = true }) {
+export default function MvCardReveal({ result, active, isDecision, canAct, onBuy, onNext, softActive, softAlt, showActions = true, board = defaultBoardMap() }) {
   const reducedMotion = useReducedMotion()
   const [shown, setShown] = useState(result)
   const [phase, setPhase] = useState('enter')
@@ -261,7 +261,7 @@ export default function MvCardReveal({ result, active, isDecision, canAct, onBuy
     return undefined
   }, [phase, reducedMotion])
 
-  const face = faceOf(shown, active)
+  const face = faceOf(shown, active, board)
   const accent = face.meta.accent
   const waiting = active ? `En attente de ${active.name}…` : '…'
 

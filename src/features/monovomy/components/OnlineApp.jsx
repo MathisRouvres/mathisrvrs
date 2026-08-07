@@ -9,6 +9,7 @@ import { useWakeLock } from '../pwa/useWakeLock'
 import { useGameActivity } from '../pwa/useGameActivity'
 import { readLastProfile, saveLastProfile } from '../pwa/pwaEnv'
 import { shareInvite } from '../pwa/share'
+import { boardForState } from '../engine'
 
 const NET_TEXT = {
   reconnecting: 'Reconnexion à la partie…',
@@ -94,7 +95,7 @@ export default function OnlineApp({ onExit, initialJoinCode = '' }) {
   }
 
   if (g.screen === 'finished' && g.gameState) {
-    return <MvRanking results={g.results} onReplay={g.reset} />
+    return <MvRanking results={g.results} onReplay={g.reset} mapName={boardForState(g.gameState).name} />
   }
 
   return (

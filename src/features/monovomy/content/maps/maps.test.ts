@@ -1,8 +1,22 @@
 import { describe, it, expect } from 'vitest'
 import type { BoardSpace } from '../schema'
-import { cellCenter } from '../../components/board/boardLayout'
 import { classicSquareMap, CLASSIC_SQUARE_TILES } from './classicSquare'
 import { soireeBoard } from '../board.soiree'
+/** Grille 11×11 historique du plateau carré (Départ en bas à droite). */
+function legacyCellCenter(index: number): { x: number; y: number } {
+  const i = ((index % 40) + 40) % 40
+  const cell =
+    i === 0 ? { row: 11, col: 11 }
+      : i === 10 ? { row: 11, col: 1 }
+        : i === 20 ? { row: 1, col: 1 }
+          : i === 30 ? { row: 1, col: 11 }
+            : i < 10 ? { row: 11, col: 11 - i }
+              : i < 20 ? { row: 21 - i, col: 1 }
+                : i < 30 ? { row: 1, col: i - 19 }
+                  : { row: i - 29, col: 11 }
+  return { x: ((cell.col - 0.5) / 11) * 100, y: ((cell.row - 0.5) / 11) * 100 }
+}
+
 import {
   boardMapDefinitionSchema,
   DEFAULT_BOARD_MAP_ID,
@@ -137,7 +151,7 @@ describe('géométrie visuelle du plateau carré', () => {
   it('reproduit exactement la grille 11×11 du rendu actuel', () => {
     classicSquareMap.path.forEach((tileId, index) => {
       const position = getTileVisualPosition(classicSquareMap, tileId)
-      const expected = cellCenter(index)
+      const expected = legacyCellCenter(index)
       expect(position?.x).toBeCloseTo(expected.x, 10)
       expect(position?.y).toBeCloseTo(expected.y, 10)
     })

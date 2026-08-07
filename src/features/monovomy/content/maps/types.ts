@@ -47,6 +47,25 @@ export const boardEconomySchema = z.object({
   upgradeMultiplier: z.number().positive().optional(),
 })
 
+// ── Groupes de propriétés ───────────────────────────────────────────────────
+
+/**
+ * Groupe de propriétés d'une map (couleur + libellé). Chaque map déclare les
+ * siens : ni les couleurs ni le nombre de groupes ne sont codés en dur ailleurs.
+ */
+export interface BoardGroupDefinition {
+  id: string
+  label: string
+  /** Couleur hexadécimale `#rrggbb`, partagée par le rendu 3D et le HTML. */
+  color: string
+}
+
+export const boardGroupSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1),
+  color: z.string().regex(/^#[0-9a-f]{6}$/i, 'couleur hexadécimale #rrggbb requise'),
+})
+
 // ── Géométrie visuelle ──────────────────────────────────────────────────────
 
 /**
@@ -102,16 +121,26 @@ export const boardTileVisualPositionSchema = z.object({
 export const BOARD_VISUAL_KINDS = ['grid_square', 'free_path'] as const
 export type BoardVisualKind = (typeof BOARD_VISUAL_KINDS)[number]
 
+/**
+ * Orientation des cases au rendu :
+ *  - `fixed` : toutes alignées sur le repère (plateau carré historique) ;
+ *  - `path`  : chaque case pivotée selon `rotation`, donc selon la trajectoire.
+ */
+export const TILE_ORIENTATIONS = ['fixed', 'path'] as const
+export type TileOrientation = (typeof TILE_ORIENTATIONS)[number]
+
 export interface BoardVisualDefinition {
   kind: BoardVisualKind
   /** Largeur / hauteur du repère normalisé (1 = carré). */
   aspectRatio: number
+  tileOrientation: TileOrientation
   positions: BoardTileVisualPosition[]
 }
 
 export const boardVisualSchema = z.object({
   kind: z.enum(BOARD_VISUAL_KINDS),
   aspectRatio: z.number().positive(),
+  tileOrientation: z.enum(TILE_ORIENTATIONS),
   positions: z.array(boardTileVisualPositionSchema).min(1),
 })
 
@@ -145,6 +174,8 @@ export interface BoardMapDefinition {
   /** Ordre logique et cyclique des cases — seule source de vérité du déplacement. */
   path: readonly string[]
   tiles: Readonly<Record<string, BoardSpace>>
+  /** Groupes de propriétés de cette map (id → couleur + libellé). */
+  groups: Readonly<Record<string, BoardGroupDefinition>>
   /** @deprecated dérivé de `path` — compat `BoardTheme`. */
   spaces: BoardSpace[]
 
@@ -167,6 +198,7 @@ export const boardMapDefinitionSchema = z.object({
   goToJailTileId: z.string().min(1).optional(),
   path: z.array(z.string().min(1)).min(8),
   tiles: z.record(z.string(), boardSpaceSchema),
+  groups: z.record(z.string(), boardGroupSchema),
   spaces: z.array(boardSpaceSchema).min(8),
   economy: boardEconomySchema,
   visual: boardVisualSchema,
@@ -183,6 +215,7 @@ export interface NavigableBoard {
   path?: readonly string[]
   tiles?: Readonly<Record<string, BoardSpace>>
   spaces: readonly BoardSpace[]
+  groups?: Readonly<Record<string, BoardGroupDefinition>>
   startTileId?: string
   jailTileId?: string
   goToJailTileId?: string

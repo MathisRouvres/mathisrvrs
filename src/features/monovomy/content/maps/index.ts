@@ -2,12 +2,14 @@ export {
   BOARD_MAP_IDS,
   BOARD_SEGMENTS,
   BOARD_VISUAL_KINDS,
+  TILE_ORIENTATIONS,
   DEFAULT_BOARD_MAP_ID,
   isBoardMapId,
   boardEconomySchema,
   boardTileVisualPositionSchema,
   boardVisualSchema,
   boardMapDefinitionSchema,
+  boardGroupSchema,
   type BoardMapId,
   type BoardMapDefinition,
   type BoardEconomyConfig,
@@ -15,6 +17,8 @@ export {
   type BoardTileVisualPosition,
   type BoardVisualDefinition,
   type BoardVisualKind,
+  type TileOrientation,
+  type BoardGroupDefinition,
   type NavigableBoard,
 } from './types'
 
@@ -56,3 +60,19 @@ export {
 } from './registry'
 
 export { getTileVisualPosition, visualPositionsById } from './visual'
+
+export {
+  FALLBACK_GROUP_COLOR,
+  allBoardGroups,
+  groupColor,
+  groupLabel,
+  groupOf,
+  groupsOf,
+} from './groups'
+
+export {
+  formatValidationReport,
+  validateAllBoardMaps,
+  validateBoardMap,
+  type MapValidationReport,
+} from './validate'

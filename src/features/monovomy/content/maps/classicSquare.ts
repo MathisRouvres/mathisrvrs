@@ -64,8 +64,8 @@ const GRID = 11
 
 /**
  * Cellule (ligne, colonne) d'un index sur l'anneau — sens Monopoly classique,
- * Départ en bas à droite. Miroir exact de `components/board/boardLayout.ts`
- * (parité garantie par test) : la géométrie carrée vit maintenant dans la map.
+ * Départ en bas à droite. La géométrie carrée vit ici, dans la map : un test de
+ * parité verrouille les coordonnées historiques (grille 11×11).
  */
 function cellFor(index: number): { row: number; col: number } {
   const i = ((index % 40) + 40) % 40
@@ -105,6 +105,18 @@ function buildVisualPositions(tiles: readonly BoardSpace[]): BoardTileVisualPosi
   })
 }
 
+/** Groupes de propriétés — palette historique du plateau carré. */
+const CLASSIC_GROUPS = {
+  brun: { id: 'brun', label: 'Brun', color: '#c07a3a' },
+  cyan: { id: 'cyan', label: 'Cyan', color: '#22c1c3' },
+  rose: { id: 'rose', label: 'Rose', color: '#ec4899' },
+  orange: { id: 'orange', label: 'Orange', color: '#f97316' },
+  rouge: { id: 'rouge', label: 'Rouge', color: '#ef4444' },
+  jaune: { id: 'jaune', label: 'Jaune', color: '#f5b21a' },
+  vert: { id: 'vert', label: 'Vert', color: '#22c55e' },
+  bleu: { id: 'bleu', label: 'Bleu', color: '#3b82f6' },
+} as const
+
 const tilesById: Record<string, BoardSpace> = {}
 for (const tile of CLASSIC_SQUARE_TILES) tilesById[tile.id] = tile
 
@@ -130,6 +142,7 @@ export const classicSquareMap: BoardMapDefinition = {
 
   path: CLASSIC_SQUARE_TILES.map((tile) => tile.id),
   tiles: tilesById,
+  groups: CLASSIC_GROUPS,
   spaces: [...CLASSIC_SQUARE_TILES],
 
   economy: {
@@ -140,6 +153,7 @@ export const classicSquareMap: BoardMapDefinition = {
   visual: {
     kind: 'grid_square',
     aspectRatio: 1,
+    tileOrientation: 'fixed',
     positions: buildVisualPositions(CLASSIC_SQUARE_TILES),
   },
 }

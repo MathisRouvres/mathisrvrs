@@ -6,7 +6,7 @@ import { useReducedMotion } from '../game/useReducedMotion'
 
 const CONFETTI = ['#f5b21a', '#ec1e79', '#22c1c3', '#7c3aed', '#22c55e']
 
-export default function MvRanking({ results, onReplay }) {
+export default function MvRanking({ results, onReplay, mapName = null }) {
   const winner = results[0]
   const reducedMotion = useReducedMotion()
 
@@ -37,6 +37,7 @@ export default function MvRanking({ results, onReplay }) {
         <p className="mv-eyebrow">Partie terminée</p>
         <h1 className="mv-hero__title">🏆 {winner ? winner.name : '—'}</h1>
         <p className="mv-hero__sub">{winner ? 'Roi de MonoVomy' : 'Aucun joueur'}</p>
+        {mapName && <p className="mv-hero__map">🗺️ {mapName}</p>}
       </section>
 
       <ol className="mv-rank">

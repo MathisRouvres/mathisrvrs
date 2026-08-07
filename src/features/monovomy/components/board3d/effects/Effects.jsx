@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { soireeBoard } from '../../../content'
 import { PLAYER_COLORS } from '../playerColors'
 import { tileColor } from '../tileTexture'
-import { INDEX_BY_ID, cellPos, groupIndicesOf } from '../boardCells'
 import Shockwave from './Shockwave'
 import Confetti from './Confetti'
 import CashBurst from './CashBurst'
@@ -33,7 +31,7 @@ const FADE_COLOR = {
  * Mouvement réduit : aucun effet de particules ni secousse, seulement un fondu
  * d'opacité plein écran à la couleur de l'événement.
  */
-export default function Effects({ fx, reducedMotion = false, players = [], ownership = {} }) {
+export default function Effects({ fx, geo, reducedMotion = false, players = [], ownership = {} }) {
   const [items, setItems] = useState([])
   const lastId = useRef(null)
   const shake = useRef({ t: 0, x: 0, y: 0, z: 0 })
@@ -49,8 +47,8 @@ export default function Effects({ fx, reducedMotion = false, players = [], owner
 
   const pawnPos = useCallback((playerId) => {
     const p = players.find((q) => q.id === playerId)
-    return p ? cellPos(p.position) : [0, 0]
-  }, [players])
+    return p ? geo.posOf(p.position) : [0, 0]
+  }, [players, geo])
 
   useEffect(() => {
     if (!fx || fx.id == null || fx.id === lastId.current) {
@@ -96,16 +94,16 @@ export default function Effects({ fx, reducedMotion = false, players = [], owner
     if (reducedMotion) {
       return <ScreenVeil key={key} color={FADE_COLOR[e.type] || '#ffffff'} peak={0.22} dur={0.5} onDone={() => done(key)} />
     }
-    const idx = e.spaceId != null ? INDEX_BY_ID.get(e.spaceId) : null
+    const idx = e.spaceId != null ? geo.indexById.get(e.spaceId) : null
 
     if (e.type === 'buy' && idx != null) {
-      return <Shockwave key={key} position={cellPos(idx)} color={tileColor(soireeBoard.spaces[idx])} onDone={() => done(key)} />
+      return <Shockwave key={key} position={geo.posOf(idx)} color={tileColor(geo.tileAt(idx).space)} onDone={() => done(key)} />
     }
 
     if (e.type === 'monopoly' && idx != null) {
-      const group = groupIndicesOf(e.spaceId)
-      const color = tileColor(soireeBoard.spaces[idx])
-      const positions = group.map(cellPos)
+      const group = geo.groupIndicesOf(e.spaceId)
+      const color = tileColor(geo.tileAt(idx).space)
+      const positions = group.map((i) => geo.posOf(i))
       const center = positions.reduce((acc, p) => [acc[0] + p[0] / positions.length, acc[1] + p[1] / positions.length], [0, 0])
       // Deux effets, une seule entrée de file : les confettis durent le plus
       // longtemps (2,5 s), c'est eux qui libèrent la place.
@@ -118,15 +116,15 @@ export default function Effects({ fx, reducedMotion = false, players = [], owner
     }
 
     if (e.type === 'rent' && idx != null) {
-      return <CashBurst key={key} from={cellPos(idx)} to={pawnPos(e.playerId)} onDone={() => done(key)} />
+      return <CashBurst key={key} from={geo.posOf(idx)} to={pawnPos(e.playerId)} onDone={() => done(key)} />
     }
 
     if (e.type === 'bankrupt') {
       const owned = Object.entries(e.snapshot || {})
         .filter(([, owner]) => owner === e.playerId)
-        .map(([spaceId]) => INDEX_BY_ID.get(spaceId))
+        .map(([spaceId]) => geo.indexById.get(spaceId))
         .filter((i) => i != null)
-        .map(cellPos)
+        .map((i) => geo.posOf(i))
       return (
         <group key={key}>
           {owned.length > 0 && <BankruptDrain positions={owned} color={colorOfPlayer(e.playerId)} onDone={() => {}} />}
@@ -141,7 +139,7 @@ export default function Effects({ fx, reducedMotion = false, players = [], owner
     }
 
     return null
-  }), [items, reducedMotion, done, pawnPos, colorOfPlayer])
+  }), [items, reducedMotion, done, pawnPos, colorOfPlayer, geo])
 
   return <>{rendered}</>
 }

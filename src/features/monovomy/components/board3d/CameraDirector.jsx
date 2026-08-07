@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
 import { useFrame, useThree } from '@react-three/fiber'
-import { cellPos } from './boardCells'
 import { framing } from './cameraDirection'
 
 const INTRO_DUR = 1.8    // fly-in d'ouverture
@@ -32,7 +31,7 @@ function easeInOutCubic(t) {
  * sur l'orbite : on ne fait que déplacer sa cible et ajuster la distance, jamais
  * remplacer ses contraintes (pan, min/maxDistance, angles polaires).
  */
-export default function CameraDirector({ shot = 'idle', reducedMotion = false, controlsRef, focusCell = null, free = false }) {
+export default function CameraDirector({ shot = 'idle', reducedMotion = false, controlsRef, focusPos = null, free = false }) {
   const gl = useThree((s) => s.gl)
   const input = useRef({ last: 0, dragging: false })
   const intro = useRef({ t: 0, from: null, to: null, active: false, armed: false })
@@ -142,7 +141,7 @@ export default function CameraDirector({ shot = 'idle', reducedMotion = false, c
     let want = null
     if (shot === 'dice' && canFrame) want = DICE_FOCUS
     else if (shot === 'auction' || shot === 'outro') { if (canFrame) want = [0, 0] }
-    else if (shot === 'idle' && focusCell != null && canFollow) want = cellPos(focusCell)
+    else if (shot === 'idle' && focusPos && canFollow) want = focusPos
     // Sans pion à suivre, quitter la caméra libre ramène au moins au centre : la
     // cible a pu être déplacée très loin par le déplacement latéral.
     if (!want && resumed) want = [0, 0]

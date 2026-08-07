@@ -80,6 +80,29 @@ Les positions sont calculées une fois au chargement depuis une lemniscate de
 Gerono échantillonnée à pas d'arc constant (déterministe, sans `Math.random`),
 avec une rotation par case orientée vers le cœur de sa boucle.
 
+### Rendu
+
+`components/board3d/boardGeometry.ts` convertit les positions normalisées de la
+map en coordonnées monde three.js, une fois par map (mémoïsé). Il expose
+`posOf`, `rotOf`, `elevationOf`, `tileTopY`, `textureAngleOf`, `groupIndicesOf`
+et l'emprise (`extent`) du plateau.
+
+Points clés :
+
+- **échelle automatique** — le pas monde d'une case vaut 1, quelle que soit la
+  map : l'échelle vient de la médiane des écarts déclarés. Le plateau carré
+  retombe exactement sur son ancien placement (`col - 6` / `row - 6`), ce que
+  verrouille `boardGeometry.test.ts` ;
+- **orientation** — `visual.tileOrientation` vaut `fixed` (carré : cases alignées,
+  rendu historique) ou `path` (8 : chaque case pivote selon la trajectoire) ;
+- **pont** — la case `upper_bridge` est surélevée par une rampe en cosinus sur
+  ±2 cases ; les pions montent et redescendent en suivant `tileTopY` ;
+- **cadrage** — socle, cadre néon, halo, ombres et distances caméra sont dérivés
+  de `extent`, donc le 8 (deux fois plus large) est cadré sans réglage manuel.
+
+Le plateau 2D (`MvBoard`) lit les mêmes positions en pourcentages : aucune grille
+CSS, et le contenu des cases est contre-pivoté pour rester lisible.
+
 ### Choix de la map et synchronisation
 
 L'hôte est seul décideur. Le lobby porte des `RoomSettings { mapId }` et trois

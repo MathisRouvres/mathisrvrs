@@ -81,6 +81,12 @@ export function validateBoardMap(map: BoardMapDefinition): MapValidationReport {
   for (const [groupId, entry] of groups) {
     if (entry.count < 2) push(`groupe incomplet (monopole impossible) : ${groupId}`)
     if (entry.rentLengths.size > 1) push(`paliers de loyers hétérogènes dans le groupe : ${groupId}`)
+    const declared = map.groups[groupId]
+    if (!declared) push(`groupe utilisé mais non déclaré : ${groupId}`)
+    else if (declared.id !== groupId) push(`groupe mal indexé : ${groupId}`)
+  }
+  for (const groupId of Object.keys(map.groups)) {
+    if (!groups.has(groupId)) push(`groupe déclaré mais inutilisé : ${groupId}`)
   }
 
   // ── Géométrie visuelle ────────────────────────────────────────────────────

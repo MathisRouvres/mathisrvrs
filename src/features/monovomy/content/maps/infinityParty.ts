@@ -230,6 +230,25 @@ function buildVisualPositions(tiles: readonly BoardSpace[]): BoardTileVisualPosi
   })
 }
 
+/**
+ * Groupes de propriétés — 11 familles, de l'apéro au penthouse. Teintes
+ * volontairement écartées sur la roue chromatique pour rester lisibles en
+ * bandeau de case comme en pastille de titre de propriété.
+ */
+const INFINITY_GROUPS = {
+  terrasse: { id: 'terrasse', label: 'Terrasse', color: '#f59e0b' },
+  spritz: { id: 'spritz', label: 'Spritz', color: '#ff6b6b' },
+  beerpong: { id: 'beerpong', label: 'Beer Pong', color: '#84cc16' },
+  snack: { id: 'snack', label: 'Snack', color: '#a16207' },
+  cocktail: { id: 'cocktail', label: 'Cocktail', color: '#14b8a6' },
+  dancefloor: { id: 'dancefloor', label: 'Dancefloor', color: '#ec4899' },
+  rooftop: { id: 'rooftop', label: 'Rooftop', color: '#38bdf8' },
+  club: { id: 'club', label: 'Club', color: '#8b5cf6' },
+  vip: { id: 'vip', label: 'VIP', color: '#d4af37' },
+  after: { id: 'after', label: 'After', color: '#b91c1c' },
+  penthouse: { id: 'penthouse', label: 'Penthouse', color: '#cbd5e1' },
+} as const
+
 const tilesById: Record<string, BoardSpace> = {}
 for (const tile of INFINITY_PARTY_TILES) tilesById[tile.id] = tile
 
@@ -262,6 +281,7 @@ export const infinityPartyMap: BoardMapDefinition = {
 
   path: INFINITY_PARTY_TILES.map((tile) => tile.id),
   tiles: tilesById,
+  groups: INFINITY_GROUPS,
   spaces: [...INFINITY_PARTY_TILES],
 
   economy: {
@@ -272,6 +292,7 @@ export const infinityPartyMap: BoardMapDefinition = {
   visual: {
     kind: 'free_path',
     aspectRatio: ASPECT_RATIO,
+    tileOrientation: 'path',
     positions: buildVisualPositions(INFINITY_PARTY_TILES),
   },
 }

@@ -4,14 +4,14 @@ import { Canvas, useFrame } from '@react-three/fiber'
 import { EffectComposer, Bloom } from '@react-three/postprocessing'
 import Scene3D from './Scene3D'
 import { PLAYER_COLORS } from './playerColors'
-import { soireeBoard } from '../../content'
 import { completeGroups } from '../../game/boardInsights'
 import { useDeviceProfile } from '../../game/useDeviceProfile'
 import { useFreeCam } from '../../game/freeCam'
 import { ambianceFor } from './ambiance'
 import { useEnvironmentId } from './environment/environmentPref'
 import { environmentAmbiance, resolveEnvironment } from './environment/environmentPresets'
-import { propertyManagement, ranking } from '../../engine'
+import { boardForState, propertyManagement, ranking } from '../../engine'
+import { boardGeometry } from './boardGeometry'
 import CameraDirector from './CameraDirector'
 import MvCaseDetail from '../MvCaseDetail'
 
@@ -87,30 +87,40 @@ export default function MvBoard3D({ state, dice, reducedMotion = false, onManage
   // 1,25 affiche une image agrandie 2,4× : c'est ce qui rendait les cases floues
   // et crénelées sur téléphone. Seuls les appareils vraiment limités restent bas.
   const maxDpr = weak ? 1.5 : isMobile ? 2.5 : 2
+  // Plateau de la partie : toute la scène en dépend (géométrie, cases, groupes).
+  const map = useMemo(() => boardForState(state), [state])
+  const geo = useMemo(() => boardGeometry(map), [map])
   // Rail des titres : illisible sous ~800 px de large, et il impose un cadrage
   // large qui écrase le plateau. Sur téléphone il cède la place ; les propriétés
   // restent consultables (et de tous les joueurs) dans la feuille « Biens ».
   const showEstates = !isMobile
   // Mobile : vue quasi zénithale (68° au lieu de 43°). En perspective rasante, les
   // cases du fond font la moitié de celles du bord — à 430 px de large c'est la
-  // différence entre « petit » et « illisible ». À la verticale, les 40 cases ont
-  // la même taille et le texte n'est plus écrasé par la fuite.
-  const camera = isMobile ? { position: [0, 17, 6.9], fov: 54 } : { position: [0, 10.8, 16], fov: 47 }
+  // différence entre « petit » et « illisible ». À la verticale, toutes les cases
+  // ont la même taille et le texte n'est plus écrasé par la fuite.
+  //
+  // Cadrage propre à la map : le plateau en 8 est deux fois plus large que le
+  // carré, la caméra recule et le cône s'ouvre d'autant. Le carré retombe sur
+  // ses valeurs historiques (emprise 11,5 → facteur 1).
+  const zoomOut = Math.max(geo.extent.width, geo.extent.depth) / 11.5
+  const camera = isMobile
+    ? { position: [0, 17 * zoomOut, 6.9 * zoomOut], fov: 54 }
+    : { position: [0, 10.8 * zoomOut, 16 * zoomOut], fov: 47 }
   // Base du cadrage : demi-largeur à couvrir, et profondeur du coin le plus proche.
-  const fitHalf = showEstates ? FIT_HALF_WIDTH : FIT_HALF_WIDTH_BARE
+  const fitHalf = (showEstates ? FIT_HALF_WIDTH : FIT_HALF_WIDTH_BARE) * zoomOut
   const fitDepth = nearestDepth(camera.position, fitHalf)
   // Ambiance visuelle pilotée par l'intensité de soirée (Warm-up → Finale), puis
   // MODULÉE par le décor : un appartement reste calme en finale, un warehouse
   // reste contrasté au warm-up — mais c'est toujours le moteur qui donne le ton.
   const preset = resolveEnvironment(envId)
   const amb = environmentAmbiance(preset, ambianceFor(state.partyIntensity))
-  const selectedSpace = selected != null ? soireeBoard.spaces[selected] : null
+  const selectedSpace = selected != null ? map.spaces[selected] ?? null : null
   const active = state.players[state.currentPlayerIndex]
 
   // Monopoles (groupes complets) — recalculés seulement quand la propriété change.
   const monopolySpaces = useMemo(
-    () => new Set(Object.keys(completeGroups(state, soireeBoard).monopolySpaces)),
-    [state],
+    () => new Set(Object.keys(completeGroups(state, map).monopolySpaces)),
+    [state, map],
   )
 
   // ── Direction caméra ─────────────────────────────────────────────────────────
@@ -145,8 +155,8 @@ export default function MvBoard3D({ state, dice, reducedMotion = false, onManage
 
   // Classement affiché en surimpression pendant l'orbite finale.
   const finalRanking = useMemo(
-    () => (state.finished ? ranking(state, soireeBoard) : []),
-    [state],
+    () => (state.finished ? ranking(state, map) : []),
+    [state, map],
   )
 
   // ── File d'effets ────────────────────────────────────────────────────────────
@@ -238,6 +248,7 @@ export default function MvBoard3D({ state, dice, reducedMotion = false, onManage
         >
           <Suspense fallback={null}>
             <Scene3D
+              map={map}
               state={state}
               onSelect={setSelected}
               dice={dice}
@@ -268,7 +279,7 @@ export default function MvBoard3D({ state, dice, reducedMotion = false, onManage
             shot={shot}
             reducedMotion={reducedMotion}
             controlsRef={controlsRef}
-            focusCell={active ? active.position : null}
+            focusPos={active ? geo.posOf(active.position) : null}
             free={freeCam.free}
           />
           {/* Bloom = flou coûteux : coupé en rendu allégé (mobile / faible perf). */}
@@ -323,7 +334,7 @@ export default function MvBoard3D({ state, dice, reducedMotion = false, onManage
 
       {selectedSpace && (() => {
         const owner = ownerInfo(selectedSpace.id)
-        const mgmt = propertyManagement(state, soireeBoard, canManage ? managePlayerId : null, selectedSpace.id)
+        const mgmt = propertyManagement(state, map, canManage ? managePlayerId : null, selectedSpace.id)
         const emit = (type) => () => { onManage?.({ type, spaceId: selectedSpace.id }) }
         return (
           <MvCaseDetail
