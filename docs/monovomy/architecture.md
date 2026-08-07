@@ -118,6 +118,25 @@ changent plus. Le snapshot les recopie, et `restoreSnapshot` refuse
 `applyStampedIntent` rejette (`map_mismatch`) toute intention résolue sur une map
 différente de celle du snapshot.
 
+### Équilibrage et validation
+
+| Commande | Effet |
+|---|---|
+| `npm run mv:validate-content` | rapport de validation, une section par map |
+| `npm run mv:sim` | simulation de masse **comparée** entre toutes les maps |
+| `npm run mv:sim:classic` / `mv:sim:infinity` | une seule map (`MV_SIM_MAP=…`) |
+| `npm run mv:sim:order` | étude d'équité de l'ordre de jeu |
+
+Mesures par map : tours, passages par Départ, taux d'achat, loyers (nombre et
+montant moyen), monopoles, invendus, trésorerie finale, faillites, gorgées et
+taux de victoire du premier joueur.
+
+Les parties MonoVomy sont bornées par le **timer**, pas par un nombre de tours :
+la comparaison porte donc sur le rythme *par tour*, pas sur la durée brute. Deux
+garde-fous : les loyers par tour d'Infinity Party ne descendent pas sous 85 % de
+ceux du plateau carré (pas de temps morts), et le revenu par tour reste dans une
+fourchette de 0,85 à 1,3 (le salaire suit la longueur du parcours).
+
 ### Ajouter une nouvelle map
 
 1. déclarer son identifiant dans `BOARD_MAP_IDS` (`maps/types.ts`) ;

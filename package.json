@@ -15,8 +15,10 @@
     "validate:dilemmas": "vitest run src/game-content/events/catalog.test.ts",
     "massim": "MASS_SIM_REPORT=1 MASS_SIM_COUNT=100000 vitest run src/game-engine/sim/massSim.report.test.ts",
     "mv:validate-content": "vitest run --reporter=verbose src/features/monovomy/content/maps/validate.report.test.ts src/features/monovomy/content/catalog.test.ts",
-    "mv:sim": "MASS_SIM_REPORT=1 vitest run src/features/monovomy/engine/sim/massSim.report.test.ts",
-    "mv:sim:order": "MASS_SIM_REPORT=1 vitest run src/features/monovomy/engine/sim/orderSim.report.test.ts"
+    "mv:sim": "MASS_SIM_REPORT=1 vitest run --reporter=verbose src/features/monovomy/engine/sim/massSim.report.test.ts",
+    "mv:sim:order": "MASS_SIM_REPORT=1 vitest run --reporter=verbose src/features/monovomy/engine/sim/orderSim.report.test.ts",
+    "mv:sim:classic": "MV_SIM_MAP=classic_square npm run mv:sim",
+    "mv:sim:infinity": "MV_SIM_MAP=infinity_party npm run mv:sim"
   },
   "dependencies": {
     "@react-three/drei": "^10.0.0",
