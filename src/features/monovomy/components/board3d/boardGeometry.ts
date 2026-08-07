@@ -39,11 +39,21 @@ export interface BoardGeometryExtent {
   radius: number
 }
 
+/** Scène centrale (podium, logo, jauge) en coordonnées monde. */
+export interface BoardStagePlacement {
+  x: number
+  z: number
+  scale: number
+  /** Amplitude du suivi du pion actif par la caméra (0..1). */
+  followRatio: number
+}
+
 export interface BoardGeometry {
   map: BoardMapDefinition
   size: number
   tiles: GeometryTile[]
   extent: BoardGeometryExtent
+  stage: BoardStagePlacement
   indexById: Map<string, number>
   /** Centre d'une case en coordonnées monde `[x, z]`. */
   posOf: (index: number) => [number, number]
@@ -106,8 +116,12 @@ function buildElevations(size: number, segments: string[]): number[] {
 }
 
 /**
- * Angle de rotation appliqué à la TEXTURE des coins d'un plateau en grille
- * (le texte des coins se lit en diagonale). Zéro pour les plateaux libres.
+ * Angle appliqué au CONTENU de la texture d'une case.
+ *
+ * - plateau en grille : seuls les coins pivotent (leur texte se lit en diagonale) ;
+ * - plateau en courbe : contre-rotation de l'orientation de la case, pour que
+ *   le texte reste lisible dans le même sens partout alors que la case, elle,
+ *   suit la trajectoire.
  */
 function cornerAngle(kind: string, segments: string[], index: number): number {
   if (kind !== 'grid_square') return 0
@@ -135,20 +149,25 @@ function build(map: BoardMapDefinition): BoardGeometry {
   const tiles: GeometryTile[] = normalized.map((position, index) => {
     const tileId = path[index]!
     const space = tileById(map, tileId)
+    // `rotation` est en degrés horaires depuis le haut de l'écran ; dans le
+    // monde, « haut de l'écran » = −Z, et une rotation horaire vue de dessus
+    // est une rotation négative autour de Y.
+    const rotY = orientToPath ? (-position.rotation * Math.PI) / 180 : 0
     return {
       index,
       tileId,
       space,
       x: (position.x - 50) * scale,
       z: (position.y - boxHeight / 2) * scale,
-      // `rotation` est en degrés horaires depuis le haut de l'écran ; dans le
-      // monde, « haut de l'écran » = −Z, et une rotation horaire vue de dessus
-      // est une rotation négative autour de Y.
-      rotY: orientToPath ? (-position.rotation * Math.PI) / 180 : 0,
+      rotY,
       layer: position.layer ?? 1,
       segment: position.segment ?? null,
       elevation: elevations[index] ?? 0,
-      textureAngle: cornerAngle(map.visual.kind, segments, index),
+      // Contre-rotation du contenu imprimé. Le repère canvas (x droite, y bas)
+      // se projette sur le monde en (+X, +Z) : une rotation canvas `φ` vaut donc
+      // une rotation monde `−φ` autour de Y. Pour annuler `rotY`, on imprime
+      // donc à `+rotY`.
+      textureAngle: orientToPath ? rotY : cornerAngle(map.visual.kind, segments, index),
       top: (isBuyable(space) ? TILE_H.prop : TILE_H.special) + 0.04,
     }
   })
@@ -169,6 +188,14 @@ function build(map: BoardMapDefinition): BoardGeometry {
     radius: Math.hypot(maxX - minX, maxZ - minZ) / 2 + margin,
   }
 
+  const declaredStage = map.visual.stage
+  const stage: BoardStagePlacement = {
+    x: (declaredStage.center.x - 50) * scale,
+    z: (declaredStage.center.y - boxHeight / 2) * scale,
+    scale: declaredStage.centerScale,
+    followRatio: declaredStage.followRatio,
+  }
+
   const indexById = new Map(tiles.map((tile) => [tile.tileId, tile.index]))
   const at = (index: number): GeometryTile => tiles[((Math.trunc(index) % size) + size) % size]!
 
@@ -177,6 +204,7 @@ function build(map: BoardMapDefinition): BoardGeometry {
     size,
     tiles,
     extent,
+    stage,
     indexById,
     posOf: (index) => {
       const tile = at(index)

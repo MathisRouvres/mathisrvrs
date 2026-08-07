@@ -117,6 +117,19 @@ export default function MvBoard3D({ state, dice, reducedMotion = false, onManage
   const selectedSpace = selected != null ? map.spaces[selected] ?? null : null
   const active = state.players[state.currentPlayerIndex]
 
+  // Suivi du pion actif — borné par la GÉOMÉTRIE : la caméra ne peut se décaler
+  // que du jeu réellement disponible entre le cadrage et l'emprise du plateau.
+  // Sans cette borne, viser un pion en bout de parcours sortait la moitié du
+  // plateau de l'écran (le carré comme le 8).
+  const followPos = useMemo(() => {
+    if (!active) return null
+    const [x, z] = geo.posOf(active.position)
+    const slackX = Math.max(0, fitHalf - geo.extent.halfWidth) * geo.stage.followRatio
+    const slackZ = Math.max(0, fitHalf - geo.extent.halfDepth) * geo.stage.followRatio
+    const clamp = (v, limit) => Math.max(-limit, Math.min(limit, v))
+    return [clamp(x, slackX), clamp(z, slackZ)]
+  }, [active, geo, fitHalf])
+
   // Monopoles (groupes complets) — recalculés seulement quand la propriété change.
   const monopolySpaces = useMemo(
     () => new Set(Object.keys(completeGroups(state, map).monopolySpaces)),
@@ -279,7 +292,7 @@ export default function MvBoard3D({ state, dice, reducedMotion = false, onManage
             shot={shot}
             reducedMotion={reducedMotion}
             controlsRef={controlsRef}
-            focusPos={active ? geo.posOf(active.position) : null}
+            focusPos={followPos}
             free={freeCam.free}
           />
           {/* Bloom = flou coûteux : coupé en rendu allégé (mobile / faible perf). */}

@@ -293,6 +293,11 @@ export const infinityPartyMap: BoardMapDefinition = {
     kind: 'free_path',
     aspectRatio: ASPECT_RATIO,
     tileOrientation: 'path',
+    // Le centre du repère est occupé par le croisement : le podium va dans le
+    // cœur de la boucle gauche, réduit pour y tenir. Le suivi du pion est
+    // amorti — sur un plateau deux fois plus large, un suivi complet ferait
+    // sortir la moitié du 8 de l'écran.
+    stage: { center: { x: CX - AX / 2, y: CY }, centerScale: 0.58, followRatio: 0.35 },
     positions: buildVisualPositions(INFINITY_PARTY_TILES),
   },
 }

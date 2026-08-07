@@ -98,7 +98,15 @@ Points clés :
 - **pont** — la case `upper_bridge` est surélevée par une rampe en cosinus sur
   ±2 cases ; les pions montent et redescendent en suivant `tileTopY` ;
 - **cadrage** — socle, cadre néon, halo, ombres et distances caméra sont dérivés
-  de `extent`, donc le 8 (deux fois plus large) est cadré sans réglage manuel.
+  de `extent`, donc le 8 (deux fois plus large) est cadré sans réglage manuel ;
+- **lisibilité** — le contenu imprimé des cases est contre-pivoté de leur propre
+  rotation : la case suit la courbe, son texte reste horizontal ;
+- **scène centrale et suivi** — `visual.stage` déclare où poser le podium
+  (au milieu d'un anneau, dans le cœur d'une boucle sur un 8, où le centre est
+  occupé par le croisement) et l'amplitude du suivi du pion. Le suivi est en plus
+  borné par la géométrie : la caméra ne se décale que du jeu réellement
+  disponible entre le cadrage et l'emprise, donc le plateau ne sort jamais de
+  l'écran.
 
 Le plateau 2D (`MvBoard`) lit les mêmes positions en pourcentages : aucune grille
 CSS, et le contenu des cases est contre-pivoté pour rester lisible.
@@ -126,6 +134,7 @@ différente de celle du snapshot.
 | `npm run mv:sim` | simulation de masse **comparée** entre toutes les maps |
 | `npm run mv:sim:classic` / `mv:sim:infinity` | une seule map (`MV_SIM_MAP=…`) |
 | `npm run mv:sim:order` | étude d'équité de l'ordre de jeu |
+| `npm run e2e` | scénarios de bout en bout (Playwright, Chromium mobile) |
 
 Mesures par map : tours, passages par Départ, taux d'achat, loyers (nombre et
 montant moyen), monopoles, invendus, trésorerie finale, faillites, gorgées et
@@ -136,6 +145,16 @@ la comparaison porte donc sur le rythme *par tour*, pas sur la durée brute. Deu
 garde-fous : les loyers par tour d'Infinity Party ne descendent pas sous 85 % de
 ceux du plateau carré (pas de temps morts), et le revenu par tour reste dans une
 fourchette de 0,85 à 1,3 (le salaire suit la longueur du parcours).
+
+### Tests de bout en bout
+
+`e2e/monovomy-maps.spec.ts` joue les deux scénarios dans un vrai navigateur au
+gabarit iPhone 15 Plus : aperçus du lobby (40 vs 56 pastilles réellement
+tracées), blocage du lancement quand la map n'accepte pas le nombre de joueurs,
+puis une partie sur chaque plateau (capital 1500 vs 1800, lancers, achats).
+
+La reprise après rechargement est propre au mode **en ligne** (snapshots hôte,
+Supabase) : elle n'est pas couverte par ces tests, le hot-seat ne persiste rien.
 
 ### Ajouter une nouvelle map
 

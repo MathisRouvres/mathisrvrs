@@ -98,8 +98,14 @@ describe('boardGeometry — plateau en 8', () => {
     expect(geo.tileAt(42).layer).toBe(0)
   })
 
-  it('n’applique aucune rotation de texture (pas de coins)', () => {
-    for (let i = 0; i < geo.size; i += 1) expect(geo.textureAngleOf(i)).toBe(0)
+  it('contre-pivote le contenu imprimé pour garder le texte lisible', () => {
+    // Une rotation canvas `φ` vaut une rotation monde `−φ` : imprimer à `+rotY`
+    // annule exactement la rotation de la case, donc le texte reste horizontal.
+    for (let i = 0; i < geo.size; i += 1) {
+      expect(geo.textureAngleOf(i)).toBeCloseTo(geo.rotOf(i), 10)
+    }
+    // Et au moins une case est réellement pivotée (sinon le test ne prouve rien).
+    expect(geo.tiles.some((tile) => Math.abs(tile.rotY) > 0.2)).toBe(true)
   })
 
   it('couvre une emprise plus large que le plateau carré', () => {

@@ -142,6 +142,7 @@ export default function CenterStage({
   timerLeft = -1,
   timerTotal = 0,
   centerSlot = null,
+  stage = { x: 0, z: 0, scale: 1 },
 }) {
   const discRef = useRef()
   const edgeRef = useRef()
@@ -228,7 +229,9 @@ export default function CenterStage({
   const showHtml = panel != null && centerSlot
 
   return (
-    <group>
+    /* Ancrage déclaré par la map : au milieu d'un anneau, dans le cœur d'une
+       boucle sur un plateau en 8 (le centre y est occupé par le croisement). */
+    <group position={[stage.x, 0, stage.z]} scale={stage.scale}>
       {/* Podium : décor imprimé sur le dessus, bord néon tout autour. */}
       <group ref={discRef} position={[0, PODIUM_Y, 0]}>
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, PODIUM_H, 0]} raycast={() => null}>

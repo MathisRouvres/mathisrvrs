@@ -194,7 +194,7 @@ const BAND_H = 126
  * donner au NOM presque toute la surface — il triple de taille — et le prix
  * revient en simple ligne dorée.
  */
-function drawPropertyFaceCompact(ctx, { name, color, price }) {
+function drawPropertyFaceCompact(ctx, { name, color, price, angle = 0 }) {
   const bandH = 74
   const bg = ctx.createLinearGradient(0, PAD, 0, S - PAD)
   bg.addColorStop(0, '#160f2a'); bg.addColorStop(1, '#08050f')
@@ -213,6 +213,10 @@ function drawPropertyFaceCompact(ctx, { name, color, price }) {
   ctx.strokeStyle = color; ctx.lineWidth = 7
   roundRect(ctx, PAD + 3, PAD + 3, S - 2 * PAD - 6, S - 2 * PAD - 6, RADIUS - 3); ctx.stroke()
 
+  // Contenu textuel contre-pivoté : sur un plateau en courbe la case suit la
+  // trajectoire, son texte reste lisible dans le même sens que les autres.
+  ctx.save()
+  if (angle) { ctx.translate(S / 2, S / 2); ctx.rotate(angle); ctx.translate(-S / 2, -S / 2) }
   // Le libellé court occupe toute la hauteur restante, sur 3 lignes au besoin.
   const fit = fitText(ctx, shortLabel(name), { max: S - 2 * (PAD + 16), maxLines: 3, start: 168, min: 42, tracking: '-1px' })
   shadowOn(ctx)
@@ -224,6 +228,7 @@ function drawPropertyFaceCompact(ctx, { name, color, price }) {
   ctx.fillStyle = '#f7c33a'
   ctx.fillText(`${price}€`, S / 2, S - PAD - 52)
   shadowOff(ctx)
+  ctx.restore()
 }
 
 /** Case spéciale, version téléphone : grande icône et nom, sans pastille. */
@@ -253,7 +258,7 @@ function drawSpecialFaceCompact(ctx, { name, color, icon, angle }) {
 }
 
 /** Case achetable : bandeau groupe → nom → prix. Hiérarchie stricte, fond sombre. */
-function drawPropertyFace(ctx, { name, color, icon, price }) {
+function drawPropertyFace(ctx, { name, color, icon, price, angle = 0 }) {
   const bg = ctx.createLinearGradient(0, PAD, 0, S - PAD)
   bg.addColorStop(0, '#150e28'); bg.addColorStop(1, '#07040f')
   ctx.fillStyle = bg
@@ -277,6 +282,9 @@ function drawPropertyFace(ctx, { name, color, icon, price }) {
   ctx.strokeStyle = color; ctx.lineWidth = 6
   roundRect(ctx, PAD + 3, PAD + 3, S - 2 * PAD - 6, S - 2 * PAD - 6, RADIUS - 3); ctx.stroke()
 
+  // Contenu textuel contre-pivoté (voir version compacte).
+  ctx.save()
+  if (angle) { ctx.translate(S / 2, S / 2); ctx.rotate(angle); ctx.translate(-S / 2, -S / 2) }
   // Nom : blanc pur sur fond sombre, 2 lignes max, ajusté pour ne jamais déborder.
   const fit = fitText(ctx, name.toUpperCase(), { max: S - 2 * (PAD + 28), maxLines: 2, start: 62, min: 24 })
   shadowOn(ctx)
@@ -284,6 +292,7 @@ function drawPropertyFace(ctx, { name, color, icon, price }) {
   shadowOff(ctx)
 
   drawPricePill(ctx, price, S / 2, S - PAD - 58)
+  ctx.restore()
 }
 
 /**
@@ -409,9 +418,9 @@ export function createTileTexture(space, index = -1, angleOverride = null) {
     if (compact) drawSpecialFaceCompact(ctx, { name: space.name, color, icon, angle })
     else drawSpecialFace(ctx, { name: space.name, color, icon, label: SPECIAL_LABEL[kind] || 'SPÉCIAL', angle })
   } else if (compact) {
-    drawPropertyFaceCompact(ctx, { name: space.name, color, price: space.price })
+    drawPropertyFaceCompact(ctx, { name: space.name, color, price: space.price, angle })
   } else {
-    drawPropertyFace(ctx, { name: space.name, color, icon, price: space.price })
+    drawPropertyFace(ctx, { name: space.name, color, icon, price: space.price, angle })
   }
   ctx.letterSpacing = '0px'
 

@@ -129,11 +129,35 @@ export type BoardVisualKind = (typeof BOARD_VISUAL_KINDS)[number]
 export const TILE_ORIENTATIONS = ['fixed', 'path'] as const
 export type TileOrientation = (typeof TILE_ORIENTATIONS)[number]
 
+/**
+ * Scène centrale et cadrage, déclarés par la map — pas déduits d'un `if`.
+ *
+ * - `center` : où poser le podium (logo, jauge de temps, carte). Sur un anneau
+ *   c'est le milieu du plateau ; sur un 8, le milieu est occupé par le
+ *   croisement, donc le podium va dans le cœur d'une boucle ;
+ * - `centerScale` : taille du podium rapportée au plateau carré ;
+ * - `followRatio` : amplitude du suivi du pion actif (1 = suivi complet,
+ *   0 = caméra fixe au centre). Un plateau large a besoin d'un suivi réduit
+ *   pour ne pas sortir du cadre.
+ */
+export interface BoardStageDefinition {
+  center: { x: number; y: number }
+  centerScale: number
+  followRatio: number
+}
+
+export const boardStageSchema = z.object({
+  center: z.object({ x: z.number(), y: z.number() }),
+  centerScale: z.number().positive(),
+  followRatio: z.number().min(0).max(1),
+})
+
 export interface BoardVisualDefinition {
   kind: BoardVisualKind
   /** Largeur / hauteur du repère normalisé (1 = carré). */
   aspectRatio: number
   tileOrientation: TileOrientation
+  stage: BoardStageDefinition
   positions: BoardTileVisualPosition[]
 }
 
@@ -141,6 +165,7 @@ export const boardVisualSchema = z.object({
   kind: z.enum(BOARD_VISUAL_KINDS),
   aspectRatio: z.number().positive(),
   tileOrientation: z.enum(TILE_ORIENTATIONS),
+  stage: boardStageSchema,
   positions: z.array(boardTileVisualPositionSchema).min(1),
 })
 

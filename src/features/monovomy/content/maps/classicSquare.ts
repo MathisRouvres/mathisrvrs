@@ -154,6 +154,8 @@ export const classicSquareMap: BoardMapDefinition = {
     kind: 'grid_square',
     aspectRatio: 1,
     tileOrientation: 'fixed',
+    // Podium au milieu de l'anneau, suivi du pion complet : rendu historique.
+    stage: { center: { x: 50, y: 50 }, centerScale: 1, followRatio: 1 },
     positions: buildVisualPositions(CLASSIC_SQUARE_TILES),
   },
 }

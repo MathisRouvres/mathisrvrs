@@ -1018,6 +1018,7 @@ export default function Scene3D({ map, state, onSelect, dice, reducedMotion = fa
           timerLeft={center?.timerLeft ?? -1}
           timerTotal={center?.timerTotal ?? 0}
           centerSlot={centerSlot}
+          stage={geo.stage}
         />
         <NeonFrame ambiance={amb} reducedMotion={reducedMotion} geo={geo} />
         {/* Liserés de toutes les cases : une géométrie fusionnée = un draw call. */}
