@@ -84,8 +84,11 @@ AddType application/manifest+json .webmanifest
 <IfModule mod_headers.c>
 	Header set X-Content-Type-Options nosniff
 	Header set Referrer-Policy no-referrer
-	# Le jeu ne charge aucune ressource distante : la politique peut etre stricte.
-	Header set Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'"
+	# Le jeu ne charge aucune ressource distante : aucune origine externe n'est
+# autorisee. En revanche le moteur Godot evalue du code au demarrage et fabrique
+# des ressources en blob: — une politique sans 'unsafe-eval' ni blob: bloquait le
+# chargement a 0 %.
+	Header set Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' blob: data:; object-src 'none'; base-uri 'self'; form-action 'none'"
 
 	# La page, le service worker et le manifeste changent a chaque mise en ligne : les
 	# mettre en cache longtemps empecherait toute mise a jour d'arriver.
