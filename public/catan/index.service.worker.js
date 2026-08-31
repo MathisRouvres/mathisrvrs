@@ -4,7 +4,7 @@
 // Incrementing CACHE_VERSION will kick off the install event and force
 // previously cached resources to be updated from the network.
 /** @type {string} */
-const CACHE_VERSION = '1788210482|3176647|f885aae';
+const CACHE_VERSION = '1788217278|3613676|4fc27f9';
 /** @type {string} */
 const CACHE_PREFIX = 'HEXLAND-sw-cache-';
 const CACHE_NAME = CACHE_PREFIX + CACHE_VERSION;
