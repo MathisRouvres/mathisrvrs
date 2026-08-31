@@ -5,7 +5,7 @@ const engine = new Engine(GODOT_CONFIG);
 
 // Etat partage avec le jeu, lu depuis GDScript via JavaScriptBridge.
 window.hexland = {
-	version: '27c8f91-dirty',
+	version: 'e9069a5-dirty',
 	updateAvailable: false,
 	installPromptAvailable: false,
 	installOutcome: '',
@@ -47,6 +47,19 @@ window.hexland = {
 	// Une nouvelle version n'est jamais appliquee a chaud : elle attend le prochain
 	// lancement, pour ne pas casser une partie en cours.
 	document.getElementById('update-reload').addEventListener('click', () => {
+		// Un simple rechargement ne suffit pas : le service worker en place continue de
+		// servir l'ancienne version tant qu'il n'a pas cede la main. On demande donc au
+		// nouveau de prendre le relais — il rechargera lui-meme les pages ouvertes.
+		if ('serviceWorker' in navigator) {
+			navigator.serviceWorker.getRegistration().then((registration) => {
+				if (registration && registration.waiting) {
+					registration.waiting.postMessage('update');
+					return;
+				}
+				window.location.reload();
+			}).catch(() => window.location.reload());
+			return;
+		}
 		window.location.reload();
 	});
 	function watchServiceWorker() {
@@ -54,6 +67,12 @@ window.hexland = {
 		navigator.serviceWorker.getRegistration().then((registration) => {
 			if (!registration) { return; }
 			window.hexland.offlineReady = true;
+			// Une version peut deja attendre depuis la visite precedente : aucun evenement
+			// ne sera alors emis, et l'invite ne serait jamais proposee.
+			if (registration.waiting) {
+				window.hexland.updateAvailable = true;
+				banner.style.display = 'flex';
+			}
 			registration.addEventListener('updatefound', () => {
 				const installing = registration.installing;
 				if (!installing) { return; }
