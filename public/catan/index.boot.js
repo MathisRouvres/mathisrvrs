@@ -5,7 +5,7 @@ const engine = new Engine(GODOT_CONFIG);
 
 // Etat partage avec le jeu, lu depuis GDScript via JavaScriptBridge.
 window.hexland = {
-	version: '957166e-dirty',
+	version: 'db8e18e-dirty',
 	updateAvailable: false,
 	installPromptAvailable: false,
 	installOutcome: '',

@@ -4,7 +4,7 @@
 // Incrementing CACHE_VERSION will kick off the install event and force
 // previously cached resources to be updated from the network.
 /** @type {string} */
-const CACHE_VERSION = '1788208822|3348635|957166e-dirty';
+const CACHE_VERSION = '1788209180|2995045|db8e18e-dirty';
 /** @type {string} */
 const CACHE_PREFIX = 'HEXLAND-sw-cache-';
 const CACHE_NAME = CACHE_PREFIX + CACHE_VERSION;
@@ -72,7 +72,9 @@ async function fetchAndCache(event, cache, isCacheable) {
 	let response = await event.preloadResponse;
 	if (response == null) {
 		// Or, go over network.
-		response = await self.fetch(event.request);
+		response = await self.fetch(isCacheable
+			? new Request(event.request, { cache: 'reload' })
+			: event.request);
 	}
 
 	if (ENSURE_CROSSORIGIN_ISOLATION_HEADERS) {
