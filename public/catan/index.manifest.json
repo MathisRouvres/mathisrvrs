@@ -1,0 +1,64 @@
+{
+	"background_color": "#0f1621",
+	"display": "standalone",
+	"icons": [
+		{
+			"sizes": "144x144",
+			"src": "index.144x144.png",
+			"type": "image/png"
+		},
+		{
+			"sizes": "180x180",
+			"src": "index.180x180.png",
+			"type": "image/png"
+		},
+		{
+			"sizes": "512x512",
+			"src": "index.512x512.png",
+			"type": "image/png"
+		},
+		{
+			"src": "icon_192.png",
+			"sizes": "192x192",
+			"type": "image/png",
+			"purpose": "any"
+		},
+		{
+			"src": "icon_512.png",
+			"sizes": "512x512",
+			"type": "image/png",
+			"purpose": "any"
+		},
+		{
+			"src": "icon_maskable_512.png",
+			"sizes": "512x512",
+			"type": "image/png",
+			"purpose": "maskable"
+		},
+		{
+			"src": "icon_180.png",
+			"sizes": "180x180",
+			"type": "image/png",
+			"purpose": "any"
+		}
+	],
+	"name": "HEXLAND",
+	"orientation": "portrait-primary",
+	"start_url": "./index.html",
+	"short_name": "HEXLAND",
+	"description": "Jeu de plateau 3D a tuiles hexagonales : recoltez, construisez, commercez. Un joueur contre trois IA, entierement hors-ligne.",
+	"lang": "fr",
+	"dir": "ltr",
+	"scope": "./",
+	"display_override": [
+		"standalone",
+		"minimal-ui",
+		"browser"
+	],
+	"theme_color": "#0f1621",
+	"categories": [
+		"games",
+		"board"
+	],
+	"version": "2cc9c2f"
+}
