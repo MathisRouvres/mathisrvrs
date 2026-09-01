@@ -6,15 +6,40 @@
 		<title>HEXLAND</title>
 		<style>
 html, body, #canvas { margin: 0; padding: 0; border: 0; }
+/* `touch-action` ne s'herite pas : le poser sur `body` seul laissait Safari iOS gerer
+   lui-meme les gestes commences sur le canevas. Deux doigts declenchaient alors le zoom
+   de PAGE — la vue semblait se teleporter, et la barre du haut passait sous l'encoche.
+   Il faut le declarer sur chaque element qui recoit reellement les doigts. */
+html, body, #canvas { touch-action: none; }
+html, body {
+	width: 100%;
+	height: 100%;
+	position: fixed;
+	overflow: hidden;
+	overscroll-behavior: none;
+}
 body {
 	color: #eef4fa;
 	background-color: #0f1621;
-	overflow: hidden;
-	touch-action: none;
-	overscroll-behavior: none;
 	font-family: 'Avenir Next', 'Segoe UI', 'Noto Sans', Arial, sans-serif;
 }
 #canvas { display: block; }
+/* Sonde des marges de securite. Godot web ignore `env(safe-area-inset-*)` : son
+   `DisplayServer.get_display_safe_area()` rend tout le canevas, encoche comprise. On lit
+   donc les valeurs par le style calcule de cette sonde, et le jeu les reprend. */
+#safe-probe {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 0;
+	height: 0;
+	visibility: hidden;
+	pointer-events: none;
+	padding-top: env(safe-area-inset-top, 0px);
+	padding-right: env(safe-area-inset-right, 0px);
+	padding-bottom: env(safe-area-inset-bottom, 0px);
+	padding-left: env(safe-area-inset-left, 0px);
+}
 #canvas:focus { outline: none; }
 
 /* Ecran de chargement aux couleurs du jeu. Le premier chargement d'un build Godot web
@@ -111,6 +136,7 @@ body {
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="HEXLAND"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="mobile-web-app-capable" content="yes"><meta name="theme-color" content="#0f1621"><style>html,body{margin:0;padding:0;height:100%;overflow:hidden;overscroll-behavior:none;background:#0f1621;}canvas{display:block;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;outline:none;}</style>
 	</head>
 	<body>
+		<div id="safe-probe"></div>
 		<canvas id="canvas">Votre navigateur ne supporte pas l'element canvas.</canvas>
 		<noscript>Ce jeu a besoin de JavaScript pour fonctionner.</noscript>
 

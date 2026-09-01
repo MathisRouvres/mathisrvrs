@@ -1,16 +1,91 @@
 
-const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":false,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":438424,"index.wasm":39514754},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4,"serviceWorker":"index.service.worker.js"};
+const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":false,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":440376,"index.wasm":39514754},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4,"serviceWorker":"index.service.worker.js"};
 const GODOT_THREADS_ENABLED = false;
 const engine = new Engine(GODOT_CONFIG);
 
 // Etat partage avec le jeu, lu depuis GDScript via JavaScriptBridge.
 window.hexland = {
-	version: '2d63614',
+	version: '0dc8514',
 	updateAvailable: false,
 	installPromptAvailable: false,
 	installOutcome: '',
 	offlineReady: false,
+	// Marges de securite en pixels CSS, relues a chaque rotation. Voir #safe-probe.
+	safeTop: 0,
+	safeRight: 0,
+	safeBottom: 0,
+	safeLeft: 0,
 };
+
+// --- Gestes : le jeu les gere, pas le navigateur ---
+// Safari iOS ignore deliberement `user-scalable=no` depuis iOS 10. Sans blocage explicite,
+// deux doigts sur le plateau zooment la PAGE : le canevas garde sa taille mais la fenetre
+// visuelle se decale, ce qui se voit comme une camera qui saute a l'autre bout de la carte
+// et une barre d'interface qui remonte sous l'encoche. `preventDefault` n'empeche pas la
+// propagation : Godot recoit toujours ses evenements.
+(function () {
+	const stop = (event) => event.preventDefault();
+	// Evenements propres a WebKit, emis pour tout pincement ou toute rotation a deux doigts.
+	for (const name of ['gesturestart', 'gesturechange', 'gestureend']) {
+		document.addEventListener(name, stop, { passive: false });
+	}
+	document.addEventListener('touchmove', (event) => {
+		// Un seul doigt sur le canevas ne fait rien defiler : c'est le multi-touch qui
+		// declenche le zoom de page. On bloque aussi le doigt unique sur le canevas, sinon
+		// iOS reprend la main des que la page depasse d'un pixel.
+		if (event.touches.length > 1 || event.target === canvasElement()) {
+			event.preventDefault();
+		}
+	}, { passive: false });
+	// Le double appui rapide zoome lui aussi, sans passer par les evenements `gesture*`.
+	let lastTouchEnd = 0;
+	document.addEventListener('touchend', (event) => {
+		const now = Date.now();
+		if (now - lastTouchEnd < 320) {
+			event.preventDefault();
+		}
+		lastTouchEnd = now;
+	}, { passive: false });
+	document.addEventListener('dblclick', stop, { passive: false });
+
+	// Dernier rempart : si la page defile malgre tout — barre d'adresse qui se replie,
+	// banniere de notification, champ qui prend le focus — le canevas, plus haut que la
+	// fenetre visible, glisse vers le haut. On voit alors la barre du BAS du jeu en haut de
+	// l'ecran et le fond de page en dessous, ce qui se lit comme un plateau disparu.
+	const unscroll = () => {
+		if (window.scrollX !== 0 || window.scrollY !== 0) {
+			window.scrollTo(0, 0);
+		}
+	};
+	window.addEventListener('scroll', unscroll, { passive: true });
+	window.addEventListener('resize', unscroll);
+	if (window.visualViewport) {
+		window.visualViewport.addEventListener('resize', unscroll);
+		window.visualViewport.addEventListener('scroll', unscroll);
+	}
+
+	function canvasElement() {
+		return document.getElementById('canvas');
+	}
+})();
+
+// --- Marges de securite ---
+(function () {
+	const probe = document.getElementById('safe-probe');
+	const read = () => {
+		if (probe === null) {
+			return;
+		}
+		const style = window.getComputedStyle(probe);
+		window.hexland.safeTop = parseFloat(style.paddingTop) || 0;
+		window.hexland.safeRight = parseFloat(style.paddingRight) || 0;
+		window.hexland.safeBottom = parseFloat(style.paddingBottom) || 0;
+		window.hexland.safeLeft = parseFloat(style.paddingLeft) || 0;
+	};
+	read();
+	window.addEventListener('resize', read);
+	window.addEventListener('orientationchange', () => window.setTimeout(read, 120));
+})();
 
 (function () {
 	const loader = document.getElementById('loader');
