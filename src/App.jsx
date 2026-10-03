@@ -16,6 +16,7 @@ import { MonovomyApp } from './features/monovomy'
 import { parseMonovomyRoute } from './features/monovomy/pwa/deepLink'
 import { SpinApp } from './features/spin'
 import { GamesHub } from './features/games'
+import { PartyApp, PARTY_BASE_PATH } from './features/party'
 
 function normalizePathname(pathname) {
   if (!pathname || pathname === '/') return '/'
@@ -118,6 +119,10 @@ export default function App() {
 
   if (path === '/games') {
     return <GamesHub />
+  }
+
+  if (path === PARTY_BASE_PATH || path.startsWith(`${PARTY_BASE_PATH}/`)) {
+    return <PartyApp initialPath={path} />
   }
 
   if (path === '/spin') {

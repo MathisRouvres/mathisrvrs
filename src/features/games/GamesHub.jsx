@@ -28,6 +28,16 @@ const GAMES = [
     tags: ['Multijoueur', 'Soirée', 'En ligne'],
     enabled: MONOVOMY_ENABLED,
   },
+  {
+    id: 'soiree',
+    title: 'Jeux de soirée',
+    href: '/games/soiree',
+    emoji: '🎉',
+    description:
+      'Je n’ai jamais, C’est un 10 mais, Qui pourrait, Imposteur, Tu préfères, Action ou Vérité. Un seul téléphone pour tout le groupe.',
+    tags: ['Groupe', 'Soirée', '6 jeux'],
+    enabled: true,
+  },
 ]
 
 export default function GamesHub() {
@@ -73,14 +83,23 @@ export default function GamesHub() {
                     className="group glass-card flex h-full flex-col rounded-2xl p-6 transition-all duration-300 hover:-translate-y-1 hover:border-[var(--accent)] hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
                   >
                     <div className="flex items-center gap-4">
-                      <img
-                        src={game.icon}
-                        alt=""
-                        width="56"
-                        height="56"
-                        loading="lazy"
-                        className="h-14 w-14 shrink-0 rounded-xl"
-                      />
+                      {game.icon ? (
+                        <img
+                          src={game.icon}
+                          alt=""
+                          width="56"
+                          height="56"
+                          loading="lazy"
+                          className="h-14 w-14 shrink-0 rounded-xl"
+                        />
+                      ) : (
+                        <span
+                          aria-hidden="true"
+                          className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-fuchsia-500 to-violet-700 text-3xl"
+                        >
+                          {game.emoji}
+                        </span>
+                      )}
                       <h2 className="font-display text-xl font-bold transition-colors group-hover:text-[var(--accent)]">
                         {game.title}
                       </h2>

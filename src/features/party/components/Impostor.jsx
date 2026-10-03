@@ -1,0 +1,192 @@
+import { useState } from 'react'
+import { advanceDeck, assignImpostors, createDeck, currentCard, maxImpostors, pickStarter } from '../engine'
+import PlayersEditor from './PlayersEditor'
+import { btnGhost, btnPrimary, cardEnter } from './buttons'
+
+/**
+ * Imposteur, sur un seul téléphone : chacun découvre son rôle à tour de rôle,
+ * puis la discussion et le vote se font à voix haute.
+ */
+export default function Impostor({ game, level, players, onPlayersChange }) {
+  const words = game.cards[level]
+  const [phase, setPhase] = useState('setup')
+  const [impostorCount, setImpostorCount] = useState(1)
+  const [hint, setHint] = useState(true)
+  const [wordDeck, setWordDeck] = useState(() => createDeck(words.length))
+  const [round, setRound] = useState(null)
+  const [revealIndex, setRevealIndex] = useState(0)
+  const [shown, setShown] = useState(false)
+
+  const ready = players.length >= game.minPlayers
+  const maxCount = maxImpostors(players.length)
+  const count = Math.min(impostorCount, maxCount)
+
+  function startRound() {
+    const nextDeck = advanceDeck(wordDeck)
+    setWordDeck(nextDeck)
+    const impostors = assignImpostors(players.length, count)
+    setRound({ secret: words[currentCard(nextDeck) ?? 0], impostors, starter: pickStarter(impostors) })
+    setRevealIndex(0)
+    setShown(false)
+    setPhase('reveal')
+  }
+
+  if (phase === 'setup' || !round || !ready) {
+    return (
+      <div className="flex flex-col gap-4">
+        <PlayersEditor players={players} onChange={onPlayersChange} min={game.minPlayers} />
+
+        <section className="glass-card flex flex-col gap-4 rounded-3xl p-5">
+          <div className="flex items-center justify-between gap-4">
+            <span id="impostor-count-label" className="font-semibold">Imposteurs</span>
+            <div role="group" aria-labelledby="impostor-count-label" className="flex items-center gap-3">
+              <button
+                type="button"
+                className={`${btnGhost} w-12 px-0`}
+                aria-label="Un imposteur de moins"
+                disabled={count <= 1}
+                onClick={() => setImpostorCount(Math.max(1, count - 1))}
+              >
+                −
+              </button>
+              <span aria-live="polite" className="w-6 text-center font-display text-xl font-bold">
+                {count}
+              </span>
+              <button
+                type="button"
+                className={`${btnGhost} w-12 px-0`}
+                aria-label="Un imposteur de plus"
+                disabled={count >= maxCount}
+                onClick={() => setImpostorCount(Math.min(maxCount, count + 1))}
+              >
+                +
+              </button>
+            </div>
+          </div>
+          <label className="flex cursor-pointer items-center justify-between gap-4">
+            <span>
+              <span className="font-semibold">Indice pour l’imposteur</span>
+              <span className="block text-sm text-[var(--text-secondary)]">Il voit la catégorie du mot.</span>
+            </span>
+            <input
+              type="checkbox"
+              checked={hint}
+              onChange={(e) => setHint(e.target.checked)}
+              className="h-6 w-6 shrink-0 accent-[var(--accent)]"
+            />
+          </label>
+        </section>
+
+        <button type="button" className={`${btnPrimary} w-full`} disabled={!ready} onClick={startRound}>
+          Lancer la partie
+        </button>
+      </div>
+    )
+  }
+
+  if (phase === 'reveal') {
+    const name = players[revealIndex]
+    const isImpostor = round.impostors[revealIndex]
+    const last = revealIndex >= players.length - 1
+
+    return (
+      <div className="flex flex-col gap-4">
+        <div
+          key={`${revealIndex}-${shown}`}
+          aria-live="polite"
+          className={`flex min-h-72 flex-col items-center justify-center rounded-3xl p-6 text-center shadow-xl ${cardEnter} ${
+            shown ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)]' : `bg-gradient-to-br ${game.gradient} text-white`
+          }`}
+        >
+          {!shown ? (
+            <>
+              <p className="text-sm font-semibold uppercase tracking-wider text-white/75">Passe le téléphone à</p>
+              <p className="mt-2 break-words font-display text-4xl font-bold">{name}</p>
+              <p className="mt-4 text-sm text-white/80">Les autres, on ne regarde pas !</p>
+            </>
+          ) : isImpostor ? (
+            <>
+              <p className="text-5xl" aria-hidden="true">🕵️</p>
+              <p className="mt-3 font-display text-3xl font-bold text-rose-500">Tu es l’imposteur</p>
+              {hint ? (
+                <p className="mt-3 text-[var(--text-secondary)]">
+                  Indice : <strong className="text-[var(--text-primary)]">{round.secret.category}</strong>
+                </p>
+              ) : (
+                <p className="mt-3 text-[var(--text-secondary)]">Écoute bien les autres et bluffe.</p>
+              )}
+            </>
+          ) : (
+            <>
+              <p className="text-sm font-semibold uppercase tracking-wider text-[var(--text-muted)]">Le mot secret</p>
+              <p className="mt-3 break-words font-display text-4xl font-bold">{round.secret.word}</p>
+            </>
+          )}
+        </div>
+
+        {!shown ? (
+          <button type="button" className={`${btnPrimary} w-full`} onClick={() => setShown(true)}>
+            Je suis {name}, voir mon rôle
+          </button>
+        ) : (
+          <button
+            type="button"
+            className={`${btnPrimary} w-full`}
+            onClick={() => {
+              setShown(false)
+              if (last) setPhase('discuss')
+              else setRevealIndex((i) => i + 1)
+            }}
+          >
+            {last ? 'J’ai vu, on commence' : 'J’ai vu, je cache'}
+          </button>
+        )}
+        <p className="text-center text-xs text-[var(--text-muted)]">
+          Joueur {revealIndex + 1} sur {players.length}
+        </p>
+      </div>
+    )
+  }
+
+  const impostorNames = players.filter((_, i) => round.impostors[i])
+
+  if (phase === 'discuss') {
+    return (
+      <div className="flex flex-col gap-4">
+        <div
+          className={`flex min-h-72 flex-col justify-center rounded-3xl bg-gradient-to-br ${game.gradient} p-6 text-white shadow-xl ${cardEnter}`}
+        >
+          <p className="text-sm font-semibold uppercase tracking-wider text-white/75">Tout le monde a vu son rôle</p>
+          <p className="mt-2 font-display text-3xl font-bold">{players[round.starter]} commence</p>
+          <ol className="mt-4 list-decimal space-y-1 pl-5 text-white/90">
+            <li>Chacun dit un mot lié au mot secret, à tour de rôle.</li>
+            <li>Faites un ou deux tours, puis débattez.</li>
+            <li>Votez tous ensemble en pointant du doigt.</li>
+          </ol>
+        </div>
+        <button type="button" className={`${btnPrimary} w-full`} onClick={() => setPhase('result')}>
+          Révéler {impostorNames.length > 1 ? 'les imposteurs' : 'l’imposteur'}
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className={`glass-card flex min-h-64 flex-col items-center justify-center rounded-3xl p-6 text-center ${cardEnter}`}>
+        <p className="text-sm font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+          {impostorNames.length > 1 ? 'Les imposteurs étaient' : 'L’imposteur était'}
+        </p>
+        <p className="mt-2 break-words font-display text-3xl font-bold text-rose-500">{impostorNames.join(', ')}</p>
+        <p className="mt-5 text-sm text-[var(--text-secondary)]">Le mot secret</p>
+        <p className="font-display text-2xl font-bold">{round.secret.word}</p>
+      </div>
+      <button type="button" className={`${btnPrimary} w-full`} onClick={startRound}>
+        Nouvelle manche
+      </button>
+      <button type="button" className={btnGhost} onClick={() => setPhase('setup')}>
+        Modifier les joueurs
+      </button>
+    </div>
+  )
+}
