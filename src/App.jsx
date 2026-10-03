@@ -15,6 +15,7 @@ import { CareerApp, DilemmaDevLab } from './features/career'
 import { MonovomyApp } from './features/monovomy'
 import { parseMonovomyRoute } from './features/monovomy/pwa/deepLink'
 import { SpinApp } from './features/spin'
+import { GamesHub } from './features/games'
 
 function normalizePathname(pathname) {
   if (!pathname || pathname === '/') return '/'
@@ -114,6 +115,10 @@ function SpinRouteGate({ children }) {
 
 export default function App() {
   const path = normalizePathname(window.location.pathname)
+
+  if (path === '/games') {
+    return <GamesHub />
+  }
 
   if (path === '/spin') {
     return (
