@@ -5,6 +5,10 @@ import { whoCould } from './content/whoCould'
 import { wouldYouRather } from './content/wouldYouRather'
 import { truthOrDare } from './content/truthOrDare'
 import { impostorWords } from './content/impostor'
+import { paranoia } from './content/paranoia'
+import { deepTalk } from './content/deepTalk'
+import { quickDares } from './content/quickDares'
+import { whoOfUs } from './content/whoOfUs'
 
 export const PARTY_BASE_PATH = '/games/soiree'
 
@@ -139,6 +143,71 @@ export const PARTY_GAMES: PartyGame[] = [
       'Toute action qui implique quelqu’un se fait avec son accord. On peut toujours passer.',
     ],
     cards: truthOrDare,
+  },
+  {
+    kind: 'deck',
+    slug: 'paranoia',
+    title: 'Paranoïa',
+    emoji: '🤫',
+    tagline: 'Une question chuchotée, un prénom à voix haute.',
+    gradient: 'from-slate-600 to-zinc-900',
+    minPlayers: 3,
+    prefix: 'Chuchote à ton voisin : qui ici…',
+    rules: [
+      'Lis la carte en secret et chuchote-la à ton voisin.',
+      'Il répond à voix haute par le prénom de quelqu’un du groupe.',
+      'La personne citée tire à pile ou face : pile, la question est révélée.',
+      'Le téléphone passe ensuite au voisin.',
+    ],
+    cards: paranoia,
+  },
+  {
+    kind: 'deck',
+    slug: 'qui-de-nous-deux',
+    title: 'Qui de nous deux ?',
+    emoji: '👫',
+    tagline: 'Dos à dos, chacun pointe l’autre… ou soi.',
+    gradient: 'from-pink-500 to-orange-500',
+    minPlayers: 2,
+    prefix: 'Qui de nous deux…',
+    rules: [
+      'Deux joueurs se mettent dos à dos (en couple, entre amis ou par paires).',
+      'À chaque carte, les deux pointent en même temps celui qui correspond le mieux.',
+      'Désaccord ? Chacun défend sa version devant le groupe.',
+    ],
+    cards: whoOfUs,
+  },
+  {
+    kind: 'deck',
+    slug: 'defis-express',
+    title: 'Défis express',
+    emoji: '⚡',
+    tagline: 'Des mini-défis pour tout le groupe, tout de suite.',
+    gradient: 'from-yellow-400 to-lime-600',
+    minPlayers: 3,
+    prefix: 'Défi',
+    rules: [
+      'Lisez la carte à voix haute : elle s’applique à tout le groupe.',
+      'Les règles temporaires durent jusqu’à la carte suivante.',
+      'Tout contact se fait avec l’accord de chacun. On peut toujours passer.',
+    ],
+    cards: quickDares,
+  },
+  {
+    kind: 'deck',
+    slug: 'questions-profondes',
+    title: 'Questions profondes',
+    emoji: '💬',
+    tagline: 'Pour enfin vraiment se connaître.',
+    gradient: 'from-cyan-500 to-blue-700',
+    minPlayers: 2,
+    prefix: 'Question',
+    rules: [
+      'Posez la question au groupe ou à la personne de votre choix.',
+      'Prenez le temps de répondre sincèrement, sans jugement.',
+      'On a toujours le droit de passer.',
+    ],
+    cards: deepTalk,
   },
 ]
 

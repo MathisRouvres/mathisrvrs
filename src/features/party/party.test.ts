@@ -117,7 +117,7 @@ describe('Jeux de soirée — catalogue', () => {
               : LEVELS.map((l) => game.cards[l])
 
       for (const pool of pools) {
-        expect(pool.length, game.slug).toBeGreaterThanOrEqual(20)
+        expect(pool.length, game.slug).toBeGreaterThanOrEqual(150)
         expect(new Set(pool).size, game.slug).toBe(pool.length)
         for (const entry of pool) expect(entry.trim().length, game.slug).toBeGreaterThan(0)
       }
