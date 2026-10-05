@@ -8,6 +8,11 @@ import PartyLink from './components/PartyLink'
 import CardGame from './components/CardGame'
 import TruthOrDare from './components/TruthOrDare'
 import Impostor from './components/Impostor'
+import TimedGame from './components/TimedGame'
+import PetitBac from './components/PetitBac'
+import Werewolf from './components/Werewolf'
+import MixGame from './components/MixGame'
+import KingsGame from './components/KingsGame'
 
 function cleanPath(pathname) {
   return pathname.replace(/\/+$/, '') || '/'
@@ -25,7 +30,18 @@ function GameBody({ game, settings }) {
     case 'truth-or-dare':
       return <TruthOrDare key={key} {...shared} />
     case 'impostor':
+    case 'undercover':
       return <Impostor key={key} {...shared} />
+    case 'mix':
+      return <MixGame key={key} {...shared} />
+    case 'werewolf':
+      return <Werewolf key={game.slug} {...shared} />
+    case 'timed':
+      return <TimedGame key={key} game={game} level={settings.level} />
+    case 'petit-bac':
+      return <PetitBac key={key} game={game} level={settings.level} />
+    case 'kings':
+      return <KingsGame key={key} game={game} level={settings.level} />
     default:
       return <CardGame key={key} game={game} level={settings.level} />
   }
@@ -103,12 +119,14 @@ export default function PartyApp({ initialPath }) {
         <main className="mx-auto max-w-xl px-4 pb-10 pt-6">
           {game ? (
             <div className="flex flex-col gap-5">
-              <LevelPicker
-                level={settings.level}
-                adult={settings.adult}
-                onChange={settings.setLevel}
-                onConfirmAdult={settings.confirmAdult}
-              />
+              {!game.noLevels && (
+                <LevelPicker
+                  level={settings.level}
+                  adult={settings.adult}
+                  onChange={settings.setLevel}
+                  onConfirmAdult={settings.confirmAdult}
+                />
+              )}
               <details className="glass-card group rounded-2xl px-4 py-3">
                 <summary className="cursor-pointer list-none font-semibold [&::-webkit-details-marker]:hidden">
                   <span className="flex items-center justify-between">

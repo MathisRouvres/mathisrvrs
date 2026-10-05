@@ -4,8 +4,9 @@ import PlayersEditor from './PlayersEditor'
 import { btnGhost, btnPrimary, cardEnter } from './buttons'
 
 /**
- * Imposteur, sur un seul téléphone : chacun découvre son rôle à tour de rôle,
- * puis la discussion et le vote se font à voix haute.
+ * Imposteur et Undercover, sur un seul téléphone : chacun découvre son rôle à
+ * tour de rôle, puis la discussion et le vote se font à voix haute. En
+ * Undercover, l'intrus reçoit un mot proche et ignore qu'il est l'intrus.
  */
 export default function Impostor({ game, level, players, onPlayersChange }) {
   const words = game.cards[level]
@@ -20,12 +21,21 @@ export default function Impostor({ game, level, players, onPlayersChange }) {
   const ready = players.length >= game.minPlayers
   const maxCount = maxImpostors(players.length)
   const count = Math.min(impostorCount, maxCount)
+  const undercover = game.kind === 'undercover'
+  const label = undercover ? { one: 'l’undercover', many: 'les undercovers', title: 'Undercovers' } : { one: 'l’imposteur', many: 'les imposteurs', title: 'Imposteurs' }
 
   function startRound() {
     const nextDeck = advanceDeck(wordDeck)
     setWordDeck(nextDeck)
     const impostors = assignImpostors(players.length, count)
-    setRound({ secret: words[currentCard(nextDeck) ?? 0], impostors, starter: pickStarter(impostors) })
+    const entry = words[currentCard(nextDeck) ?? 0]
+    // Undercover : on tire au hasard lequel des deux mots revient aux civils.
+    const secret = undercover
+      ? Math.random() < 0.5
+        ? { word: entry[0], decoy: entry[1] }
+        : { word: entry[1], decoy: entry[0] }
+      : entry
+    setRound({ secret, impostors, starter: pickStarter(impostors) })
     setRevealIndex(0)
     setShown(false)
     setPhase('reveal')
@@ -38,12 +48,12 @@ export default function Impostor({ game, level, players, onPlayersChange }) {
 
         <section className="glass-card flex flex-col gap-4 rounded-3xl p-5">
           <div className="flex items-center justify-between gap-4">
-            <span id="impostor-count-label" className="font-semibold">Imposteurs</span>
+            <span id="impostor-count-label" className="font-semibold">{label.title}</span>
             <div role="group" aria-labelledby="impostor-count-label" className="flex items-center gap-3">
               <button
                 type="button"
                 className={`${btnGhost} w-12 px-0`}
-                aria-label="Un imposteur de moins"
+                aria-label="Un de moins"
                 disabled={count <= 1}
                 onClick={() => setImpostorCount(Math.max(1, count - 1))}
               >
@@ -55,7 +65,7 @@ export default function Impostor({ game, level, players, onPlayersChange }) {
               <button
                 type="button"
                 className={`${btnGhost} w-12 px-0`}
-                aria-label="Un imposteur de plus"
+                aria-label="Un de plus"
                 disabled={count >= maxCount}
                 onClick={() => setImpostorCount(Math.min(maxCount, count + 1))}
               >
@@ -63,18 +73,20 @@ export default function Impostor({ game, level, players, onPlayersChange }) {
               </button>
             </div>
           </div>
-          <label className="flex cursor-pointer items-center justify-between gap-4">
-            <span>
-              <span className="font-semibold">Indice pour l’imposteur</span>
-              <span className="block text-sm text-[var(--text-secondary)]">Il voit la catégorie du mot.</span>
-            </span>
-            <input
-              type="checkbox"
-              checked={hint}
-              onChange={(e) => setHint(e.target.checked)}
-              className="h-6 w-6 shrink-0 accent-[var(--accent)]"
-            />
-          </label>
+          {!undercover && (
+            <label className="flex cursor-pointer items-center justify-between gap-4">
+              <span>
+                <span className="font-semibold">Indice pour l’imposteur</span>
+                <span className="block text-sm text-[var(--text-secondary)]">Il voit la catégorie du mot.</span>
+              </span>
+              <input
+                type="checkbox"
+                checked={hint}
+                onChange={(e) => setHint(e.target.checked)}
+                className="h-6 w-6 shrink-0 accent-[var(--accent)]"
+              />
+            </label>
+          )}
         </section>
 
         <button type="button" className={`${btnPrimary} w-full`} disabled={!ready} onClick={startRound}>
@@ -103,6 +115,14 @@ export default function Impostor({ game, level, players, onPlayersChange }) {
               <p className="text-sm font-semibold uppercase tracking-wider text-white/75">Passe le téléphone à</p>
               <p className="mt-2 break-words font-display text-4xl font-bold">{name}</p>
               <p className="mt-4 text-sm text-white/80">Les autres, on ne regarde pas !</p>
+            </>
+          ) : undercover ? (
+            <>
+              <p className="text-sm font-semibold uppercase tracking-wider text-[var(--text-muted)]">Ton mot</p>
+              <p className="mt-3 break-words font-display text-4xl font-bold">
+                {isImpostor ? round.secret.decoy : round.secret.word}
+              </p>
+              <p className="mt-3 text-sm text-[var(--text-secondary)]">Attention : tu es peut-être l’undercover…</p>
             </>
           ) : isImpostor ? (
             <>
@@ -159,13 +179,13 @@ export default function Impostor({ game, level, players, onPlayersChange }) {
           <p className="text-sm font-semibold uppercase tracking-wider text-white/75">Tout le monde a vu son rôle</p>
           <p className="mt-2 font-display text-3xl font-bold">{players[round.starter]} commence</p>
           <ol className="mt-4 list-decimal space-y-1 pl-5 text-white/90">
-            <li>Chacun dit un mot lié au mot secret, à tour de rôle.</li>
+            <li>Chacun dit un mot lié à son mot, à tour de rôle.</li>
             <li>Faites un ou deux tours, puis débattez.</li>
             <li>Votez tous ensemble en pointant du doigt.</li>
           </ol>
         </div>
         <button type="button" className={`${btnPrimary} w-full`} onClick={() => setPhase('result')}>
-          Révéler {impostorNames.length > 1 ? 'les imposteurs' : 'l’imposteur'}
+          Révéler {impostorNames.length > 1 ? label.many : label.one}
         </button>
       </div>
     )
@@ -175,11 +195,17 @@ export default function Impostor({ game, level, players, onPlayersChange }) {
     <div className="flex flex-col gap-4">
       <div className={`glass-card flex min-h-64 flex-col items-center justify-center rounded-3xl p-6 text-center ${cardEnter}`}>
         <p className="text-sm font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-          {impostorNames.length > 1 ? 'Les imposteurs étaient' : 'L’imposteur était'}
+          {impostorNames.length > 1 ? `${label.many} étaient` : `${label.one} était`}
         </p>
         <p className="mt-2 break-words font-display text-3xl font-bold text-rose-500">{impostorNames.join(', ')}</p>
-        <p className="mt-5 text-sm text-[var(--text-secondary)]">Le mot secret</p>
+        <p className="mt-5 text-sm text-[var(--text-secondary)]">{undercover ? 'Mot des civils' : 'Le mot secret'}</p>
         <p className="font-display text-2xl font-bold">{round.secret.word}</p>
+        {undercover && (
+          <>
+            <p className="mt-3 text-sm text-[var(--text-secondary)]">Mot de l’undercover</p>
+            <p className="font-display text-2xl font-bold">{round.secret.decoy}</p>
+          </>
+        )}
       </div>
       <button type="button" className={`${btnPrimary} w-full`} onClick={startRound}>
         Nouvelle manche

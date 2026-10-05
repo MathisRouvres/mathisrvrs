@@ -3,16 +3,26 @@ import {
   LEVELS,
   MAX_NAME_LENGTH,
   MAX_PLAYERS,
+  MIN_WEREWOLF_PLAYERS,
+  PETIT_BAC_LETTERS,
   advanceDeck,
   assignImpostors,
+  createCardDeck,
   createDeck,
   currentCard,
+  dealWerewolfRoles,
+  drawLetter,
   maxImpostors,
   pickStarter,
   sanitizePlayers,
   shuffle,
+  werewolfCount,
+  werewolfWinner,
 } from './engine'
 import { PARTY_BASE_PATH, PARTY_GAMES, findGame } from './games'
+import { buildMixCard } from './mix'
+import { KINGS_RULES, LAST_KING } from './content/kings'
+import { NIGHT_STEPS, WEREWOLF_ROLES } from './content/werewolf'
 
 /** Générateur pseudo-aléatoire déterministe (mulberry32). */
 function seeded(seed: number) {
@@ -93,6 +103,74 @@ describe('Jeux de soirée — moteur', () => {
   })
 })
 
+describe('Jeux de soirée — Loup-Garou', () => {
+  it('ajuste le nombre de loups à la table', () => {
+    expect(werewolfCount(6)).toBe(2)
+    expect(werewolfCount(9)).toBe(3)
+    expect(werewolfCount(12)).toBe(4)
+  })
+
+  it('distribue un rôle par joueur avec au moins un villageois', () => {
+    for (let n = MIN_WEREWOLF_PLAYERS; n <= MAX_PLAYERS; n++) {
+      const roles = dealWerewolfRoles(n, ['seer', 'witch', 'hunter', 'cupid', 'littleGirl'], seeded(n))
+      expect(roles).toHaveLength(n)
+      expect(roles.filter((r) => r === 'wolf')).toHaveLength(werewolfCount(n))
+      expect(roles).toContain('villager')
+      expect(new Set(roles.filter((r) => r !== 'wolf' && r !== 'villager')).size).toBe(
+        roles.filter((r) => r !== 'wolf' && r !== 'villager').length,
+      )
+    }
+    expect(() => dealWerewolfRoles(5, [])).toThrow()
+  })
+
+  it('détermine le vainqueur', () => {
+    const roles = ['wolf', 'wolf', 'villager', 'villager', 'seer', 'witch'] as const
+    expect(werewolfWinner(roles, [true, true, true, true, true, true])).toBeNull()
+    expect(werewolfWinner(roles, [false, false, true, true, true, true])).toBe('village')
+    expect(werewolfWinner(roles, [true, true, true, true, false, false])).toBe('wolves')
+  })
+
+  it('décrit chaque rôle et chaque étape de nuit', () => {
+    for (const meta of Object.values(WEREWOLF_ROLES)) expect(meta.description.length).toBeGreaterThan(0)
+    for (const step of NIGHT_STEPS) {
+      if (step.role) expect(WEREWOLF_ROLES[step.role]).toBeDefined()
+    }
+  })
+})
+
+describe('Jeux de soirée — Petit Bac, Jeu du Roi, Mix', () => {
+  it('tire une lettre jouable différente de la précédente', () => {
+    for (let seed = 0; seed < 100; seed++) {
+      const letter = drawLetter(seeded(seed), 'A')
+      expect(PETIT_BAC_LETTERS).toContain(letter)
+      expect(letter).not.toBe('A')
+    }
+  })
+
+  it('le paquet du Jeu du Roi a 52 cartes uniques dont 4 Rois, toutes avec une règle', () => {
+    const deck = createCardDeck(seeded(3))
+    expect(deck).toHaveLength(52)
+    expect(new Set(deck.map((c) => `${c.rank}${c.suit}`)).size).toBe(52)
+    expect(deck.filter((c) => c.rank === 'K')).toHaveLength(4)
+    for (const card of deck) {
+      for (const level of LEVELS) expect(KINGS_RULES[card.rank].text[level].length).toBeGreaterThan(0)
+    }
+    for (const level of LEVELS) expect(LAST_KING[level].length).toBeGreaterThan(0)
+  })
+
+  it('le Mix adresse ses cartes aux joueurs, à tous les niveaux', () => {
+    const players = ['Léa', 'Tom', 'Sam']
+    for (const level of LEVELS) {
+      for (let seed = 0; seed < 300; seed++) {
+        const card = buildMixCard(level, players, seeded(seed))
+        expect(card.text.length).toBeGreaterThan(10)
+        expect(card.text).not.toContain('undefined')
+      }
+    }
+    expect(() => buildMixCard('soft', ['Seul'])).toThrow()
+  })
+})
+
 describe('Jeux de soirée — catalogue', () => {
   it('a des slugs uniques et retrouvables', () => {
     const slugs = PARTY_GAMES.map((g) => g.slug)
@@ -107,19 +185,35 @@ describe('Jeux de soirée — catalogue', () => {
 
   it('chaque jeu propose assez de contenu, sans doublon, à chaque niveau', () => {
     for (const game of PARTY_GAMES) {
-      const pools =
+      const pools: string[][] =
         game.kind === 'truth-or-dare'
           ? LEVELS.flatMap((l) => [game.cards.truth[l], game.cards.dare[l]])
           : game.kind === 'impostor'
             ? LEVELS.map((l) => game.cards[l].map((s) => s.word))
-            : game.kind === 'choice'
+            : game.kind === 'choice' || game.kind === 'undercover'
               ? LEVELS.map((l) => game.cards[l].map(([a, b]) => `${a} | ${b}`))
-              : LEVELS.map((l) => game.cards[l])
+              : game.kind === 'timed' && game.variant === 'taboo'
+                ? LEVELS.map((l) => game.cards[l].map((c) => c.word))
+                : game.kind === 'deck' || game.kind === 'timed' || game.kind === 'petit-bac'
+                  ? LEVELS.map((l) => game.cards[l])
+                  : []
 
       for (const pool of pools) {
         expect(pool.length, game.slug).toBeGreaterThanOrEqual(150)
         expect(new Set(pool).size, game.slug).toBe(pool.length)
         for (const entry of pool) expect(entry.trim().length, game.slug).toBeGreaterThan(0)
+      }
+    }
+  })
+
+  it('chaque carte Mot interdit a 5 mots interdits distincts, sans le mot à deviner', () => {
+    const taboo = findGame('mot-interdit')
+    if (taboo?.kind !== 'timed' || taboo.variant !== 'taboo') throw new Error('Mot interdit introuvable')
+    for (const level of LEVELS) {
+      for (const card of taboo.cards[level]) {
+        const forbidden = card.forbidden.map((f) => f.toLowerCase())
+        expect(new Set(forbidden).size, card.word).toBe(5)
+        expect(forbidden, card.word).not.toContain(card.word.toLowerCase())
       }
     }
   })

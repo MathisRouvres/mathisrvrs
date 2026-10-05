@@ -34,8 +34,8 @@ const GAMES = [
     href: '/games/soiree',
     emoji: '🎉',
     description:
-      'Je n’ai jamais, C’est un 10 mais, Qui pourrait, Imposteur, Tu préfères, Action ou Vérité, Paranoïa et plus. Un seul téléphone pour tout le groupe.',
-    tags: ['Groupe', 'Soirée', '10 jeux'],
+      'Loup-Garou, Undercover, Mot interdit, Devine-tête, Mimes, Petit Bac, Jeu du Roi, Je n’ai jamais, Action ou Vérité et bien d’autres. Un seul téléphone pour tout le groupe.',
+    tags: ['Groupe', 'Soirée', '18 jeux'],
     enabled: true,
   },
 ]

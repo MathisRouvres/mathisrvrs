@@ -88,3 +88,93 @@ export function sanitizePlayers(names: readonly unknown[]): string[] {
     .filter((n) => n.length > 0)
     .slice(0, MAX_PLAYERS)
 }
+
+/* ------------------------------------------------------------------ */
+/* Loup-Garou                                                          */
+/* ------------------------------------------------------------------ */
+
+export const MIN_WEREWOLF_PLAYERS = 6
+
+export type WerewolfRole = 'wolf' | 'villager' | 'seer' | 'witch' | 'hunter' | 'cupid' | 'littleGirl'
+export type WerewolfSpecial = Exclude<WerewolfRole, 'wolf' | 'villager'>
+
+/** Un loup pour trois ou quatre joueurs : 2 loups à 6-8, 3 à 9-11, 4 à 12 et plus. */
+export function werewolfCount(playerCount: number): number {
+  if (playerCount >= 12) return 4
+  if (playerCount >= 9) return 3
+  return 2
+}
+
+/**
+ * Distribue les rôles : loups, puis rôles spéciaux demandés (dans la limite des
+ * places), le reste en villageois. Renvoie un tableau aligné sur les joueurs.
+ */
+export function dealWerewolfRoles(
+  playerCount: number,
+  specials: readonly WerewolfSpecial[],
+  rng: Rng = Math.random,
+): WerewolfRole[] {
+  if (playerCount < MIN_WEREWOLF_PLAYERS) {
+    throw new Error(`Il faut au moins ${MIN_WEREWOLF_PLAYERS} joueurs`)
+  }
+  const wolves = werewolfCount(playerCount)
+  const chosen = [...new Set(specials)].slice(0, playerCount - wolves - 1)
+  const roles: WerewolfRole[] = [
+    ...Array.from({ length: wolves }, () => 'wolf' as const),
+    ...chosen,
+  ]
+  while (roles.length < playerCount) roles.push('villager')
+  return shuffle(roles, rng)
+}
+
+/** Village gagne sans loup vivant ; loups gagnent dès qu'ils égalent les autres vivants. */
+export function werewolfWinner(roles: readonly WerewolfRole[], alive: readonly boolean[]): 'village' | 'wolves' | null {
+  let wolves = 0
+  let others = 0
+  roles.forEach((role, i) => {
+    if (!alive[i]) return
+    if (role === 'wolf') wolves++
+    else others++
+  })
+  if (wolves === 0) return 'village'
+  if (wolves >= others) return 'wolves'
+  return null
+}
+
+/* ------------------------------------------------------------------ */
+/* Petit Bac                                                           */
+/* ------------------------------------------------------------------ */
+
+/** Lettres jouables : on écarte celles qui bloquent presque toutes les catégories. */
+export const PETIT_BAC_LETTERS = 'ABCDEFGHIJLMNOPRSTUV'.split('')
+
+export function drawLetter(rng: Rng = Math.random, avoid?: string): string {
+  const pool = PETIT_BAC_LETTERS.filter((l) => l !== avoid)
+  return pool[Math.floor(rng() * pool.length)] ?? 'A'
+}
+
+export function pickSome<T>(items: readonly T[], count: number, rng: Rng = Math.random): T[] {
+  return shuffle(items, rng).slice(0, Math.max(0, count))
+}
+
+/* ------------------------------------------------------------------ */
+/* Jeu du Roi                                                          */
+/* ------------------------------------------------------------------ */
+
+export const CARD_RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'] as const
+export type CardRank = (typeof CARD_RANKS)[number]
+export const CARD_SUITS = ['♠', '♥', '♦', '♣'] as const
+export type CardSuit = (typeof CARD_SUITS)[number]
+
+export interface PlayingCard {
+  rank: CardRank
+  suit: CardSuit
+}
+
+/** Paquet de 52 cartes mélangé. */
+export function createCardDeck(rng: Rng = Math.random): PlayingCard[] {
+  return shuffle(
+    CARD_SUITS.flatMap((suit) => CARD_RANKS.map((rank) => ({ rank, suit }))),
+    rng,
+  )
+}
