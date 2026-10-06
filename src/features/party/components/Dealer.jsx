@@ -1,12 +1,15 @@
-import { useState } from 'react'
 import {
   CARD_RANKS,
+  DEALER_MAX_PENALTY,
   DEALER_MISSES_TO_PASS,
+  MAX_PLAYERS,
   createCardDeck,
   dealerPenalty,
   dealerValue,
   dealerVerdict,
 } from '../engine'
+import { isCardDeck, isIntIn } from '../session'
+import { useSessionState, when } from '../useSessionState'
 import PlayersEditor from './PlayersEditor'
 import PlayingCardFace from './PlayingCardFace'
 import { btnGhost, btnPrimary, cardEnter } from './buttons'
@@ -15,6 +18,14 @@ import { sips } from './penalty'
 const MIN_PLAYERS = 3
 const RANK_LABEL = { A: 'As', J: 'Valet', Q: 'Dame', K: 'Roi' }
 const rankName = (rank) => RANK_LABEL[rank] ?? rank
+
+const isPlayerIndex = (v) => isIntIn(v, 0, MAX_PLAYERS - 1)
+const isFirstGuess = (v) => v === null || (CARD_RANKS.includes(v?.rank) && (v.verdict === 'higher' || v.verdict === 'lower'))
+const isOutcome = (v) =>
+  v === null ||
+  ((v?.kind === 'dealer' || v?.kind === 'guesser') &&
+    isIntIn(v.amount, 1, DEALER_MAX_PENALTY) &&
+    typeof v.text === 'string')
 
 /** Prochain joueur après `from`, en sautant le croupier. */
 function nextGuesser(from, dealer, count) {
@@ -30,14 +41,14 @@ function nextGuesser(from, dealer, count) {
  * croupier passe la main.
  */
 export default function Dealer({ level, players, onPlayersChange }) {
-  const [playing, setPlaying] = useState(false)
-  const [deck, setDeck] = useState(() => createCardDeck())
-  const [pos, setPos] = useState(0)
-  const [dealer, setDealer] = useState(0)
-  const [guesser, setGuesser] = useState(1)
-  const [firstGuess, setFirstGuess] = useState(null)
-  const [outcome, setOutcome] = useState(null)
-  const [misses, setMisses] = useState(0)
+  const [playing, setPlaying] = useSessionState('playing', false)
+  const [deck, setDeck] = useSessionState('deck', () => createCardDeck(), when(isCardDeck))
+  const [pos, setPos] = useSessionState('pos', 0, when((v) => isIntIn(v, 0, 51)))
+  const [dealer, setDealer] = useSessionState('dealer', 0, when(isPlayerIndex))
+  const [guesser, setGuesser] = useSessionState('guesser', 1, when(isPlayerIndex))
+  const [firstGuess, setFirstGuess] = useSessionState('firstGuess', null, when(isFirstGuess))
+  const [outcome, setOutcome] = useSessionState('outcome', null, when(isOutcome))
+  const [misses, setMisses] = useSessionState('misses', 0, when((v) => isIntIn(v, 0, DEALER_MISSES_TO_PASS)))
 
   const ready = players.length >= MIN_PLAYERS
   const card = deck[pos]

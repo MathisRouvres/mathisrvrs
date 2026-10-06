@@ -86,6 +86,13 @@ export function chime(kind) {
     case 'end':
       ;[0, 180, 360].forEach((delay) => setTimeout(() => blip(440, 0.3, 'sawtooth', 0.07), delay))
       break
+    // Patate chaude : tic-tac pressant de fin de mèche, puis explosion.
+    case 'urgent':
+      blip(1320, 0.05, 'square', 0.05)
+      break
+    case 'boom':
+      blip(70, 0.6, 'sawtooth', 0.1)
+      break
     default:
       break
   }

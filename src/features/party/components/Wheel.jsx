@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { pickSome } from '../engine'
+import { isIntIn } from '../session'
+import { useSessionState, when } from '../useSessionState'
 import { btnGhost, btnPrimary, cardEnter } from './buttons'
 import { buzz } from './useCountdown'
 
@@ -33,10 +35,20 @@ function slicePath(i) {
 /** Roue des gages : 8 cases tirées du paquet du niveau, un gage à chaque tour de roue. */
 export default function Wheel({ game, level }) {
   const pool = game.cards[level]
-  const [segments, setSegments] = useState(() => pickSome(pool, SEGMENTS))
-  const [rotation, setRotation] = useState(0)
+  const [segments, setSegments] = useSessionState(
+    'segments',
+    () => pickSome(pool, SEGMENTS),
+    when(
+      (v) =>
+        Array.isArray(v) &&
+        v.length === SEGMENTS &&
+        v.every((s) => typeof s?.label === 'string' && typeof s.text === 'string'),
+    ),
+  )
+  const [rotation, setRotation] = useSessionState('rotation', 0, when(Number.isFinite))
+  const [result, setResult] = useSessionState('result', null, when((v) => v === null || isIntIn(v, 0, SEGMENTS - 1)))
+  // Un tour de roue interrompu par un rechargement est simplement annulé.
   const [spinning, setSpinning] = useState(false)
-  const [result, setResult] = useState(null)
   const [reduced, setReduced] = useState(false)
   const timeoutRef = useRef(null)
 
@@ -51,6 +63,9 @@ export default function Wheel({ game, level }) {
     const delta = ((360 - center - current + 720) % 360) + 360 * turns
     const noMotion = prefersReducedMotion()
     setReduced(noMotion)
+    // useSessionState n'écrit qu'un champ modifié : une copie fige les cases
+    // tirées à l'ouverture, sinon un rechargement en retirerait d'autres.
+    setSegments((s) => [...s])
     setRotation((r) => r + delta)
     setSpinning(true)
     setResult(null)

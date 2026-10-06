@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { advanceDeck, createDeck, currentCard, randomFuse } from '../engine'
+import { isDeck } from '../session'
+import { oneOf, useSessionState, when } from '../useSessionState'
 import { btnGhost, btnPrimary, cardEnter } from './buttons'
-import { buzz, useCountdown } from './useCountdown'
+import { buzz, chime, useCountdown } from './useCountdown'
 
 const FUSE_OPTIONS = [
   { value: 'short', label: 'Courte' },
@@ -15,41 +17,22 @@ const PENALTY = {
   hot: 'retire un accessoire ou boit deux gorgées',
 }
 
-/** Bip court (tic-tac) ou grave (explosion), si le navigateur sait jouer du son. */
-function beep(ctx, frequency, duration) {
-  if (!ctx) return
-  try {
-    const osc = ctx.createOscillator()
-    const gain = ctx.createGain()
-    osc.frequency.value = frequency
-    osc.type = frequency < 200 ? 'sawtooth' : 'square'
-    gain.gain.setValueAtTime(0.08, ctx.currentTime)
-    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duration)
-    osc.connect(gain).connect(ctx.destination)
-    osc.start()
-    osc.stop(ctx.currentTime + duration)
-  } catch {
-    // Audio indisponible : le jeu reste jouable en silence.
-  }
-}
-
 /**
  * Patate chaude : chacun cite un mot de la catégorie puis passe le téléphone.
  * La mèche a une durée secrète ; le tic-tac s'accélère, et celui qui tient le
- * téléphone à l'explosion prend la pénalité.
+ * téléphone à l'explosion prend la pénalité. Le son suit le bouton Son commun.
  */
 export default function HotPotato({ game, level }) {
   const categories = game.cards[level]
-  const [fuse, setFuse] = useState('normal')
-  const [sound, setSound] = useState(true)
-  const [phase, setPhase] = useState('setup')
-  const [deck, setDeck] = useState(() => createDeck(categories.length))
-  const audioRef = useRef(null)
+  const [fuse, setFuse] = useSessionState('fuse', 'normal', oneOf(FUSE_OPTIONS.map((o) => o.value)))
+  // Une mèche ne survit pas à un rechargement : on revient aux réglages.
+  const [phase, setPhase] = useSessionState('phase', 'setup', oneOf(['setup', 'boom'], { play: 'setup' }))
+  const [deck, setDeck] = useSessionState('deck', () => createDeck(categories.length), when((v) => isDeck(v, categories.length)))
   const endRef = useRef(0)
   const lengthRef = useRef(1)
 
   const timer = useCountdown(() => {
-    beep(audioRef.current, 70, 0.6)
+    chime('boom')
     buzz(800)
     setPhase('boom')
   })
@@ -62,7 +45,7 @@ export default function HotPotato({ game, level }) {
       const left = endRef.current - Date.now()
       if (left <= 0) return
       const ratio = left / lengthRef.current
-      beep(audioRef.current, ratio < 0.25 ? 1320 : 880, 0.05)
+      chime(ratio < 0.25 ? 'urgent' : 'tick')
       buzz(15)
       id = setTimeout(tick, Math.max(140, 1000 * ratio))
     }
@@ -70,26 +53,9 @@ export default function HotPotato({ game, level }) {
     return () => clearTimeout(id)
   }, [phase])
 
-  useEffect(() => {
-    const audio = audioRef
-    return () => audio.current?.close?.()
-  }, [])
-
   const category = categories[currentCard(deck) ?? 0]
 
   function light() {
-    if (sound && !audioRef.current) {
-      try {
-        const AudioCtx = window.AudioContext || window.webkitAudioContext
-        audioRef.current = AudioCtx ? new AudioCtx() : null
-      } catch {
-        audioRef.current = null
-      }
-    }
-    if (!sound && audioRef.current) {
-      audioRef.current.close?.()
-      audioRef.current = null
-    }
     const seconds = randomFuse(fuse)
     lengthRef.current = seconds * 1000
     endRef.current = Date.now() + seconds * 1000
@@ -101,37 +67,27 @@ export default function HotPotato({ game, level }) {
   if (phase === 'setup') {
     return (
       <div className="flex flex-col gap-4">
-        <section className="glass-card flex flex-col gap-4 rounded-3xl p-5">
-          <div>
-            <p className="mb-2 text-sm font-semibold">Mèche</p>
-            <div role="radiogroup" aria-label="Longueur de la mèche" className="grid grid-cols-3 gap-2">
-              {FUSE_OPTIONS.map((o) => (
-                <button
-                  key={o.value}
-                  type="button"
-                  role="radio"
-                  aria-checked={fuse === o.value}
-                  onClick={() => setFuse(o.value)}
-                  className={`min-h-11 rounded-2xl border text-sm font-semibold transition ${
-                    fuse === o.value
-                      ? 'border-transparent bg-[var(--accent)] text-white dark:text-[#070b14]'
-                      : 'border-[var(--border-color)] bg-[var(--bg-elevated)] hover:border-[var(--accent)]'
-                  }`}
-                >
-                  {o.label}
-                </button>
-              ))}
-            </div>
+        <section className="glass-card flex flex-col gap-3 rounded-3xl p-5">
+          <p className="text-sm font-semibold">Mèche</p>
+          <div role="radiogroup" aria-label="Longueur de la mèche" className="grid grid-cols-3 gap-2">
+            {FUSE_OPTIONS.map((o) => (
+              <button
+                key={o.value}
+                type="button"
+                role="radio"
+                aria-checked={fuse === o.value}
+                onClick={() => setFuse(o.value)}
+                className={`min-h-11 rounded-2xl border text-sm font-semibold transition ${
+                  fuse === o.value
+                    ? 'border-transparent bg-[var(--accent)] text-white dark:text-[#070b14]'
+                    : 'border-[var(--border-color)] bg-[var(--bg-elevated)] hover:border-[var(--accent)]'
+                }`}
+              >
+                {o.label}
+              </button>
+            ))}
           </div>
-          <label className="flex cursor-pointer items-center justify-between gap-4">
-            <span className="font-semibold">Tic-tac sonore</span>
-            <input
-              type="checkbox"
-              checked={sound}
-              onChange={(e) => setSound(e.target.checked)}
-              className="h-6 w-6 shrink-0 accent-[var(--accent)]"
-            />
-          </label>
+          <p className="text-xs text-[var(--text-muted)]">La durée exacte reste secrète. Le tic-tac suit le réglage Son.</p>
         </section>
         <button type="button" className={`${btnPrimary} min-h-16 w-full text-lg`} onClick={light}>
           Allumer la mèche

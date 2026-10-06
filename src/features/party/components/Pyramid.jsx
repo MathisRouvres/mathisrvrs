@@ -1,5 +1,16 @@
 import { useState } from 'react'
-import { MAX_PYRAMID_PLAYERS, MIN_PYRAMID_PLAYERS, PYRAMID_ROWS, dealPyramid, holdsRank, pyramidRow } from '../engine'
+import {
+  MAX_PYRAMID_PLAYERS,
+  MIN_PYRAMID_PLAYERS,
+  PYRAMID_HAND,
+  PYRAMID_ROWS,
+  PYRAMID_SIZE,
+  dealPyramid,
+  holdsRank,
+  pyramidRow,
+} from '../engine'
+import { isIntIn, isPlayingCard } from '../session'
+import { oneOf, useSessionState, when } from '../useSessionState'
 import PlayersEditor from './PlayersEditor'
 import PlayingCardFace from './PlayingCardFace'
 import { btnGhost, btnPrimary, cardEnter } from './buttons'
@@ -15,17 +26,27 @@ const ROWS_TOP_DOWN = Array.from({ length: PYRAMID_ROWS }, (_, r) => {
   return Array.from({ length: PYRAMID_ROWS - row + 1 }, (_, i) => start + i)
 })
 
+const isCards = (v, length) => Array.isArray(v) && v.length === length && v.every(isPlayingCard)
+const isDeal = (v) =>
+  Array.isArray(v?.hands) &&
+  v.hands.length >= MIN_PYRAMID_PLAYERS &&
+  v.hands.length <= MAX_PYRAMID_PLAYERS &&
+  v.hands.every((hand) => isCards(hand, PYRAMID_HAND)) &&
+  isCards(v.pyramid, PYRAMID_SIZE)
+
 /**
  * La Pyramide : chacun mémorise 4 cartes en secret, puis la pyramide se
  * retourne de la base au sommet. Qui a la carte retournée distribue autant
  * que l'étage — en bluffant s'il le veut. L'appli tranche les accusations.
  */
 export default function Pyramid({ level, players, onPlayersChange }) {
-  const [phase, setPhase] = useState('setup')
-  const [deal, setDeal] = useState(null)
-  const [viewer, setViewer] = useState(0)
+  const [phase, setPhase] = useSessionState('phase', 'setup', oneOf(['setup', 'memorize', 'board', 'end']))
+  const [deal, setDeal] = useSessionState('deal', null, when(isDeal))
+  const [viewer, setViewer] = useSessionState('viewer', 0, when((v) => isIntIn(v, 0, MAX_PYRAMID_PLAYERS - 1)))
+  const [revealed, setRevealed] = useSessionState('revealed', -1, when((v) => isIntIn(v, -1, PYRAMID_SIZE - 1)))
+  // Volontairement non sauvegardés : après un rechargement, une main secrète ne
+  // doit jamais se réafficher toute seule devant les autres.
   const [shown, setShown] = useState(false)
-  const [revealed, setRevealed] = useState(-1)
   const [check, setCheck] = useState(null)
 
   const count = players.length
