@@ -1,5 +1,6 @@
-import { useState } from 'react'
 import { advanceDeck, createDeck, currentCard } from '../engine'
+import { isDeck } from '../session'
+import { useSessionState, when } from '../useSessionState'
 import { btnPrimary, cardEnter } from './buttons'
 
 /**
@@ -9,7 +10,7 @@ import { btnPrimary, cardEnter } from './buttons'
  */
 export default function CardGame({ game, level }) {
   const cards = game.cards[level]
-  const [deck, setDeck] = useState(() => createDeck(cards.length))
+  const [deck, setDeck] = useSessionState('deck', () => createDeck(cards.length), when((v) => isDeck(v, cards.length)))
   const index = currentCard(deck) ?? 0
   const card = cards[index]
 

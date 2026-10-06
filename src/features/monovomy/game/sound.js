@@ -1,34 +1,11 @@
 /** SFX synthétisés (Web Audio) — aucun asset, coupables via le bouton son. */
-let ctx = null
+import { blip as synthBlip } from '../../../lib/synth'
+
 let muted = false
 try { muted = localStorage.getItem('mv_muted') === '1' } catch { /* ignore */ }
 
-function audio() {
-  if (typeof window === 'undefined') return null
-  if (!ctx) {
-    const AC = window.AudioContext || window.webkitAudioContext
-    if (AC) ctx = new AC()
-  }
-  return ctx
-}
-
 function blip(freq, dur, type = 'sine', gain = 0.05) {
-  const c = audio()
-  if (!c || muted) return
-  try {
-    if (c.state === 'suspended') c.resume()
-    const osc = c.createOscillator()
-    const g = c.createGain()
-    osc.type = type
-    osc.frequency.value = freq
-    osc.connect(g)
-    g.connect(c.destination)
-    const t = c.currentTime
-    g.gain.setValueAtTime(gain, t)
-    g.gain.exponentialRampToValueAtTime(0.0001, t + dur)
-    osc.start(t)
-    osc.stop(t + dur)
-  } catch { /* ignore */ }
+  if (!muted) synthBlip(freq, dur, type, gain)
 }
 
 export const sound = {

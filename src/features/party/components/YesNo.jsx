@@ -1,24 +1,30 @@
-import { useState } from 'react'
 import { advanceDeck, createDeck, currentCard } from '../engine'
+import { isDeck } from '../session'
+import { oneOf, useSessionState, when } from '../useSessionState'
 import { btnGhost, btnPrimary, cardEnter } from './buttons'
-import { buzz, useCountdown } from './useCountdown'
+import { buzz, chime, useCountdown } from './useCountdown'
 
 const DURATIONS = [30, 60, 90]
 
 /** Ni oui ni non : tenir le chrono sans jamais dire « oui » ni « non ». */
 export default function YesNo({ game, level }) {
   const questions = game.cards[level]
-  const [duration, setDuration] = useState(60)
-  const [phase, setPhase] = useState('ready')
-  const [deck, setDeck] = useState(() => createDeck(questions.length))
-  const [survived, setSurvived] = useState(0)
+  const [duration, setDuration] = useSessionState('duration', 60, oneOf(DURATIONS))
+  // Manche interrompue par un rechargement : on revient au départ du joueur.
+  const [phase, setPhase] = useSessionState('phase', 'ready', oneOf(['ready', 'won', 'lost'], { play: 'ready' }))
+  const [deck, setDeck] = useSessionState('deck', () => createDeck(questions.length), when((v) => isDeck(v, questions.length)))
+  const [survived, setSurvived] = useSessionState('survived', 0)
   // Durée figée au lancement : le réglage peut changer entre deux manches.
-  const [roundDuration, setRoundDuration] = useState(duration)
+  const [roundDuration, setRoundDuration] = useSessionState('roundDuration', duration)
 
-  const timer = useCountdown(() => {
-    buzz(600)
-    setPhase('won')
-  })
+  const timer = useCountdown(
+    () => {
+      buzz(600)
+      chime('end')
+      setPhase('won')
+    },
+    { ticks: 3 },
+  )
 
   const question = questions[currentCard(deck) ?? 0]
 

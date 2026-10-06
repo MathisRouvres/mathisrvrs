@@ -1,5 +1,6 @@
-import { useState } from 'react'
-import { advanceDeck, createDeck, currentCard } from '../engine'
+import { MAX_PLAYERS, advanceDeck, createDeck, currentCard } from '../engine'
+import { isDeck, isIntIn } from '../session'
+import { oneOf, useSessionState, when } from '../useSessionState'
 import PlayersEditor from './PlayersEditor'
 import { btnGhost, btnPrimary, cardEnter } from './buttons'
 
@@ -7,13 +8,17 @@ const KIND_LABEL = { truth: 'Vérité', dare: 'Action' }
 
 /** Action ou Vérité : le jeu désigne le joueur, qui choisit son défi. */
 export default function TruthOrDare({ game, level, players, onPlayersChange }) {
-  const [playing, setPlaying] = useState(false)
-  const [turn, setTurn] = useState(0)
-  const [choice, setChoice] = useState(null)
-  const [decks, setDecks] = useState(() => ({
-    truth: createDeck(game.cards.truth[level].length),
-    dare: createDeck(game.cards.dare[level].length),
-  }))
+  const [playing, setPlaying] = useSessionState('playing', false)
+  const [turn, setTurn] = useSessionState('turn', 0, when((v) => isIntIn(v, 0, MAX_PLAYERS - 1)))
+  const [choice, setChoice] = useSessionState('choice', null, oneOf(['truth', 'dare']))
+  const [decks, setDecks] = useSessionState(
+    'decks',
+    () => ({
+      truth: createDeck(game.cards.truth[level].length),
+      dare: createDeck(game.cards.dare[level].length),
+    }),
+    when((v) => isDeck(v?.truth, game.cards.truth[level].length) && isDeck(v?.dare, game.cards.dare[level].length)),
+  )
 
   const ready = players.length >= game.minPlayers
 

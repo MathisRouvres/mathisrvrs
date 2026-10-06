@@ -1,11 +1,81 @@
-import { PARTY_BASE_PATH, PARTY_GAMES } from './games'
+import { useState } from 'react'
+import { PARTY_BASE_PATH, PARTY_GAMES, findGame } from './games'
+import { isLevel } from './engine'
+import { clearGame, lastSession } from './session'
+import { LEVEL_META } from './usePartySettings'
 import LevelPicker from './components/LevelPicker'
 import PartyLink from './components/PartyLink'
+import { btnPrimary } from './components/buttons'
+
+function ago(savedAt) {
+  const minutes = Math.max(1, Math.round((Date.now() - savedAt) / 60000))
+  return minutes < 60 ? `il y a ${minutes} min` : `il y a ${Math.floor(minutes / 60)} h`
+}
+
+/** Dernière partie de la session, à reprendre là où elle s'est arrêtée. */
+function ResumeBanner({ settings, navigate }) {
+  const [resume, setResume] = useState(() => {
+    const session = lastSession()
+    const game = session && findGame(session.slug)
+    return game ? { ...session, game } : null
+  })
+  if (!resume) return null
+
+  const { game, level, savedAt } = resume
+  const levelMeta = isLevel(level) ? LEVEL_META[level] : null
+
+  return (
+    <section aria-label="Partie en cours" className="glass-card flex flex-col gap-3 rounded-3xl p-4">
+      <div className="flex items-center gap-3">
+        <span
+          aria-hidden="true"
+          className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br ${game.gradient} text-2xl`}
+        >
+          {game.emoji}
+        </span>
+        <p className="min-w-0 flex-1 text-sm">
+          <span className="block text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+            Partie en cours
+          </span>
+          <span className="block truncate font-display text-base font-bold">{game.title}</span>
+          <span className="block text-[var(--text-secondary)]">
+            {levelMeta ? `${levelMeta.label} · ` : ''}
+            {ago(savedAt)}
+          </span>
+        </p>
+        <button
+          type="button"
+          aria-label={`Abandonner la partie de ${game.title}`}
+          onClick={() => {
+            clearGame(game.slug)
+            setResume(null)
+          }}
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-xl text-[var(--text-muted)] transition hover:bg-[var(--accent-soft)] hover:text-[var(--text-primary)]"
+        >
+          <span aria-hidden="true">×</span>
+        </button>
+      </div>
+      <PartyLink
+        href={`${PARTY_BASE_PATH}/${game.slug}`}
+        navigate={(to) => {
+          // La partie est sauvegardée pour son niveau : on y revient.
+          if (isLevel(level)) settings.setLevel(level)
+          navigate(to)
+        }}
+        className={`${btnPrimary} w-full`}
+      >
+        Reprendre la partie
+      </PartyLink>
+    </section>
+  )
+}
 
 /** Accueil des jeux de soirée : niveau commun et liste des jeux. */
 export default function PartyHub({ settings, navigate }) {
   return (
     <div className="flex flex-col gap-8">
+      <ResumeBanner settings={settings} navigate={navigate} />
+
       <section aria-labelledby="party-level-title">
         <h2 id="party-level-title" className="mb-3 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
           Niveau

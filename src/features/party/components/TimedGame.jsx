@@ -1,7 +1,8 @@
-import { useState } from 'react'
 import { advanceDeck, createDeck, currentCard } from '../engine'
+import { isDeck, isIntArray } from '../session'
+import { oneOf, useSessionState, when } from '../useSessionState'
 import { btnGhost, btnPrimary, cardEnter } from './buttons'
-import { buzz, useCountdown } from './useCountdown'
+import { buzz, chime, useCountdown } from './useCountdown'
 import Scoreboard from './Scoreboard'
 import { TEAMS } from './teams'
 
@@ -26,22 +27,36 @@ const RESULT_STYLE = {
 export default function TimedGame({ game, level }) {
   const cards = game.cards[level]
   const isTaboo = game.variant === 'taboo'
-  const [duration, setDuration] = useState(60)
-  const [phase, setPhase] = useState('ready')
-  const [team, setTeam] = useState(0)
-  const [scores, setScores] = useState([0, 0])
-  const [results, setResults] = useState([])
-  const [deck, setDeck] = useState(() => createDeck(cards.length))
+  const [duration, setDuration] = useSessionState('duration', 60, oneOf(DURATIONS))
+  // Chrono interrompu par un rechargement : la manche s'arrête là, on passe au récap.
+  const [phase, setPhase] = useSessionState(
+    'phase',
+    'ready',
+    oneOf(['ready', 'recap'], { countdown: 'ready', play: 'recap' }),
+  )
+  const [team, setTeam] = useSessionState('team', 0, oneOf([0, 1]))
+  const [scores, setScores] = useSessionState('scores', [0, 0], when((v) => isIntArray(v, 2)))
+  const [results, setResults] = useSessionState(
+    'results',
+    [],
+    when((v) => Array.isArray(v) && v.every((r) => typeof r?.word === 'string' && Object.hasOwn(RESULT_STYLE, r.result))),
+  )
+  const [deck, setDeck] = useSessionState('deck', () => createDeck(cards.length), when((v) => isDeck(v, cards.length)))
 
-  const timer = useCountdown((restart) => {
-    if (phase === 'countdown') {
-      setPhase('play')
-      restart(duration)
-    } else if (phase === 'play') {
-      buzz(400)
-      setPhase('recap')
-    }
-  })
+  const timer = useCountdown(
+    (restart) => {
+      if (phase === 'countdown') {
+        chime('go')
+        setPhase('play')
+        restart(duration)
+      } else if (phase === 'play') {
+        buzz(400)
+        chime('end')
+        setPhase('recap')
+      }
+    },
+    { ticks: 3 },
+  )
 
   const card = cards[currentCard(deck) ?? 0]
   const word = isTaboo ? card.word : card

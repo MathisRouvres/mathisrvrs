@@ -1,5 +1,7 @@
 import { useState } from 'react'
-import { advanceDeck, assignImpostors, createDeck, currentCard, maxImpostors, pickStarter } from '../engine'
+import { MAX_PLAYERS, advanceDeck, assignImpostors, createDeck, currentCard, maxImpostors, pickStarter } from '../engine'
+import { isBoolArray, isDeck, isIntIn } from '../session'
+import { oneOf, useSessionState, when } from '../useSessionState'
 import PlayersEditor from './PlayersEditor'
 import { btnGhost, btnPrimary, cardEnter } from './buttons'
 
@@ -10,12 +12,25 @@ import { btnGhost, btnPrimary, cardEnter } from './buttons'
  */
 export default function Impostor({ game, level, players, onPlayersChange }) {
   const words = game.cards[level]
-  const [phase, setPhase] = useState('setup')
-  const [impostorCount, setImpostorCount] = useState(1)
-  const [hint, setHint] = useState(true)
-  const [wordDeck, setWordDeck] = useState(() => createDeck(words.length))
-  const [round, setRound] = useState(null)
-  const [revealIndex, setRevealIndex] = useState(0)
+  const lastIndex = Math.max(0, players.length - 1)
+  const [phase, setPhase] = useSessionState('phase', 'setup', oneOf(['setup', 'reveal', 'discuss', 'result']))
+  const [impostorCount, setImpostorCount] = useSessionState('impostorCount', 1, when((v) => isIntIn(v, 1, MAX_PLAYERS)))
+  const [hint, setHint] = useSessionState('hint', true)
+  const [wordDeck, setWordDeck] = useSessionState('wordDeck', () => createDeck(words.length), when((v) => isDeck(v, words.length)))
+  // La manche n'est reprise que si elle correspond encore aux joueurs actuels.
+  const [round, setRound] = useSessionState(
+    'round',
+    null,
+    when(
+      (v) =>
+        isBoolArray(v?.impostors, players.length) &&
+        isIntIn(v.starter, 0, lastIndex) &&
+        typeof v.secret?.word === 'string' &&
+        (game.kind !== 'undercover' || typeof v.secret.decoy === 'string'),
+    ),
+  )
+  const [revealIndex, setRevealIndex] = useSessionState('revealIndex', 0, when((v) => isIntIn(v, 0, lastIndex)))
+  // Jamais sauvegardé : après un rechargement, le rôle affiché est recaché.
   const [shown, setShown] = useState(false)
 
   const ready = players.length >= game.minPlayers

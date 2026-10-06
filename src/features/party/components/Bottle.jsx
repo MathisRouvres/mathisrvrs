@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
+import { isIntIn } from '../session'
+import { useSessionState, when } from '../useSessionState'
 import { truths } from '../content/truths'
 import { dares } from '../content/dares'
 import PlayersEditor from './PlayersEditor'
@@ -20,11 +22,19 @@ const pick = (items) => items[Math.floor(Math.random() * items.length)]
 
 /** Jeu de la bouteille : elle tourne, désigne un joueur, qui choisit Action ou Vérité. */
 export default function Bottle({ game, level, players, onPlayersChange }) {
-  const [playing, setPlaying] = useState(false)
-  const [rotation, setRotation] = useState(0)
+  const [playing, setPlaying] = useSessionState('playing', false)
+  const [rotation, setRotation] = useSessionState('rotation', 0, when(Number.isFinite))
   const [spinning, setSpinning] = useState(false)
-  const [selected, setSelected] = useState(null)
-  const [prompt, setPrompt] = useState(null)
+  const [selected, setSelected] = useSessionState(
+    'selected',
+    null,
+    when((v) => isIntIn(v, 0, Math.max(0, players.length - 1))),
+  )
+  const [prompt, setPrompt] = useSessionState(
+    'prompt',
+    null,
+    when((v) => typeof v?.kind === 'string' && typeof v.text === 'string'),
+  )
   const [reduced, setReduced] = useState(false)
   const timeoutRef = useRef(null)
 

@@ -1,5 +1,6 @@
-import { useState } from 'react'
 import { createCardDeck } from '../engine'
+import { isCardDeck, isIntIn } from '../session'
+import { useSessionState, when } from '../useSessionState'
 import { KINGS_RULES, LAST_KING } from '../content/kings'
 import { btnGhost, btnPrimary, cardEnter } from './buttons'
 import PlayingCardFace from './PlayingCardFace'
@@ -8,8 +9,8 @@ const RANK_LABEL = { A: 'As', J: 'Valet', Q: 'Dame', K: 'Roi' }
 
 /** Jeu du Roi : 52 cartes, une règle par valeur, le 4e Roi termine la coupe. */
 export default function KingsGame({ game, level }) {
-  const [deck, setDeck] = useState(() => createCardDeck())
-  const [position, setPosition] = useState(-1)
+  const [deck, setDeck] = useSessionState('deck', () => createCardDeck(), when(isCardDeck))
+  const [position, setPosition] = useSessionState('position', -1, when((v) => isIntIn(v, -1, 51)))
 
   const card = position >= 0 ? deck[position] : null
   const kingsDrawn = deck.slice(0, position + 1).filter((c) => c.rank === 'K').length

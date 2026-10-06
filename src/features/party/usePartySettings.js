@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { isLevel, sanitizePlayers } from './engine'
+import { setPartySound } from './components/useCountdown'
 
 const STORAGE_KEY = 'party-settings-v1'
 
@@ -9,7 +10,7 @@ export const LEVEL_META = {
   hot: { label: 'Hot', emoji: '🔥', hint: '+18' },
 }
 
-const DEFAULTS = { level: 'soft', adult: false, players: [] }
+const DEFAULTS = { level: 'soft', adult: false, players: [], sound: true }
 
 /** Lecture défensive : le stockage peut être vide, bloqué ou corrompu. */
 function readSettings() {
@@ -19,13 +20,14 @@ function readSettings() {
     const adult = raw.adult === true
     const level = isLevel(raw.level) && (raw.level !== 'hot' || adult) ? raw.level : 'soft'
     const players = Array.isArray(raw.players) ? sanitizePlayers(raw.players) : []
-    return { level, adult, players }
+    const sound = raw.sound !== false
+    return { level, adult, players, sound }
   } catch {
     return DEFAULTS
   }
 }
 
-/** Réglages partagés par tous les jeux : niveau, confirmation +18, joueurs. */
+/** Réglages partagés par tous les jeux : niveau, confirmation +18, joueurs, son. */
 export function usePartySettings() {
   const [settings, setSettings] = useState(readSettings)
 
@@ -36,6 +38,10 @@ export function usePartySettings() {
       // Stockage indisponible (navigation privée) : les réglages restent en mémoire.
     }
   }, [settings])
+
+  useEffect(() => {
+    setPartySound(settings.sound)
+  }, [settings.sound])
 
   const setLevel = useCallback((level) => {
     setSettings((s) => (isLevel(level) && (level !== 'hot' || s.adult) ? { ...s, level } : s))
@@ -49,5 +55,9 @@ export function usePartySettings() {
     setSettings((s) => ({ ...s, players: sanitizePlayers(players) }))
   }, [])
 
-  return { ...settings, setLevel, confirmAdult, setPlayers }
+  const toggleSound = useCallback(() => {
+    setSettings((s) => ({ ...s, sound: !s.sound }))
+  }, [])
+
+  return { ...settings, setLevel, confirmAdult, setPlayers, toggleSound }
 }

@@ -1,5 +1,6 @@
-import { useState } from 'react'
-import { BUS_STEPS, CARD_SUITS, busCorrect, createCardDeck } from '../engine'
+import { BUS_STEPS, CARD_SUITS, MAX_PLAYERS, busCorrect, createCardDeck } from '../engine'
+import { isCardDeck, isIntIn, isPlayingCard } from '../session'
+import { oneOf, useSessionState, when } from '../useSessionState'
 import PlayersEditor from './PlayersEditor'
 import PlayingCardFace from './PlayingCardFace'
 import { btnGhost, btnPrimary, cardEnter } from './buttons'
@@ -54,19 +55,37 @@ function questionFor(step, drawn) {
  * dehors, enseigne). Une erreur coûte autant que l'étape atteinte.
  */
 export default function Bus({ level, players, onPlayersChange }) {
-  const [playing, setPlaying] = useState(false)
-  const [deck, setDeck] = useState(() => createCardDeck())
-  const [pos, setPos] = useState(0)
-  const [turn, setTurn] = useState(0)
-  const [drawn, setDrawn] = useState([])
-  const [status, setStatus] = useState('ask')
+  const [playing, setPlaying] = useSessionState('playing', false)
+  const [deck, setDeck] = useSessionState('deck', () => createCardDeck(), when(isCardDeck))
+  const [pos, setPos] = useSessionState('pos', 0, when((v) => isIntIn(v, 0, 52)))
+  const [turn, setTurn] = useSessionState('turn', 0, when((v) => isIntIn(v, 0, MAX_PLAYERS - 1)))
+  const [drawn, setDrawn] = useSessionState(
+    'drawn',
+    [],
+    when((v) => Array.isArray(v) && v.length <= BUS_STEPS.length && v.every(isPlayingCard)),
+  )
+  const [status, setStatus] = useSessionState('status', 'ask', oneOf(['ask', 'wrong', 'won']))
 
   const ready = players.length >= MIN_PLAYERS
   const step = drawn.length - (status === 'ask' ? 0 : 1)
   const player = players[turn % Math.max(players.length, 1)]
 
+  /** Il faut toujours 4 cartes d'avance au début d'un tour : sinon, on remélange. */
+  function refillDeck() {
+    if (pos + BUS_STEPS.length > deck.length) {
+      setDeck(createCardDeck())
+      setPos(0)
+    }
+  }
+
   function answer(value) {
     const card = deck[pos]
+    if (!card) {
+      // Filet de sécurité : paquet épuisé en plein tour, on remélange.
+      setDeck(createCardDeck())
+      setPos(0)
+      return
+    }
     const next = [...drawn, card]
     setDrawn(next)
     setPos((p) => p + 1)
@@ -75,11 +94,7 @@ export default function Bus({ level, players, onPlayersChange }) {
   }
 
   function nextPlayer() {
-    // Il faut toujours 4 cartes d'avance : sinon, on remélange.
-    if (pos + BUS_STEPS.length > deck.length) {
-      setDeck(createCardDeck())
-      setPos(0)
-    }
+    refillDeck()
     setDrawn([])
     setStatus('ask')
     setTurn((t) => (t + 1) % players.length)
@@ -94,6 +109,9 @@ export default function Bus({ level, players, onPlayersChange }) {
           className={`${btnPrimary} w-full`}
           disabled={!ready}
           onClick={() => {
+            // Reprise après « Modifier les joueurs » en plein tour : le paquet a
+            // pu descendre sous les 4 cartes nécessaires.
+            refillDeck()
             setTurn(0)
             setDrawn([])
             setStatus('ask')

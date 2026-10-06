@@ -1,21 +1,31 @@
-import { useState } from 'react'
 import { advanceDeck, createDeck, currentCard } from '../engine'
+import { isDeck } from '../session'
+import { oneOf, useSessionState, when } from '../useSessionState'
 import { btnGhost, btnPrimary, cardEnter } from './buttons'
-import { buzz, useCountdown } from './useCountdown'
+import { buzz, chime, useCountdown } from './useCountdown'
 
 const SECONDS = 5
 
 /** Le jeu des 5 secondes : citer 3 éléments avant la fin du chrono. */
 export default function FiveSeconds({ game, level }) {
   const cards = game.cards[level]
-  const [deck, setDeck] = useState(() => createDeck(cards.length))
-  const [phase, setPhase] = useState('ready')
-  const [tally, setTally] = useState({ won: 0, lost: 0 })
+  const [deck, setDeck] = useSessionState('deck', () => createDeck(cards.length), when((v) => isDeck(v, cards.length)))
+  // Chrono interrompu par un rechargement : la carte est considérée comme jouée.
+  const [phase, setPhase] = useSessionState('phase', 'ready', oneOf(['ready', 'done'], { play: 'done' }))
+  const [tally, setTally] = useSessionState(
+    'tally',
+    { won: 0, lost: 0 },
+    when((v) => Number.isInteger(v?.won) && Number.isInteger(v?.lost)),
+  )
 
-  const timer = useCountdown(() => {
-    buzz(400)
-    setPhase('done')
-  })
+  const timer = useCountdown(
+    () => {
+      buzz(400)
+      chime('end')
+      setPhase('done')
+    },
+    { ticks: SECONDS },
+  )
 
   const text = cards[currentCard(deck) ?? 0]
 

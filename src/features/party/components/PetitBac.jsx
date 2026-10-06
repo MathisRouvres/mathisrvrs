@@ -1,7 +1,7 @@
-import { useState } from 'react'
 import { drawLetter, pickSome } from '../engine'
+import { oneOf, useSessionState, when } from '../useSessionState'
 import { btnGhost, btnPrimary, cardEnter } from './buttons'
-import { buzz, useCountdown } from './useCountdown'
+import { buzz, chime, useCountdown } from './useCountdown'
 
 const DURATIONS = [
   { value: 60, label: '1 min' },
@@ -13,15 +13,30 @@ const COUNTS = [5, 6, 8, 10]
 /** Petit Bac : une lettre, des catégories, un chrono. Les réponses se notent sur papier. */
 export default function PetitBac({ game, level }) {
   const categories = game.cards[level]
-  const [count, setCount] = useState(6)
-  const [duration, setDuration] = useState(120)
-  const [round, setRound] = useState(null)
-  const [phase, setPhase] = useState('setup')
+  const [count, setCount] = useSessionState('count', 6, oneOf(COUNTS))
+  const [duration, setDuration] = useSessionState('duration', 120, oneOf(DURATIONS.map((d) => d.value)))
+  const [round, setRound] = useSessionState(
+    'round',
+    null,
+    when(
+      (v) =>
+        typeof v?.letter === 'string' &&
+        v.letter.length === 1 &&
+        Array.isArray(v.list) &&
+        v.list.every((c) => typeof c === 'string'),
+    ),
+  )
+  // Manche interrompue par un rechargement : stylos en l'air.
+  const [phase, setPhase] = useSessionState('phase', 'setup', oneOf(['setup', 'done'], { play: 'done' }))
 
-  const timer = useCountdown(() => {
-    buzz(500)
-    setPhase('done')
-  })
+  const timer = useCountdown(
+    () => {
+      buzz(500)
+      chime('end')
+      setPhase('done')
+    },
+    { ticks: 3 },
+  )
 
   function newRound() {
     setRound({ letter: drawLetter(Math.random, round?.letter), list: pickSome(categories, count) })
@@ -32,6 +47,7 @@ export default function PetitBac({ game, level }) {
   function stopRound() {
     timer.stop()
     buzz(200)
+    chime('end')
     setPhase('done')
   }
 

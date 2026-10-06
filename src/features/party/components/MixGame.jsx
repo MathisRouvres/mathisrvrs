@@ -1,13 +1,17 @@
-import { useState } from 'react'
 import { MIN_MIX_PLAYERS, buildMixCard } from '../mix'
+import { useSessionState, when } from '../useSessionState'
 import PlayersEditor from './PlayersEditor'
 import { btnGhost, btnPrimary, cardEnter } from './buttons'
 
 /** Mode Mix façon Picolo : toutes les cartes de la soirée, adressées aux joueurs. */
 export default function MixGame({ game, level, players, onPlayersChange }) {
-  const [playing, setPlaying] = useState(false)
-  const [card, setCard] = useState(null)
-  const [count, setCount] = useState(0)
+  const [playing, setPlaying] = useSessionState('playing', false)
+  const [card, setCard] = useSessionState(
+    'card',
+    null,
+    when((v) => typeof v?.label === 'string' && typeof v.text === 'string'),
+  )
+  const [count, setCount] = useSessionState('count', 0)
   const ready = players.length >= MIN_MIX_PLAYERS
 
   function next() {

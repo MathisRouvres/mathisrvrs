@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ThemeProvider } from '../../context/ThemeProvider'
+import { useScreenWakeLock } from '../../hooks/useScreenWakeLock'
 import { PARTY_BASE_PATH, findGame } from './games'
 import { usePartySettings } from './usePartySettings'
 import PartyHub from './PartyHub'
-import LevelPicker from './components/LevelPicker'
+import GameLevelControl from './components/GameLevelControl'
+import SessionScope from './components/SessionScope'
 import PartyLink from './components/PartyLink'
 import CardGame from './components/CardGame'
 import TruthOrDare from './components/TruthOrDare'
@@ -82,6 +84,8 @@ export default function PartyApp({ initialPath }) {
   const [path, setPath] = useState(() => cleanPath(initialPath))
   const settings = usePartySettings()
   const game = findGame(slugOf(path))
+  // Écran allumé pendant toute la partie (chrono, meneur du Loup-Garou…).
+  useScreenWakeLock(Boolean(game))
 
   const navigate = useCallback((to) => {
     window.history.pushState(null, '', to)
@@ -132,9 +136,21 @@ export default function PartyApp({ initialPath }) {
               {!game && <p className="text-xs text-[var(--text-secondary)]">Un téléphone, tout le groupe</p>}
             </div>
             {game ? (
-              <PartyLink href={PARTY_BASE_PATH} navigate={navigate} className={backClass}>
-                ← Soirée
-              </PartyLink>
+              <div className="flex shrink-0 items-center gap-2">
+                <button
+                  type="button"
+                  aria-pressed={settings.sound}
+                  aria-label="Son des chronos"
+                  title={settings.sound ? 'Son activé' : 'Son coupé'}
+                  onClick={settings.toggleSound}
+                  className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--border-color)] text-base transition hover:border-[var(--accent)]"
+                >
+                  <span aria-hidden="true">{settings.sound ? '🔊' : '🔇'}</span>
+                </button>
+                <PartyLink href={PARTY_BASE_PATH} navigate={navigate} className={backClass}>
+                  ← Soirée
+                </PartyLink>
+              </div>
             ) : (
               <a href="/games" className={backClass}>
                 ← Jeux
@@ -147,7 +163,7 @@ export default function PartyApp({ initialPath }) {
           {game ? (
             <div className="flex flex-col gap-5">
               {!game.noLevels && (
-                <LevelPicker
+                <GameLevelControl
                   level={settings.level}
                   adult={settings.adult}
                   onChange={settings.setLevel}
@@ -172,7 +188,10 @@ export default function PartyApp({ initialPath }) {
                   ))}
                 </ol>
               </details>
-              <GameBody game={game} settings={settings} />
+              {/* Sauvegarde de la partie, liée au niveau : en changer repart de zéro. */}
+              <SessionScope slug={game.slug} level={game.noLevels ? 'all' : settings.level}>
+                <GameBody game={game} settings={settings} />
+              </SessionScope>
             </div>
           ) : (
             <PartyHub settings={settings} navigate={navigate} />

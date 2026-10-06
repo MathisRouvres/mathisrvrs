@@ -1,11 +1,10 @@
 import { useEffect, useState, useCallback } from 'react'
 import { WAKELOCK_CONSENT_KEY } from './pwaEnv'
+import { useScreenWakeLock, wakeLockSupported } from '../../../hooks/useScreenWakeLock'
 
 const CONSENT_EVENT = 'mv-wakelock-change'
 
-export function wakeLockSupported() {
-  return typeof navigator !== 'undefined' && 'wakeLock' in navigator
-}
+export { wakeLockSupported }
 
 export function readWakeLockConsent() {
   try {
@@ -56,37 +55,5 @@ export function useWakeLock(active) {
     return () => window.removeEventListener(CONSENT_EVENT, onChange)
   }, [])
 
-  useEffect(() => {
-    if (!active || !consent || !wakeLockSupported()) return undefined
-    let sentinel = null
-    let released = false
-
-    const acquire = async () => {
-      if (document.visibilityState !== 'visible') return
-      try {
-        sentinel = await navigator.wakeLock.request('screen')
-        sentinel.addEventListener?.('release', () => {
-          sentinel = null
-        })
-      } catch {
-        /* refus système / batterie faible : on abandonne sans bruit */
-      }
-    }
-
-    const onVisibility = () => {
-      if (document.visibilityState === 'visible' && !sentinel && !released) acquire()
-    }
-
-    acquire()
-    document.addEventListener('visibilitychange', onVisibility)
-
-    return () => {
-      released = true
-      document.removeEventListener('visibilitychange', onVisibility)
-      if (sentinel) {
-        sentinel.release?.().catch(() => {})
-        sentinel = null
-      }
-    }
-  }, [active, consent])
+  useScreenWakeLock(active && consent)
 }

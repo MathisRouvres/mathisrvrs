@@ -1,5 +1,6 @@
-import { useState } from 'react'
 import { advanceDeck, createDeck, currentCard } from '../engine'
+import { isDeck, isIntArray } from '../session'
+import { oneOf, useSessionState, when } from '../useSessionState'
 import Scoreboard from './Scoreboard'
 import { TEAMS } from './teams'
 import { btnGhost, btnPrimary, cardEnter } from './buttons'
@@ -7,10 +8,10 @@ import { btnGhost, btnPrimary, cardEnter } from './buttons'
 /** Quiz de culture G en deux équipes : question, réponse, point. */
 export default function Quiz({ game, level }) {
   const questions = game.cards[level]
-  const [deck, setDeck] = useState(() => createDeck(questions.length))
-  const [revealed, setRevealed] = useState(false)
-  const [team, setTeam] = useState(0)
-  const [scores, setScores] = useState([0, 0])
+  const [deck, setDeck] = useSessionState('deck', () => createDeck(questions.length), when((v) => isDeck(v, questions.length)))
+  const [revealed, setRevealed] = useSessionState('revealed', false)
+  const [team, setTeam] = useSessionState('team', 0, oneOf([0, 1]))
+  const [scores, setScores] = useSessionState('scores', [0, 0], when((v) => isIntArray(v, 2)))
 
   const item = questions[currentCard(deck) ?? 0]
 

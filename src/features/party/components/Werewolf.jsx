@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { MIN_WEREWOLF_PLAYERS, dealWerewolfRoles, werewolfCount, werewolfWinner } from '../engine'
+import { isBoolArray, isIntIn } from '../session'
+import { oneOf, useSessionState, when } from '../useSessionState'
 import { NIGHT_STEPS, WEREWOLF_ROLES, WEREWOLF_SPECIALS } from '../content/werewolf'
 import PlayersEditor from './PlayersEditor'
 import { btnGhost, btnPrimary, cardEnter } from './buttons'
@@ -11,14 +13,28 @@ const DEFAULT_SPECIALS = ['seer', 'witch', 'hunter']
  * (qui ne joue pas) garde le téléphone et suit le script de la nuit.
  */
 export default function Werewolf({ game, players, onPlayersChange }) {
-  const [phase, setPhase] = useState('setup')
-  const [specials, setSpecials] = useState(DEFAULT_SPECIALS)
-  const [roles, setRoles] = useState([])
-  const [alive, setAlive] = useState([])
-  const [revealIndex, setRevealIndex] = useState(0)
+  const [phase, setPhase] = useSessionState('phase', 'setup', oneOf(['setup', 'reveal', 'handover', 'narrate']))
+  const [specials, setSpecials] = useSessionState(
+    'specials',
+    DEFAULT_SPECIALS,
+    when((v) => Array.isArray(v) && v.every((id) => WEREWOLF_SPECIALS.includes(id))),
+  )
+  // Rôles et vivants ne sont repris que s'ils correspondent encore aux joueurs.
+  const [roles, setRoles] = useSessionState(
+    'roles',
+    [],
+    when((v) => Array.isArray(v) && v.length === players.length && v.every((r) => Object.hasOwn(WEREWOLF_ROLES, r))),
+  )
+  const [alive, setAlive] = useSessionState('alive', [], when((v) => isBoolArray(v, players.length)))
+  const [revealIndex, setRevealIndex] = useSessionState(
+    'revealIndex',
+    0,
+    when((v) => isIntIn(v, 0, Math.max(0, players.length - 1))),
+  )
+  // Jamais sauvegardé : après un rechargement, le rôle affiché est recaché.
   const [shown, setShown] = useState(false)
-  const [night, setNight] = useState(1)
-  const [step, setStep] = useState(0)
+  const [night, setNight] = useSessionState('night', 1, when((v) => isIntIn(v, 1, 999)))
+  const [step, setStep] = useSessionState('step', 0, when((v) => isIntIn(v, 0, 99)))
 
   const ready = players.length >= MIN_WEREWOLF_PLAYERS
   const wolves = werewolfCount(Math.max(players.length, MIN_WEREWOLF_PLAYERS))
