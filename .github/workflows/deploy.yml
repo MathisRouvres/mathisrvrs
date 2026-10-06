@@ -39,6 +39,16 @@ jobs:
           test -d dist/assets
           ls -la dist
 
+      # L'hébergement OVH est à la limite de son quota disque (553 Disk quota
+      # exceeded). HEXLAND est servi en Brotli (catan/.htaccess réécrit vers
+      # index.wasm.br dès que le navigateur accepte br, soit tous les navigateurs
+      # actuels en HTTPS) : la copie brute de 39 Mo n'est jamais téléchargée.
+      - name: Drop uncompressed HEXLAND wasm
+        run: |
+          test -f dist/catan/index.wasm.br
+          rm dist/catan/index.wasm
+          du -sh dist
+
       - name: Deploy to OVH
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
