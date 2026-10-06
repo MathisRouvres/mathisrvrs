@@ -2,9 +2,10 @@ import { useState } from 'react'
 import { advanceDeck, createDeck, currentCard } from '../engine'
 import { btnGhost, btnPrimary, cardEnter } from './buttons'
 import { buzz, useCountdown } from './useCountdown'
+import Scoreboard from './Scoreboard'
+import { TEAMS } from './teams'
 
 const DURATIONS = [30, 60, 90]
-const TEAMS = ['Équipe 1', 'Équipe 2']
 
 const INSTRUCTIONS = {
   headsUp: 'Un joueur pose le téléphone sur son front, écran vers son équipe. Les autres lui font deviner le mot sans le dire.',
@@ -64,21 +65,7 @@ export default function TimedGame({ game, level }) {
     setPhase('ready')
   }
 
-  const scoreboard = (
-    <div className="grid grid-cols-2 gap-3">
-      {TEAMS.map((name, i) => (
-        <div
-          key={name}
-          className={`rounded-2xl border p-3 text-center transition ${
-            i === team ? 'border-[var(--accent)] bg-[var(--accent-soft)]' : 'border-[var(--border-color)] bg-[var(--bg-elevated)]'
-          }`}
-        >
-          <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">{name}</p>
-          <p className="font-display text-3xl font-bold">{scores[i]}</p>
-        </div>
-      ))}
-    </div>
-  )
+  const scoreboard = <Scoreboard scores={scores} active={team} />
 
   if (phase === 'ready') {
     return (

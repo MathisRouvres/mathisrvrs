@@ -171,6 +171,54 @@ export interface PlayingCard {
   suit: CardSuit
 }
 
+/** Valeur d'une carte : l'As est la plus forte (14). */
+export function cardValue(rank: CardRank): number {
+  const faces: Partial<Record<CardRank, number>> = { J: 11, Q: 12, K: 13, A: 14 }
+  return faces[rank] ?? Number(rank)
+}
+
+export function isRedSuit(suit: CardSuit): boolean {
+  return suit === '♥' || suit === '♦'
+}
+
+/* ------------------------------------------------------------------ */
+/* Le Bus                                                              */
+/* ------------------------------------------------------------------ */
+
+export type BusAnswer = 'red' | 'black' | 'higher' | 'lower' | 'inside' | 'outside' | CardSuit
+
+/** Les quatre questions du Bus, dans l'ordre. */
+export const BUS_STEPS = ['color', 'higherLower', 'insideOutside', 'suit'] as const
+
+/**
+ * Vérifie la réponse à l'étape `step`, `drawn` contenant les cartes déjà
+ * retournées, la dernière étant celle qui vient de sortir. Une égalité perd.
+ */
+export function busCorrect(step: number, drawn: readonly PlayingCard[], answer: BusAnswer): boolean {
+  const card = drawn[step]
+  if (!card) return false
+  const value = cardValue(card.rank)
+  switch (BUS_STEPS[step]) {
+    case 'color':
+      return answer === (isRedSuit(card.suit) ? 'red' : 'black')
+    case 'higherLower': {
+      const first = cardValue(drawn[0]!.rank)
+      return (answer === 'higher' && value > first) || (answer === 'lower' && value < first)
+    }
+    case 'insideOutside': {
+      const a = cardValue(drawn[0]!.rank)
+      const b = cardValue(drawn[1]!.rank)
+      const lo = Math.min(a, b)
+      const hi = Math.max(a, b)
+      return (answer === 'inside' && value > lo && value < hi) || (answer === 'outside' && (value < lo || value > hi))
+    }
+    case 'suit':
+      return answer === card.suit
+    default:
+      return false
+  }
+}
+
 /** Paquet de 52 cartes mélangé. */
 export function createCardDeck(rng: Rng = Math.random): PlayingCard[] {
   return shuffle(

@@ -5,8 +5,12 @@ import {
   MAX_PLAYERS,
   MIN_WEREWOLF_PLAYERS,
   PETIT_BAC_LETTERS,
+  type CardRank,
+  type CardSuit,
   advanceDeck,
   assignImpostors,
+  busCorrect,
+  cardValue,
   createCardDeck,
   createDeck,
   currentCard,
@@ -19,7 +23,7 @@ import {
   werewolfCount,
   werewolfWinner,
 } from './engine'
-import { PARTY_BASE_PATH, PARTY_GAMES, findGame } from './games'
+import { HUB_ORDER, PARTY_BASE_PATH, PARTY_GAMES, findGame } from './games'
 import { buildMixCard } from './mix'
 import { KINGS_RULES, LAST_KING } from './content/kings'
 import { NIGHT_STEPS, WEREWOLF_ROLES } from './content/werewolf'
@@ -171,7 +175,46 @@ describe('Jeux de soirée — Petit Bac, Jeu du Roi, Mix', () => {
   })
 })
 
+describe('Jeux de soirée — Le Bus', () => {
+  const c = (rank: CardRank, suit: CardSuit) => ({ rank, suit })
+
+  it('rouge ou noir', () => {
+    expect(busCorrect(0, [c('7', '♥')], 'red')).toBe(true)
+    expect(busCorrect(0, [c('7', '♣')], 'red')).toBe(false)
+    expect(busCorrect(0, [c('7', '♠')], 'black')).toBe(true)
+  })
+
+  it('plus haut ou plus bas, l’As est le plus fort et l’égalité perd', () => {
+    expect(busCorrect(1, [c('7', '♥'), c('A', '♠')], 'higher')).toBe(true)
+    expect(busCorrect(1, [c('7', '♥'), c('2', '♠')], 'lower')).toBe(true)
+    expect(busCorrect(1, [c('7', '♥'), c('7', '♠')], 'higher')).toBe(false)
+    expect(busCorrect(1, [c('7', '♥'), c('7', '♠')], 'lower')).toBe(false)
+    expect(cardValue('A')).toBe(14)
+    expect(cardValue('J')).toBe(11)
+  })
+
+  it('entre les deux ou à l’extérieur, bornes perdantes', () => {
+    const base = [c('4', '♥'), c('Q', '♠')]
+    expect(busCorrect(2, [...base, c('9', '♦')], 'inside')).toBe(true)
+    expect(busCorrect(2, [...base, c('K', '♦')], 'outside')).toBe(true)
+    expect(busCorrect(2, [...base, c('2', '♦')], 'outside')).toBe(true)
+    expect(busCorrect(2, [...base, c('4', '♦')], 'inside')).toBe(false)
+    expect(busCorrect(2, [...base, c('4', '♦')], 'outside')).toBe(false)
+  })
+
+  it('l’enseigne', () => {
+    const drawn = [c('4', '♥'), c('Q', '♠'), c('9', '♦'), c('3', '♣')]
+    expect(busCorrect(3, drawn, '♣')).toBe(true)
+    expect(busCorrect(3, drawn, '♥')).toBe(false)
+  })
+})
+
 describe('Jeux de soirée — catalogue', () => {
+  it('le classement par popularité couvre chaque jeu une seule fois', () => {
+    expect([...HUB_ORDER].sort()).toEqual(PARTY_GAMES.map((g) => g.slug).sort())
+    expect(PARTY_GAMES.map((g) => g.slug)).toEqual(HUB_ORDER)
+  })
+
   it('a des slugs uniques et retrouvables', () => {
     const slugs = PARTY_GAMES.map((g) => g.slug)
     expect(new Set(slugs).size).toBe(slugs.length)
@@ -194,9 +237,15 @@ describe('Jeux de soirée — catalogue', () => {
               ? LEVELS.map((l) => game.cards[l].map(([a, b]) => `${a} | ${b}`))
               : game.kind === 'timed' && game.variant === 'taboo'
                 ? LEVELS.map((l) => game.cards[l].map((c) => c.word))
-                : game.kind === 'deck' || game.kind === 'timed' || game.kind === 'petit-bac'
-                  ? LEVELS.map((l) => game.cards[l])
-                  : []
+                : game.kind === 'quiz'
+                  ? LEVELS.map((l) => game.cards[l].map((q) => q.question))
+                  : game.kind === 'deck' ||
+                      game.kind === 'timed' ||
+                      game.kind === 'petit-bac' ||
+                      game.kind === 'five-seconds' ||
+                      game.kind === 'yes-no'
+                    ? LEVELS.map((l) => game.cards[l])
+                    : []
 
       for (const pool of pools) {
         expect(pool.length, game.slug).toBeGreaterThanOrEqual(150)

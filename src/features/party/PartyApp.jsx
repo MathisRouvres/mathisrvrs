@@ -13,6 +13,11 @@ import PetitBac from './components/PetitBac'
 import Werewolf from './components/Werewolf'
 import MixGame from './components/MixGame'
 import KingsGame from './components/KingsGame'
+import FiveSeconds from './components/FiveSeconds'
+import YesNo from './components/YesNo'
+import Quiz from './components/Quiz'
+import Bottle from './components/Bottle'
+import Bus from './components/Bus'
 
 function cleanPath(pathname) {
   return pathname.replace(/\/+$/, '') || '/'
@@ -42,6 +47,16 @@ function GameBody({ game, settings }) {
       return <PetitBac key={key} game={game} level={settings.level} />
     case 'kings':
       return <KingsGame key={key} game={game} level={settings.level} />
+    case 'five-seconds':
+      return <FiveSeconds key={key} game={game} level={settings.level} />
+    case 'yes-no':
+      return <YesNo key={key} game={game} level={settings.level} />
+    case 'quiz':
+      return <Quiz key={key} game={game} level={settings.level} />
+    case 'bottle':
+      return <Bottle key={key} {...shared} />
+    case 'bus':
+      return <Bus key={key} {...shared} />
     default:
       return <CardGame key={key} game={game} level={settings.level} />
   }

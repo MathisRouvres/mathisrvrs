@@ -2,9 +2,9 @@ import { useState } from 'react'
 import { createCardDeck } from '../engine'
 import { KINGS_RULES, LAST_KING } from '../content/kings'
 import { btnGhost, btnPrimary, cardEnter } from './buttons'
+import PlayingCardFace from './PlayingCardFace'
 
 const RANK_LABEL = { A: 'As', J: 'Valet', Q: 'Dame', K: 'Roi' }
-const RED_SUITS = new Set(['♥', '♦'])
 
 /** Jeu du Roi : 52 cartes, une règle par valeur, le 4e Roi termine la coupe. */
 export default function KingsGame({ game, level }) {
@@ -32,15 +32,7 @@ export default function KingsGame({ game, level }) {
       {card ? (
         <div key={position} aria-live="polite" className={`flex flex-col gap-4 ${cardEnter}`}>
           <div className="flex items-center gap-4">
-            <div
-              aria-hidden="true"
-              className={`flex h-28 w-20 shrink-0 flex-col items-center justify-center rounded-xl border border-black/10 bg-white text-3xl font-bold shadow-lg ${
-                RED_SUITS.has(card.suit) ? 'text-rose-600' : 'text-slate-900'
-              }`}
-            >
-              <span>{card.rank}</span>
-              <span>{card.suit}</span>
-            </div>
+            <PlayingCardFace card={card} />
             <div>
               <p className="text-sm text-[var(--text-secondary)]">
                 {RANK_LABEL[card.rank] ?? card.rank} {card.suit}

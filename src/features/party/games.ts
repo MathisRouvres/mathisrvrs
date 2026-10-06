@@ -14,6 +14,9 @@ import { mimes } from './content/mimes'
 import { tabooCards, type TabooCard } from './content/taboo'
 import { petitBacCategories } from './content/petitBac'
 import { undercoverPairs } from './content/undercover'
+import { fiveSeconds } from './content/fiveSeconds'
+import { yesNoQuestions } from './content/yesNo'
+import { quizQuestions, type QuizQuestion } from './content/quiz'
 
 export const PARTY_BASE_PATH = '/games/soiree'
 
@@ -89,7 +92,37 @@ export interface KingsPartyGame extends GameBase {
   kind: 'kings'
 }
 
+export interface FiveSecondsGame extends GameBase {
+  kind: 'five-seconds'
+  prefix: string
+  cards: Record<Level, string[]>
+}
+
+export interface YesNoGame extends GameBase {
+  kind: 'yes-no'
+  cards: Record<Level, string[]>
+}
+
+export interface QuizGame extends GameBase {
+  kind: 'quiz'
+  cards: Record<Level, QuizQuestion[]>
+}
+
+/** Jeu de la bouteille : pioche Actions et Vérités existantes. */
+export interface BottleGame extends GameBase {
+  kind: 'bottle'
+}
+
+export interface BusGame extends GameBase {
+  kind: 'bus'
+}
+
 export type PartyGame =
+  | FiveSecondsGame
+  | YesNoGame
+  | QuizGame
+  | BottleGame
+  | BusGame
   | DeckGame
   | ChoiceGame
   | TruthOrDareGame
@@ -385,24 +418,106 @@ const GAMES: PartyGame[] = [
       'Celui qui tire le quatrième Roi relève la coupe du roi.',
     ],
   },
+  {
+    kind: 'bottle',
+    slug: 'bouteille',
+    title: 'Jeu de la bouteille',
+    emoji: '🍾',
+    tagline: 'Elle tourne, elle désigne : action ou vérité.',
+    gradient: 'from-emerald-600 to-green-900',
+    minPlayers: 2,
+    rules: [
+      'Ajoutez les joueurs : ils se placent autour de la bouteille.',
+      'Faites-la tourner : la personne désignée choisit Action ou Vérité.',
+      'Toute action qui implique quelqu’un se fait avec son accord. On peut toujours passer.',
+    ],
+  },
+  {
+    kind: 'quiz',
+    slug: 'quiz',
+    title: 'Quiz culture G',
+    emoji: '🧠',
+    tagline: 'Deux équipes, des questions, un champion.',
+    gradient: 'from-blue-500 to-indigo-700',
+    minPlayers: 2,
+    rules: [
+      'Formez deux équipes qui répondent chacune à leur tour.',
+      'Lisez la question, l’équipe répond à voix haute, puis révélez la réponse.',
+      'Bonne réponse : +1. Soft : culture générale, Épicé : culture soirée et pop, Hot : culture coquine.',
+    ],
+    cards: quizQuestions,
+  },
+  {
+    kind: 'bus',
+    slug: 'le-bus',
+    title: 'Le Bus',
+    emoji: '🚌',
+    tagline: 'Rouge ou noir, plus ou moins… ne rate pas l’arrêt.',
+    gradient: 'from-sky-600 to-blue-900',
+    minPlayers: 2,
+    rules: [
+      'Chaque joueur répond à quatre questions sur les cartes qui sortent : rouge ou noir, plus haut ou plus bas, entre ou dehors, puis l’enseigne.',
+      'Une égalité compte comme une erreur.',
+      'Une erreur coûte autant que l’étape atteinte (1 à 4). Quatre bonnes réponses : tu descends du bus.',
+    ],
+  },
+  {
+    kind: 'five-seconds',
+    slug: 'cinq-secondes',
+    title: 'Le jeu des 5 secondes',
+    emoji: '⏱️',
+    tagline: 'Cite 3 réponses… en 5 secondes chrono.',
+    gradient: 'from-cyan-400 to-sky-700',
+    minPlayers: 2,
+    prefix: 'Cite 3…',
+    rules: [
+      'Lisez la carte au joueur dont c’est le tour, puis lancez le chrono.',
+      'Il doit citer 3 réponses en 5 secondes, sans hésiter.',
+      'Raté : gage, gorgée ou point pour les autres, selon vos règles.',
+    ],
+    cards: fiveSeconds,
+  },
+  {
+    kind: 'yes-no',
+    slug: 'ni-oui-ni-non',
+    title: 'Ni oui ni non',
+    emoji: '🤐',
+    tagline: 'Tiens le chrono sans jamais dire oui ni non.',
+    gradient: 'from-lime-500 to-green-700',
+    minPlayers: 2,
+    rules: [
+      'Un joueur se met sur la sellette, les autres lui posent les questions affichées.',
+      'Interdit de dire « oui », « non », ou de hocher la tête.',
+      'Il gagne s’il tient jusqu’à la fin du chrono.',
+    ],
+    cards: yesNoQuestions,
+  },
 ]
 
-/** Ordre d'affichage sur l'accueil : les grands classiques d'abord. */
-const HUB_ORDER = [
-  'loup-garou',
-  'undercover',
-  'mot-interdit',
-  'devine-tete',
-  'je-n-ai-jamais',
+/**
+ * Ordre d'affichage : du jeu de soirée le plus joué au moins joué. Classement
+ * fixe, estimé d'après la notoriété des jeux en France (pas de comptage réel).
+ */
+export const HUB_ORDER = [
   'action-ou-verite',
-  'jeu-du-roi',
-  'mix',
-  'imposteur',
+  'je-n-ai-jamais',
+  'loup-garou',
+  'tu-preferes',
   'mimes',
   'petit-bac',
-  'tu-preferes',
   'qui-pourrait',
+  'bouteille',
+  'undercover',
+  'quiz',
+  'mot-interdit',
+  'jeu-du-roi',
+  'le-bus',
+  'devine-tete',
+  'cinq-secondes',
+  'imposteur',
+  'ni-oui-ni-non',
   'paranoia',
+  'mix',
   'c-est-un-10-mais',
   'qui-de-nous-deux',
   'defis-express',

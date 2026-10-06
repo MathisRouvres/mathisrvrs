@@ -20,10 +20,10 @@ export default function PartyHub({ settings, navigate }) {
 
       <section aria-labelledby="party-games-title">
         <h2 id="party-games-title" className="mb-3 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
-          {PARTY_GAMES.length} jeux
+          {PARTY_GAMES.length} jeux · du plus joué au moins joué
         </h2>
-        <ul className="grid gap-3 sm:grid-cols-2">
-          {PARTY_GAMES.map((game) => (
+        <ol className="grid gap-3 sm:grid-cols-2">
+          {PARTY_GAMES.map((game, index) => (
             <li key={game.slug}>
               <PartyLink
                 href={`${PARTY_BASE_PATH}/${game.slug}`}
@@ -41,12 +41,17 @@ export default function PartyHub({ settings, navigate }) {
                     {game.title}
                   </span>
                   <span className="mt-1 block text-sm text-[var(--text-secondary)]">{game.tagline}</span>
-                  <span className="mt-1 block text-xs text-[var(--text-muted)]">{game.minPlayers}+ joueurs</span>
+                  <span className="mt-1 block text-xs text-[var(--text-muted)]">
+                    <span className="font-semibold text-[var(--accent)]">n° {index + 1}</span> · {game.minPlayers}+ joueurs
+                  </span>
                 </span>
               </PartyLink>
             </li>
           ))}
-        </ul>
+        </ol>
+        <p className="mt-3 text-xs text-[var(--text-muted)]">
+          Classement estimé d’après la popularité de ces jeux en soirée.
+        </p>
       </section>
 
       <p className="text-center text-xs text-[var(--text-muted)]">
