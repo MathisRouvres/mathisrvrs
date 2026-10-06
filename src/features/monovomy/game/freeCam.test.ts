@@ -81,7 +81,7 @@ describe('freeCam', () => {
     const vues: boolean[] = []
     ;(globalThis.window as unknown as Window).addEventListener(
       'mv-freecam-change',
-      ((e: CustomEvent) => vues.push(Boolean(e.detail))) as EventListener,
+      ((e: CustomEvent) => vues.push(Boolean(e.detail))) as unknown as EventListener,
     )
     setFreeCam(true)
     setFreeCam(false)

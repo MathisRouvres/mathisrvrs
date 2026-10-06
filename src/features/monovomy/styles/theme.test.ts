@@ -16,7 +16,7 @@ function ruleBlocks(source: string) {
   const out: { selector: string; body: string }[] = []
   const re = /([^{}]+)\{([^{}]*)\}/g
   let m: RegExpExecArray | null
-  while ((m = re.exec(source))) out.push({ selector: m[1].trim(), body: m[2] })
+  while ((m = re.exec(source))) out.push({ selector: (m[1] ?? '').trim(), body: m[2] ?? '' })
   return out
 }
 
