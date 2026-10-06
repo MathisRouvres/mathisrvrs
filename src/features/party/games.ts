@@ -17,6 +17,7 @@ import { undercoverPairs } from './content/undercover'
 import { fiveSeconds } from './content/fiveSeconds'
 import { yesNoQuestions } from './content/yesNo'
 import { quizQuestions, type QuizQuestion } from './content/quiz'
+import { wheelForfeits, type WheelForfeit } from './content/wheel'
 
 export { PARTY_BASE_PATH } from './paths'
 
@@ -117,7 +118,31 @@ export interface BusGame extends GameBase {
   kind: 'bus'
 }
 
+/** Patate chaude : catégories du jeu des 5 secondes, mèche à durée secrète. */
+export interface HotPotatoGame extends GameBase {
+  kind: 'hot-potato'
+  prefix: string
+  cards: Record<Level, string[]>
+}
+
+export interface DealerGame extends GameBase {
+  kind: 'dealer'
+}
+
+export interface PyramidGame extends GameBase {
+  kind: 'pyramid'
+}
+
+export interface WheelGame extends GameBase {
+  kind: 'wheel'
+  cards: Record<Level, WheelForfeit[]>
+}
+
 export type PartyGame =
+  | HotPotatoGame
+  | DealerGame
+  | PyramidGame
+  | WheelGame
   | FiveSecondsGame
   | YesNoGame
   | QuizGame
@@ -492,6 +517,67 @@ const GAMES: PartyGame[] = [
     ],
     cards: yesNoQuestions,
   },
+  {
+    kind: 'pyramid',
+    slug: 'pyramide',
+    title: 'La Pyramide',
+    emoji: '🔺',
+    tagline: 'Quatre cartes en tête, une pyramide, du bluff.',
+    gradient: 'from-amber-500 to-orange-700',
+    minPlayers: 2,
+    rules: [
+      'Chacun découvre et mémorise ses 4 cartes en secret, en se passant le téléphone.',
+      'La pyramide de 15 cartes se retourne de la base au sommet : l’étage donne la pénalité (1 à 5).',
+      'Qui a la valeur retournée la distribue. On peut bluffer : en cas d’accusation, l’appli tranche et le perdant prend le double.',
+      'À la fin, chacun récite ses cartes avant la révélation.',
+    ],
+  },
+  {
+    kind: 'hot-potato',
+    slug: 'patate-chaude',
+    title: 'Patate chaude',
+    emoji: '💣',
+    tagline: 'Un mot, on passe… jusqu’à l’explosion.',
+    gradient: 'from-red-600 to-orange-500',
+    minPlayers: 3,
+    prefix: 'À tour de rôle, cite des…',
+    rules: [
+      'Allumez la mèche : sa durée est secrète.',
+      'Chacun cite un mot de la catégorie, puis passe le téléphone à son voisin.',
+      'Celui qui tient le téléphone quand la bombe explose prend la pénalité.',
+    ],
+    cards: fiveSeconds,
+  },
+  {
+    kind: 'wheel',
+    slug: 'roue-des-gages',
+    title: 'Roue des gages',
+    emoji: '🎡',
+    tagline: 'Fais tourner, subis le gage.',
+    gradient: 'from-pink-500 to-violet-700',
+    minPlayers: 2,
+    rules: [
+      'Chacun son tour, lance la roue et relève le gage de la case.',
+      'Cases bonus : Joker (dispensé), Tu choisis, Rejoue, Tout le monde.',
+      'Tout gage qui implique quelqu’un se fait avec son accord. On peut toujours passer.',
+    ],
+    cards: wheelForfeits,
+  },
+  {
+    kind: 'dealer',
+    slug: 'croupier',
+    title: 'Le Croupier',
+    emoji: '🃏',
+    tagline: 'Devine la carte en deux essais.',
+    gradient: 'from-emerald-700 to-teal-900',
+    minPlayers: 3,
+    rules: [
+      'Le croupier tient le paquet, le joueur devine la valeur de la carte (As = 1, Roi = 13).',
+      'Raté ? Le croupier dit « plus haut » ou « plus bas », second essai.',
+      'Trouvé : le croupier prend la pénalité (2 au premier essai, 1 au second). Raté : le joueur prend l’écart (5 maximum).',
+      'Trois ratés d’affilée et le croupier passe le paquet.',
+    ],
+  },
 ]
 
 /**
@@ -511,9 +597,13 @@ export const HUB_ORDER = [
   'quiz',
   'mot-interdit',
   'jeu-du-roi',
+  'pyramide',
   'le-bus',
+  'patate-chaude',
   'devine-tete',
   'cinq-secondes',
+  'roue-des-gages',
+  'croupier',
   'imposteur',
   'ni-oui-ni-non',
   'paranoia',

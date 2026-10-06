@@ -18,6 +18,10 @@ import YesNo from './components/YesNo'
 import Quiz from './components/Quiz'
 import Bottle from './components/Bottle'
 import Bus from './components/Bus'
+import HotPotato from './components/HotPotato'
+import Dealer from './components/Dealer'
+import Pyramid from './components/Pyramid'
+import Wheel from './components/Wheel'
 
 function cleanPath(pathname) {
   return pathname.replace(/\/+$/, '') || '/'
@@ -57,6 +61,14 @@ function GameBody({ game, settings }) {
       return <Bottle key={key} {...shared} />
     case 'bus':
       return <Bus key={key} {...shared} />
+    case 'hot-potato':
+      return <HotPotato key={key} game={game} level={settings.level} />
+    case 'wheel':
+      return <Wheel key={key} game={game} level={settings.level} />
+    case 'dealer':
+      return <Dealer key={key} {...shared} />
+    case 'pyramid':
+      return <Pyramid key={key} {...shared} />
     default:
       return <CardGame key={key} game={game} level={settings.level} />
   }

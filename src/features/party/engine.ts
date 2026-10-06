@@ -226,3 +226,89 @@ export function createCardDeck(rng: Rng = Math.random): PlayingCard[] {
     rng,
   )
 }
+
+/* ------------------------------------------------------------------ */
+/* Le Croupier                                                         */
+/* ------------------------------------------------------------------ */
+
+/** Pénalité maximale d'une erreur au Croupier, par modération. */
+export const DEALER_MAX_PENALTY = 5
+/** Le croupier passe la main après ce nombre d'erreurs d'affilée des joueurs. */
+export const DEALER_MISSES_TO_PASS = 3
+
+/** Au Croupier, l'As vaut 1 et le Roi 13. */
+export function dealerValue(rank: CardRank): number {
+  return rank === 'A' ? 1 : cardValue(rank)
+}
+
+/** Compare une valeur proposée (1 à 13) à la carte : trouvée, ou plus haut / plus bas. */
+export function dealerVerdict(card: PlayingCard, guess: number): 'exact' | 'higher' | 'lower' {
+  const value = dealerValue(card.rank)
+  if (guess === value) return 'exact'
+  return value > guess ? 'higher' : 'lower'
+}
+
+/** Raté deux fois : l'écart entre le second essai et la carte, plafonné. */
+export function dealerPenalty(card: PlayingCard, secondGuess: number): number {
+  return Math.min(DEALER_MAX_PENALTY, Math.max(1, Math.abs(dealerValue(card.rank) - secondGuess)))
+}
+
+/* ------------------------------------------------------------------ */
+/* La Pyramide                                                         */
+/* ------------------------------------------------------------------ */
+
+export const PYRAMID_ROWS = 5
+export const PYRAMID_HAND = 4
+export const MIN_PYRAMID_PLAYERS = 2
+/** 15 cartes de pyramide + 4 par joueur doivent tenir dans 52 cartes. */
+export const MAX_PYRAMID_PLAYERS = 9
+
+/** Nombre de cartes de la pyramide : 5 + 4 + 3 + 2 + 1. */
+export const PYRAMID_SIZE = (PYRAMID_ROWS * (PYRAMID_ROWS + 1)) / 2
+
+/**
+ * Distribue une main secrète de 4 cartes par joueur, puis les 15 cartes de la
+ * pyramide, rangées de la base (5 cartes) au sommet (1 carte).
+ */
+export function dealPyramid(playerCount: number, rng: Rng = Math.random): { hands: PlayingCard[][]; pyramid: PlayingCard[] } {
+  if (playerCount < MIN_PYRAMID_PLAYERS || playerCount > MAX_PYRAMID_PLAYERS) {
+    throw new Error(`La pyramide se joue de ${MIN_PYRAMID_PLAYERS} à ${MAX_PYRAMID_PLAYERS} joueurs`)
+  }
+  const deck = createCardDeck(rng)
+  const hands = Array.from({ length: playerCount }, (_, i) => deck.slice(i * PYRAMID_HAND, (i + 1) * PYRAMID_HAND))
+  const start = playerCount * PYRAMID_HAND
+  return { hands, pyramid: deck.slice(start, start + PYRAMID_SIZE) }
+}
+
+/** Étage (1 = base, 5 = sommet) de la carte n° `index` de la pyramide : c'est aussi sa valeur. */
+export function pyramidRow(index: number): number {
+  let remaining = index
+  for (let row = 1; row <= PYRAMID_ROWS; row++) {
+    const width = PYRAMID_ROWS - row + 1
+    if (remaining < width) return row
+    remaining -= width
+  }
+  return PYRAMID_ROWS
+}
+
+/** Le joueur a-t-il une carte de cette valeur dans sa main ? */
+export function holdsRank(hand: readonly PlayingCard[], rank: CardRank): boolean {
+  return hand.some((card) => card.rank === rank)
+}
+
+/* ------------------------------------------------------------------ */
+/* La Patate chaude                                                    */
+/* ------------------------------------------------------------------ */
+
+export const FUSES = {
+  short: [10, 25],
+  normal: [20, 45],
+  long: [40, 70],
+} as const
+export type Fuse = keyof typeof FUSES
+
+/** Durée secrète de la mèche, en secondes, dans l'intervalle choisi. */
+export function randomFuse(fuse: Fuse, rng: Rng = Math.random): number {
+  const [min, max] = FUSES[fuse]
+  return min + Math.floor(rng() * (max - min + 1))
+}

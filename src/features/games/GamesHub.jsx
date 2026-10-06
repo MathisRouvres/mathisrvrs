@@ -34,8 +34,8 @@ const GAMES = [
     href: '/games/soiree',
     emoji: '🎉',
     description:
-      'Loup-Garou, Undercover, Mot interdit, Devine-tête, Mimes, Petit Bac, Quiz, Jeu de la bouteille, Le Bus, Action ou Vérité et bien d’autres. Un seul téléphone pour tout le groupe.',
-    tags: ['Groupe', 'Soirée', '23 jeux'],
+      'Loup-Garou, Undercover, Mot interdit, Devine-tête, Mimes, Petit Bac, Quiz, Pyramide, Patate chaude, Le Bus, Action ou Vérité et bien d’autres. Un seul téléphone pour tout le groupe.',
+    tags: ['Groupe', 'Soirée', '27 jeux'],
     enabled: true,
   },
 ]

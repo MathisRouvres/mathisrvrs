@@ -11,6 +11,19 @@ import {
   assignImpostors,
   busCorrect,
   cardValue,
+  DEALER_MAX_PENALTY,
+  FUSES,
+  MAX_PYRAMID_PLAYERS,
+  MIN_PYRAMID_PLAYERS,
+  PYRAMID_HAND,
+  PYRAMID_SIZE,
+  dealPyramid,
+  dealerPenalty,
+  dealerValue,
+  dealerVerdict,
+  holdsRank,
+  pyramidRow,
+  randomFuse,
   createCardDeck,
   createDeck,
   currentCard,
@@ -209,6 +222,58 @@ describe('Jeux de soirée — Le Bus', () => {
   })
 })
 
+describe('Jeux de soirée — Croupier, Pyramide, Patate chaude', () => {
+  const c = (rank: CardRank, suit: CardSuit = '♠') => ({ rank, suit })
+
+  it('Croupier : As = 1, Roi = 13, verdict et pénalité plafonnée', () => {
+    expect(dealerValue('A')).toBe(1)
+    expect(dealerValue('K')).toBe(13)
+    expect(dealerVerdict(c('7'), 7)).toBe('exact')
+    expect(dealerVerdict(c('7'), 3)).toBe('higher')
+    expect(dealerVerdict(c('7'), 10)).toBe('lower')
+    expect(dealerPenalty(c('7'), 5)).toBe(2)
+    expect(dealerPenalty(c('A'), 13)).toBe(DEALER_MAX_PENALTY)
+  })
+
+  it('Pyramide : mains de 4 cartes, 15 cartes de pyramide, aucune carte en double', () => {
+    for (let n = MIN_PYRAMID_PLAYERS; n <= MAX_PYRAMID_PLAYERS; n++) {
+      const { hands, pyramid } = dealPyramid(n, seeded(n))
+      expect(hands).toHaveLength(n)
+      for (const hand of hands) expect(hand).toHaveLength(PYRAMID_HAND)
+      expect(pyramid).toHaveLength(PYRAMID_SIZE)
+      const all = [...hands.flat(), ...pyramid].map((x) => `${x.rank}${x.suit}`)
+      expect(new Set(all).size).toBe(all.length)
+    }
+    expect(() => dealPyramid(1)).toThrow()
+    expect(() => dealPyramid(MAX_PYRAMID_PLAYERS + 1)).toThrow()
+  })
+
+  it('Pyramide : étages de la base (1) au sommet (5)', () => {
+    expect([0, 4, 5, 8, 9, 11, 12, 13, 14].map(pyramidRow)).toEqual([1, 1, 2, 2, 3, 3, 4, 4, 5])
+    expect(holdsRank([c('7'), c('K')], 'K')).toBe(true)
+    expect(holdsRank([c('7'), c('K')], 'A')).toBe(false)
+  })
+
+  it('Patate chaude : la mèche reste dans son intervalle', () => {
+    for (const fuse of ['short', 'normal', 'long'] as const) {
+      for (let seed = 0; seed < 200; seed++) {
+        const s = randomFuse(fuse, seeded(seed))
+        expect(s).toBeGreaterThanOrEqual(FUSES[fuse][0])
+        expect(s).toBeLessThanOrEqual(FUSES[fuse][1])
+      }
+    }
+  })
+
+  it('Roue des gages : intitulés courts, au moins 8 gages par niveau', () => {
+    const wheel = findGame('roue-des-gages')
+    if (wheel?.kind !== 'wheel') throw new Error('Roue des gages introuvable')
+    for (const level of LEVELS) {
+      expect(wheel.cards[level].length).toBeGreaterThanOrEqual(8)
+      for (const g of wheel.cards[level]) expect(g.label.length, g.label).toBeLessThanOrEqual(14)
+    }
+  })
+})
+
 describe('Jeux de soirée — catalogue', () => {
   it('le classement par popularité couvre chaque jeu une seule fois', () => {
     expect([...HUB_ORDER].sort()).toEqual(PARTY_GAMES.map((g) => g.slug).sort())
@@ -239,6 +304,10 @@ describe('Jeux de soirée — catalogue', () => {
                 ? LEVELS.map((l) => game.cards[l].map((c) => c.word))
                 : game.kind === 'quiz'
                   ? LEVELS.map((l) => game.cards[l].map((q) => q.question))
+                  : game.kind === 'wheel'
+                    ? LEVELS.map((l) => game.cards[l].map((g) => g.text))
+                    : game.kind === 'hot-potato'
+                      ? LEVELS.map((l) => game.cards[l])
                   : game.kind === 'deck' ||
                       game.kind === 'timed' ||
                       game.kind === 'petit-bac' ||
