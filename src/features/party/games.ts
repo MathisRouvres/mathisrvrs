@@ -18,7 +18,7 @@ import { fiveSeconds } from './content/fiveSeconds'
 import { yesNoQuestions } from './content/yesNo'
 import { quizQuestions, type QuizQuestion } from './content/quiz'
 
-export const PARTY_BASE_PATH = '/games/soiree'
+export { PARTY_BASE_PATH } from './paths'
 
 interface GameBase {
   slug: string

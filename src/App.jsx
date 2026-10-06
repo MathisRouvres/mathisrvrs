@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { lazy, useEffect } from 'react'
 import Navbar from './components/Navbar'
 import Hero from './components/Hero'
 import ProMode from './components/ProMode'
@@ -11,12 +11,19 @@ import Footer from './components/Footer'
 import SeoJsonLd from './components/SeoJsonLd'
 import { ThemeProvider } from './context/ThemeProvider'
 import { CAREER_GAME_ENABLED, MONOVOMY_ENABLED, SPIN_ENABLED } from './config/features'
-import { CareerApp, DilemmaDevLab } from './features/career'
-import { MonovomyApp } from './features/monovomy'
 import { parseMonovomyRoute } from './features/monovomy/pwa/deepLink'
-import { SpinApp } from './features/spin'
-import { GamesHub } from './features/games'
-import { PartyApp, PARTY_BASE_PATH } from './features/party'
+import { PARTY_BASE_PATH } from './features/party/paths'
+import LazyRoute from './components/LazyRoute'
+
+// Sections chargées à la demande : le portfolio ne télécharge ni les jeux, ni
+// leurs milliers de cartes, ni la 3D tant qu'on n'ouvre pas la page concernée.
+const named = (load, name) => lazy(() => load().then((m) => ({ default: m[name] })))
+const CareerApp = named(() => import('./features/career'), 'CareerApp')
+const DilemmaDevLab = named(() => import('./features/career'), 'DilemmaDevLab')
+const MonovomyApp = named(() => import('./features/monovomy'), 'MonovomyApp')
+const SpinApp = named(() => import('./features/spin'), 'SpinApp')
+const GamesHub = named(() => import('./features/games'), 'GamesHub')
+const PartyApp = named(() => import('./features/party'), 'PartyApp')
 
 function normalizePathname(pathname) {
   if (!pathname || pathname === '/') return '/'
@@ -118,17 +125,27 @@ export default function App() {
   const path = normalizePathname(window.location.pathname)
 
   if (path === '/games') {
-    return <GamesHub />
+    return (
+      <LazyRoute>
+        <GamesHub />
+      </LazyRoute>
+    )
   }
 
   if (path === PARTY_BASE_PATH || path.startsWith(`${PARTY_BASE_PATH}/`)) {
-    return <PartyApp initialPath={path} />
+    return (
+      <LazyRoute>
+        <PartyApp initialPath={path} />
+      </LazyRoute>
+    )
   }
 
   if (path === '/spin') {
     return (
       <SpinRouteGate>
-        <SpinApp />
+        <LazyRoute>
+          <SpinApp />
+        </LazyRoute>
       </SpinRouteGate>
     )
   }
@@ -136,7 +153,9 @@ export default function App() {
   if (path === '/carriere/dev/events') {
     return (
       <CareerRouteGate>
-        <DilemmaDevLab />
+        <LazyRoute>
+          <DilemmaDevLab />
+        </LazyRoute>
       </CareerRouteGate>
     )
   }
@@ -144,7 +163,9 @@ export default function App() {
   if (path === '/carriere') {
     return (
       <CareerRouteGate>
-        <CareerApp />
+        <LazyRoute>
+          <CareerApp />
+        </LazyRoute>
       </CareerRouteGate>
     )
   }
@@ -153,7 +174,9 @@ export default function App() {
   if (monovomyRoute) {
     return (
       <MonovomyRouteGate>
-        <MonovomyApp initialRoute={monovomyRoute} />
+        <LazyRoute>
+          <MonovomyApp initialRoute={monovomyRoute} />
+        </LazyRoute>
       </MonovomyRouteGate>
     )
   }

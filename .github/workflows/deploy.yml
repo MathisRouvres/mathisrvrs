@@ -23,6 +23,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Rien ne part en production si le code ne passe pas le lint et les tests.
+      # Le lint vise src/ : public/catan est l'export Godot généré de HEXLAND.
+      - name: Lint
+        run: npx eslint src
+
+      - name: Test
+        run: npm test
+
       - name: Build production files
         env:
           VITE_CAREER_GAME_ENABLED: 'true'
@@ -60,3 +68,47 @@ jobs:
           protocol: ftp
           # Envoi incrémental (fichier d'état .ftp-deploy-sync-state.json sur le
           # serveur) : un échec en cours d'envoi ne vide plus tout le site.
+
+      # Contrôle de la production : la page d'accueil doit référencer le build
+      # qu'on vient d'envoyer, chaque fichier JS/CSS doit être servi avec le bon
+      # type (sinon : écran blanc) et les routes principales doivent répondre.
+      - name: Smoke test production
+        env:
+          SITE_URL: https://mathis-rvrs.fr
+        run: |
+          set -u
+          expected=$(grep -oE 'assets/index-[^"]+\.js' dist/index.html | head -1)
+          echo "Build attendu : $expected"
+          for attempt in 1 2 3 4 5 6; do
+            if curl -fsS "$SITE_URL/?deploy=$GITHUB_SHA" | grep -q "$expected"; then
+              echo "index.html à jour"
+              break
+            fi
+            if [ "$attempt" = 6 ]; then
+              echo "::error::La production ne sert pas le nouveau build ($expected)"
+              exit 1
+            fi
+            sleep 10
+          done
+
+          failed=0
+          for file in dist/assets/*.js dist/assets/*.css; do
+            path="/assets/$(basename "$file")"
+            type=$(curl -sS -o /dev/null -w '%{http_code} %{content_type}' "$SITE_URL$path")
+            case "$file" in
+              *.js) want=javascript ;;
+              *.css) want=css ;;
+            esac
+            if ! echo "$type" | grep -q "^200 .*$want"; then
+              echo "::error::$path servi en « $type »"
+              failed=1
+            fi
+          done
+
+          for route in / /games /games/soiree /monovomy /carriere /spin /catan/; do
+            code=$(curl -sS -o /dev/null -w '%{http_code}' "$SITE_URL$route")
+            echo "$route -> $code"
+            [ "$code" = 200 ] || { echo "::error::$route répond $code"; failed=1; }
+          done
+
+          exit $failed
