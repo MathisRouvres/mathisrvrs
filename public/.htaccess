@@ -5,6 +5,12 @@
   Options -MultiViews
 </IfModule>
 
+# Fichier d'état du déploiement FTP incrémental : il liste tous les fichiers du
+# site avec leurs empreintes, il n'a pas à être public.
+<Files ".ftp-deploy-sync-state.json">
+  Require all denied
+</Files>
+
 <IfModule mod_rewrite.c>
   RewriteEngine On
 

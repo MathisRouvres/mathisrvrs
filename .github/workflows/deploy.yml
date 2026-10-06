@@ -58,4 +58,5 @@ jobs:
           local-dir: ./dist/
           server-dir: ${{ secrets.FTP_SERVER_DIR }}
           protocol: ftp
-          dangerous-clean-slate: true
+          # Envoi incrémental (fichier d'état .ftp-deploy-sync-state.json sur le
+          # serveur) : un échec en cours d'envoi ne vide plus tout le site.
