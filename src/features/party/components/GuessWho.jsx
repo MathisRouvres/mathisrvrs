@@ -5,10 +5,35 @@ import { LEVEL_META } from '../usePartySettings'
 import { oneOf, useSessionState, when } from '../useSessionState'
 import { btnGhost, btnPrimary, cardEnter } from './buttons'
 import { sips } from './penalty'
+import { suspectPhotos } from '../content/guessWhoPhotos'
 
 const SEATS = ['p1', 'p2', 'solo']
 const PLAYER = ['Joueur 1', 'Joueur 2']
 const allUp = () => Array(GUESS_WHO_SIZE).fill(false)
+
+/** Photo libre (Wikimedia) du suspect ; son emoji si elle manque ou ne charge pas. */
+function Face({ suspect, className = '' }) {
+  const photo = suspectPhotos[suspect.name]
+  const [failed, setFailed] = useState(false)
+  if (!photo || failed) {
+    return (
+      <span aria-hidden="true" className={`flex items-center justify-center bg-[var(--bg-primary)] text-4xl ${className}`}>
+        {suspect.emoji}
+      </span>
+    )
+  }
+  return (
+    <img
+      src={photo.src}
+      alt=""
+      loading="lazy"
+      decoding="async"
+      referrerPolicy="no-referrer"
+      onError={() => setFailed(true)}
+      className={`bg-[var(--bg-primary)] object-cover object-top ${className}`}
+    />
+  )
+}
 
 /**
  * Qui est-ce ? à deux. Le plateau et les suspects secrets se déduisent du code,
@@ -38,7 +63,7 @@ export default function GuessWho({ game, level }) {
   const [covered, setCovered] = useState(true)
 
   const deal = useMemo(
-    () => (code ? dealGuessWho(`${code}-${level}-${round}`, pool.length) : null),
+    () => (code ? dealGuessWho(`${code}-${level}`, round, pool.length) : null),
     [code, level, round, pool.length],
   )
 
@@ -178,10 +203,8 @@ export default function GuessWho({ game, level }) {
           <p className="text-sm font-semibold uppercase tracking-wider text-white/75">
             {correct ? '🎯 Bien vu' : '💥 Raté'} — {PLAYER[by]} accusait {accused.name}
           </p>
-          <p className="mt-3 text-5xl" aria-hidden="true">
-            {target.emoji}
-          </p>
-          <p className="mt-2 font-display text-2xl font-bold leading-snug">C’était {target.name}.</p>
+          <Face key={target.name} suspect={target} className="mt-4 h-40 w-32 rounded-2xl shadow-lg" />
+          <p className="mt-3 font-display text-2xl font-bold leading-snug">C’était {target.name}.</p>
           <p className="mt-2 text-white/85">{target.record}</p>
           <p className="mt-5 rounded-2xl bg-black/25 p-4 text-lg font-bold">
             {PLAYER[1 - loser]} gagne. {PLAYER[loser]} prend {sips(level, 3)}.
@@ -222,9 +245,16 @@ export default function GuessWho({ game, level }) {
       {header}
 
       <div className="glass-card flex items-center gap-3 rounded-3xl p-4">
-        <span className="text-4xl" aria-hidden="true">
-          {showSecret ? mine.emoji : '❓'}
-        </span>
+        {showSecret ? (
+          <Face key={mine.name} suspect={mine} className="h-20 w-16 shrink-0 rounded-xl" />
+        ) : (
+          <span
+            aria-hidden="true"
+            className="flex h-20 w-16 shrink-0 items-center justify-center rounded-xl bg-[var(--bg-primary)] text-3xl"
+          >
+            ❓
+          </span>
+        )}
         <div className="min-w-0 flex-1" aria-live="polite">
           <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
             Suspect secret de {PLAYER[me]}
@@ -297,7 +327,7 @@ export default function GuessWho({ game, level }) {
                 aria-label={accusing ? `Accuser ${s.name}` : `${s.name}${isDown ? ', rabattu' : ''}`}
                 disabled={accusing && isDown}
                 onClick={() => tap(pos)}
-                className={`relative flex h-full min-h-28 w-full flex-col items-center justify-start gap-1 rounded-2xl border bg-[var(--bg-elevated)] p-2 text-center transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:cursor-not-allowed motion-safe:duration-200 ${
+                className={`relative flex h-full w-full flex-col items-center justify-start gap-1 overflow-hidden rounded-2xl border bg-[var(--bg-elevated)] p-1.5 text-center transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:cursor-not-allowed motion-safe:duration-200 ${
                   selected
                     ? 'border-[var(--accent)] ring-2 ring-[var(--accent)]'
                     : 'border-[var(--border-color)] hover:border-[var(--accent)]'
@@ -306,10 +336,8 @@ export default function GuessWho({ game, level }) {
                 <span
                   className={`flex h-full w-full flex-col items-center gap-1 transition ${isDown ? 'opacity-25 grayscale' : ''}`}
                 >
-                  <span className="text-3xl leading-none" aria-hidden="true">
-                    {s.emoji}
-                  </span>
-                  <span className="line-clamp-2 text-xs font-semibold leading-tight">{s.name}</span>
+                  <Face key={s.name} suspect={s} className="aspect-[4/5] w-full rounded-xl" />
+                  <span className="line-clamp-2 px-0.5 text-xs font-semibold leading-tight">{s.name}</span>
                   <span className="mt-auto flex gap-1 text-xs" aria-hidden="true">
                     <span>{s.flag}</span>
                     {s.convicted && <span>⚖️</span>}
@@ -338,14 +366,25 @@ export default function GuessWho({ game, level }) {
       )}
 
       <details className="glass-card rounded-2xl px-4 py-3">
-        <summary className="cursor-pointer font-semibold">📖 Casiers des 24 suspects</summary>
-        <ul className="mt-2 space-y-2 text-sm">
-          {board.map((s) => (
-            <li key={s.name}>
-              <span aria-hidden="true">{s.emoji} </span>
-              <strong>{s.name}</strong> <span className="text-[var(--text-secondary)]">— {s.record}</span>
-            </li>
-          ))}
+        <summary className="cursor-pointer font-semibold">📖 Casiers et crédits photo</summary>
+        <ul className="mt-2 space-y-3 text-sm">
+          {board.map((s) => {
+            const photo = suspectPhotos[s.name]
+            return (
+              <li key={s.name}>
+                <strong>{s.name}</strong> <span className="text-[var(--text-secondary)]">— {s.record}</span>
+                {photo && (
+                  <span className="block text-xs text-[var(--text-muted)]">
+                    Photo :{' '}
+                    <a href={photo.page} target="_blank" rel="noopener noreferrer" className="underline hover:text-[var(--text-primary)]">
+                      {photo.author}
+                    </a>
+                    , {photo.license}, Wikimedia Commons
+                  </span>
+                )}
+              </li>
+            )
+          })}
         </ul>
       </details>
 

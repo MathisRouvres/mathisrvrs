@@ -45,6 +45,7 @@ import { HUB_ORDER, PARTY_BASE_PATH, PARTY_GAMES, findGame } from './games'
 import { buildMixCard } from './mix'
 import { KINGS_RULES, LAST_KING } from './content/kings'
 import { NIGHT_STEPS, WEREWOLF_ROLES } from './content/werewolf'
+import { suspectPhotos } from './content/guessWhoPhotos'
 
 /** Générateur pseudo-aléatoire déterministe (mulberry32). */
 function seeded(seed: number) {
@@ -284,16 +285,27 @@ describe('Jeux de soirée — Qui est-ce ?', () => {
     for (let seed = 0; seed < 100; seed++) {
       const code = randomCode(seeded(seed))
       expect(isGuessWhoCode(code)).toBe(true)
-      const a = dealGuessWho(`${code}-soft-0`, 31)
-      expect(dealGuessWho(`${code}-soft-0`, 31)).toEqual(a)
-      expect(a.board).toHaveLength(GUESS_WHO_SIZE)
-      expect(new Set(a.board).size).toBe(GUESS_WHO_SIZE)
-      for (const i of a.board) expect(i).toBeLessThan(31)
-      expect(a.secrets[0]).not.toBe(a.secrets[1])
-      for (const s of a.secrets) expect(s).toBeLessThan(GUESS_WHO_SIZE)
+      for (const round of [0, 1, 7]) {
+        const a = dealGuessWho(`${code}-soft`, round, 62)
+        expect(dealGuessWho(`${code}-soft`, round, 62)).toEqual(a)
+        expect(a.board).toHaveLength(GUESS_WHO_SIZE)
+        expect(new Set(a.board).size).toBe(GUESS_WHO_SIZE)
+        for (const i of a.board) expect(i).toBeLessThan(62)
+        expect(a.secrets[0]).not.toBe(a.secrets[1])
+        for (const s of a.secrets) expect(s).toBeLessThan(GUESS_WHO_SIZE)
+      }
     }
-    expect(dealGuessWho('ABCD-soft-1', 31)).not.toEqual(dealGuessWho('ABCD-soft-0', 31))
-    expect(() => dealGuessWho('ABCD', GUESS_WHO_SIZE - 1)).toThrow()
+    expect(() => dealGuessWho('ABCD', 0, GUESS_WHO_SIZE - 1)).toThrow()
+  })
+
+  it('roulement : aucun suspect ne revient avant que tout le paquet soit passé', () => {
+    const size = 62
+    const rounds = Math.floor(size / GUESS_WHO_SIZE)
+    const seen = Array.from({ length: rounds }, (_, r) => dealGuessWho('ABCD-hot', r, size).board).flat()
+    expect(new Set(seen).size).toBe(rounds * GUESS_WHO_SIZE)
+    // Sur un cycle complet, chaque suspect passe au moins une fois.
+    const cycle = Array.from({ length: Math.ceil(size / GUESS_WHO_SIZE) }, (_, r) => dealGuessWho('ABCD-hot', r, size).board)
+    expect(new Set(cycle.flat()).size).toBe(size)
   })
 
   it('normalise la saisie du code', () => {
@@ -309,11 +321,15 @@ describe('Jeux de soirée — Qui est-ce ?', () => {
     const all = LEVELS.flatMap((l) => game.cards[l].map((s) => s.name))
     expect(new Set(all).size).toBe(all.length)
     for (const level of LEVELS) {
-      expect(game.cards[level].length).toBeGreaterThanOrEqual(GUESS_WHO_SIZE)
+      expect(game.cards[level].length).toBeGreaterThanOrEqual(60)
       for (const s of game.cards[level]) {
         expect(s.name.length, s.name).toBeLessThanOrEqual(24)
         expect(s.record.length, s.name).toBeLessThanOrEqual(100)
         expect(s.emoji.length, s.name).toBeGreaterThan(0)
+        // Photo libre obligatoire (npm run party:photos) ; l'emoji ne sert que si elle ne charge pas.
+        const photo = suspectPhotos[s.name]
+        expect(photo?.src, s.name).toMatch(/^https:\/\/upload\.wikimedia\.org\//)
+        expect(photo?.license.length, s.name).toBeGreaterThan(0)
       }
     }
   })

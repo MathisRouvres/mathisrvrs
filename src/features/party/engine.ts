@@ -369,14 +369,21 @@ export interface GuessWhoDeal {
 
 /**
  * Plateau et suspects secrets tirés d'une graine : deux téléphones avec le même
- * code, le même niveau et la même manche obtiennent exactement la même partie.
+ * code (et le même niveau) obtiennent exactement la même partie. Roulement :
+ * le paquet est mélangé une fois pour toutes par graine, et chaque manche
+ * prend les suspects suivants, si bien qu'aucun ne revient avant que tout le
+ * paquet soit passé.
  */
-export function dealGuessWho(seed: string, poolSize: number): GuessWhoDeal {
+export function dealGuessWho(seed: string, round: number, poolSize: number): GuessWhoDeal {
   if (poolSize < GUESS_WHO_SIZE) {
     throw new Error(`Il faut au moins ${GUESS_WHO_SIZE} suspects`)
   }
-  const rng = seededRng(seed)
-  const board = shuffle(Array.from({ length: poolSize }, (_, i) => i), rng).slice(0, GUESS_WHO_SIZE)
-  const [first, second] = shuffle(Array.from({ length: GUESS_WHO_SIZE }, (_, i) => i), rng) as [number, number]
+  const order = shuffle(Array.from({ length: poolSize }, (_, i) => i), seededRng(seed))
+  const start = (Math.max(0, Math.floor(round)) * GUESS_WHO_SIZE) % poolSize
+  const board = Array.from({ length: GUESS_WHO_SIZE }, (_, k) => order[(start + k) % poolSize] as number)
+  const [first, second] = shuffle(
+    Array.from({ length: GUESS_WHO_SIZE }, (_, i) => i),
+    seededRng(`${seed}#${round}`),
+  ) as [number, number]
   return { board, secrets: [first, second] }
 }
