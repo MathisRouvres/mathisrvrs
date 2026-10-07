@@ -18,6 +18,7 @@ import { fiveSeconds } from './content/fiveSeconds'
 import { yesNoQuestions } from './content/yesNo'
 import { quizQuestions, type QuizQuestion } from './content/quiz'
 import { wheelForfeits, type WheelForfeit } from './content/wheel'
+import { suspects, type Suspect } from './content/guessWho'
 
 export { PARTY_BASE_PATH } from './paths'
 
@@ -138,7 +139,14 @@ export interface WheelGame extends GameBase {
   cards: Record<Level, WheelForfeit[]>
 }
 
+/** Qui est-ce ? à deux : même plateau sur deux téléphones grâce à un code. */
+export interface GuessWhoGame extends GameBase {
+  kind: 'guess-who'
+  cards: Record<Level, Suspect[]>
+}
+
 export type PartyGame =
+  | GuessWhoGame
   | HotPotatoGame
   | DealerGame
   | PyramidGame
@@ -578,6 +586,23 @@ const GAMES: PartyGame[] = [
       'Trois ratés d’affilée et le croupier passe le paquet.',
     ],
   },
+  {
+    kind: 'guess-who',
+    slug: 'qui-est-ce',
+    title: 'Qui est-ce ?',
+    emoji: '🗂️',
+    tagline: 'Version casier judiciaire : dictateurs, escrocs, gourous.',
+    gradient: 'from-zinc-700 to-red-900',
+    minPlayers: 2,
+    rules: [
+      'Un duel à deux : chacun ouvre le jeu sur son téléphone avec le même code et le même niveau. Sinon, un seul téléphone qu’on se passe.',
+      'Chacun reçoit un suspect secret parmi 24 personnalités au passé très chargé.',
+      'À tour de rôle, posez une question fermée (« Il est mort ? », « Il a été condamné ? », « Il est français ? ») et rabattez d’un tap les suspects éliminés.',
+      'Quand tu crois savoir, accuse : bonne réponse, l’autre prend la pénalité ; erreur, c’est pour toi.',
+      'Humour noir : les fiches résument des faits publics, sans rien excuser.',
+    ],
+    cards: suspects,
+  },
 ]
 
 /**
@@ -595,6 +620,7 @@ export const HUB_ORDER = [
   'bouteille',
   'undercover',
   'quiz',
+  'qui-est-ce',
   'mot-interdit',
   'jeu-du-roi',
   'pyramide',

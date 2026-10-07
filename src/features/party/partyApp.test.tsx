@@ -116,3 +116,46 @@ describe('accueil des jeux de soirée', () => {
     expect(screen.queryByRole('region', { name: 'Partie en cours' })).toBeNull()
   })
 })
+
+describe('Qui est-ce ?', () => {
+  it('rabat un suspect, le retrouve rabattu après rechargement, puis accuse', async () => {
+    const user = userEvent.setup()
+    render(<PartyApp initialPath="/games/soiree/qui-est-ce" />)
+
+    const input = screen.getByLabelText('Code de partie')
+    await user.clear(input)
+    await user.type(input, 'abcd')
+    expect((input as HTMLInputElement).value).toBe('ABCD')
+    await user.click(screen.getByRole('button', { name: 'Joueur 1' }))
+
+    const board = screen.getByRole('list', { name: 'Plateau des suspects' })
+    const first = within(board).getAllByRole('button')[0]!
+    const name = first.getAttribute('aria-label')!
+    await user.click(first)
+    expect(within(board).getByRole('button', { name: `${name}, rabattu` })).toBeTruthy()
+    expect(screen.getByText('23 suspects encore debout')).toBeTruthy()
+
+    cleanup()
+    render(<PartyApp initialPath="/games/soiree/qui-est-ce" />)
+    expect(screen.getByRole('button', { name: `${name}, rabattu` })).toBeTruthy()
+    expect(savedState('qui-est-ce').code).toBe('ABCD')
+
+    await user.click(screen.getByRole('button', { name: '🫵 Accuser' }))
+    const target = within(screen.getByRole('list', { name: 'Plateau des suspects' })).getAllByRole('button')[1]!
+    await user.click(target)
+    await user.click(screen.getByRole('button', { name: /^J’accuse/ }))
+    expect(screen.getByText(/^C’était /)).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Revanche' })).toBeTruthy()
+  })
+
+  it('un seul téléphone : le plateau reste caché tant que le joueur ne confirme pas', async () => {
+    const user = userEvent.setup()
+    render(<PartyApp initialPath="/games/soiree/qui-est-ce" />)
+    await user.click(screen.getByRole('button', { name: 'Un seul téléphone, on se le passe' }))
+    expect(screen.queryByRole('list', { name: 'Plateau des suspects' })).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'C’est moi, Joueur 1' }))
+    await user.click(screen.getByRole('button', { name: 'Fin du tour, passer à Joueur 2' }))
+    expect(screen.queryByRole('list', { name: 'Plateau des suspects' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'C’est moi, Joueur 2' })).toBeTruthy()
+  })
+})

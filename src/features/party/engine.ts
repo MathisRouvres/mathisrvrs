@@ -312,3 +312,71 @@ export function randomFuse(fuse: Fuse, rng: Rng = Math.random): number {
   const [min, max] = FUSES[fuse]
   return min + Math.floor(rng() * (max - min + 1))
 }
+
+/* ------------------------------------------------------------------ */
+/* Qui est-ce ?                                                        */
+/* ------------------------------------------------------------------ */
+
+/** Nombre de suspects sur le plateau, comme le jeu de société. */
+export const GUESS_WHO_SIZE = 24
+export const GUESS_WHO_CODE_LENGTH = 4
+/** Sans I, O, 0 ni 1 : un code se dicte d'un téléphone à l'autre sans confusion. */
+export const GUESS_WHO_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+
+export function randomCode(rng: Rng = Math.random): string {
+  return Array.from(
+    { length: GUESS_WHO_CODE_LENGTH },
+    () => GUESS_WHO_CODE_CHARS[Math.floor(rng() * GUESS_WHO_CODE_CHARS.length)],
+  ).join('')
+}
+
+/** Saisie d'un code : majuscules, caractères autorisés seulement, longueur bornée. */
+export function normalizeCode(input: string): string {
+  return input
+    .toUpperCase()
+    .split('')
+    .filter((ch) => GUESS_WHO_CODE_CHARS.includes(ch))
+    .join('')
+    .slice(0, GUESS_WHO_CODE_LENGTH)
+}
+
+export function isGuessWhoCode(value: unknown): value is string {
+  return typeof value === 'string' && value.length === GUESS_WHO_CODE_LENGTH && normalizeCode(value) === value
+}
+
+/** Hasard reproductible à partir d'un texte (FNV-1a puis mulberry32). */
+export function seededRng(seed: string): Rng {
+  let h = 0x811c9dc5
+  for (let i = 0; i < seed.length; i++) {
+    h ^= seed.charCodeAt(i)
+    h = Math.imul(h, 0x01000193)
+  }
+  let a = h >>> 0
+  return () => {
+    a = (a + 0x6d2b79f5) | 0
+    let t = Math.imul(a ^ (a >>> 15), 1 | a)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+export interface GuessWhoDeal {
+  /** Indices des suspects du plateau dans le paquet du niveau. */
+  board: number[]
+  /** Position sur le plateau du suspect secret de chaque joueur (distinctes). */
+  secrets: [number, number]
+}
+
+/**
+ * Plateau et suspects secrets tirés d'une graine : deux téléphones avec le même
+ * code, le même niveau et la même manche obtiennent exactement la même partie.
+ */
+export function dealGuessWho(seed: string, poolSize: number): GuessWhoDeal {
+  if (poolSize < GUESS_WHO_SIZE) {
+    throw new Error(`Il faut au moins ${GUESS_WHO_SIZE} suspects`)
+  }
+  const rng = seededRng(seed)
+  const board = shuffle(Array.from({ length: poolSize }, (_, i) => i), rng).slice(0, GUESS_WHO_SIZE)
+  const [first, second] = shuffle(Array.from({ length: GUESS_WHO_SIZE }, (_, i) => i), rng) as [number, number]
+  return { board, secrets: [first, second] }
+}

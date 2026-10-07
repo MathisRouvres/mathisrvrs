@@ -13,6 +13,11 @@ import {
   cardValue,
   DEALER_MAX_PENALTY,
   FUSES,
+  GUESS_WHO_SIZE,
+  dealGuessWho,
+  isGuessWhoCode,
+  normalizeCode,
+  randomCode,
   MAX_PYRAMID_PLAYERS,
   MIN_PYRAMID_PLAYERS,
   PYRAMID_HAND,
@@ -270,6 +275,46 @@ describe('Jeux de soirée — Croupier, Pyramide, Patate chaude', () => {
     for (const level of LEVELS) {
       expect(wheel.cards[level].length).toBeGreaterThanOrEqual(8)
       for (const g of wheel.cards[level]) expect(g.label.length, g.label).toBeLessThanOrEqual(14)
+    }
+  })
+})
+
+describe('Jeux de soirée — Qui est-ce ?', () => {
+  it('même code, même partie ; secrets distincts, plateau sans doublon', () => {
+    for (let seed = 0; seed < 100; seed++) {
+      const code = randomCode(seeded(seed))
+      expect(isGuessWhoCode(code)).toBe(true)
+      const a = dealGuessWho(`${code}-soft-0`, 31)
+      expect(dealGuessWho(`${code}-soft-0`, 31)).toEqual(a)
+      expect(a.board).toHaveLength(GUESS_WHO_SIZE)
+      expect(new Set(a.board).size).toBe(GUESS_WHO_SIZE)
+      for (const i of a.board) expect(i).toBeLessThan(31)
+      expect(a.secrets[0]).not.toBe(a.secrets[1])
+      for (const s of a.secrets) expect(s).toBeLessThan(GUESS_WHO_SIZE)
+    }
+    expect(dealGuessWho('ABCD-soft-1', 31)).not.toEqual(dealGuessWho('ABCD-soft-0', 31))
+    expect(() => dealGuessWho('ABCD', GUESS_WHO_SIZE - 1)).toThrow()
+  })
+
+  it('normalise la saisie du code', () => {
+    expect(normalizeCode(' ab-c d9z ')).toBe('ABCD')
+    expect(normalizeCode('io01')).toBe('')
+    expect(isGuessWhoCode('abcd')).toBe(false)
+    expect(isGuessWhoCode('ABC')).toBe(false)
+  })
+
+  it('assez de suspects par niveau, noms uniques, fiches courtes', () => {
+    const game = findGame('qui-est-ce')
+    if (game?.kind !== 'guess-who') throw new Error('Qui est-ce ? introuvable')
+    const all = LEVELS.flatMap((l) => game.cards[l].map((s) => s.name))
+    expect(new Set(all).size).toBe(all.length)
+    for (const level of LEVELS) {
+      expect(game.cards[level].length).toBeGreaterThanOrEqual(GUESS_WHO_SIZE)
+      for (const s of game.cards[level]) {
+        expect(s.name.length, s.name).toBeLessThanOrEqual(24)
+        expect(s.record.length, s.name).toBeLessThanOrEqual(100)
+        expect(s.emoji.length, s.name).toBeGreaterThan(0)
+      }
     }
   })
 })
