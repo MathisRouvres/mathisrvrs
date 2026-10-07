@@ -6,6 +6,7 @@ import { LEVEL_META } from './usePartySettings'
 import LevelPicker from './components/LevelPicker'
 import PartyLink from './components/PartyLink'
 import { btnPrimary } from './components/buttons'
+import RoomJoin from './room/RoomJoin'
 
 function ago(savedAt) {
   const minutes = Math.max(1, Math.round((Date.now() - savedAt) / 60000))
@@ -70,11 +71,16 @@ function ResumeBanner({ settings, navigate }) {
   )
 }
 
-/** Accueil des jeux de soirée : niveau commun et liste des jeux. */
-export default function PartyHub({ settings, navigate }) {
+/**
+ * Accueil des jeux de soirée : partie à plusieurs téléphones, niveau commun et
+ * liste des jeux. Dans une partie partagée, choisir un jeu y emmène tout le monde.
+ */
+export default function PartyHub({ settings, navigate, room, invite = '' }) {
+  const inRoom = Boolean(room?.store)
   return (
     <div className="flex flex-col gap-8">
-      <ResumeBanner settings={settings} navigate={navigate} />
+      {!inRoom && <ResumeBanner settings={settings} navigate={navigate} />}
+      {room?.available && !inRoom && <RoomJoin session={room} initialCode={invite} />}
 
       <section aria-labelledby="party-level-title">
         <h2 id="party-level-title" className="mb-3 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
@@ -125,7 +131,8 @@ export default function PartyHub({ settings, navigate }) {
       </section>
 
       <p className="text-center text-xs text-[var(--text-muted)]">
-        Un seul téléphone pour tout le groupe. Chacun peut passer son tour.
+        {inRoom ? 'Le jeu choisi s’ouvre sur tous les téléphones.' : 'Un seul téléphone pour tout le groupe.'} Chacun peut
+        passer son tour.
         <br />
         L’abus d’alcool est dangereux pour la santé, à consommer avec modération.
       </p>

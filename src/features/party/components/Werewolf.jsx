@@ -3,7 +3,9 @@ import { MIN_WEREWOLF_PLAYERS, dealWerewolfRoles, werewolfCount, werewolfWinner 
 import { isBoolArray, isIntIn } from '../session'
 import { oneOf, useSessionState, when } from '../useSessionState'
 import { NIGHT_STEPS, WEREWOLF_ROLES, WEREWOLF_SPECIALS } from '../content/werewolf'
+import { useRoomPlayer } from '../room/hooks'
 import PlayersEditor from './PlayersEditor'
+import RoomReveal from './RoomReveal'
 import { btnGhost, btnPrimary, cardEnter } from './buttons'
 
 const DEFAULT_SPECIALS = ['seer', 'witch', 'hunter']
@@ -11,6 +13,9 @@ const DEFAULT_SPECIALS = ['seer', 'witch', 'hunter']
 /**
  * Loup-Garou sur un téléphone : distribution secrète des rôles, puis le meneur
  * (qui ne joue pas) garde le téléphone et suit le script de la nuit.
+ *
+ * Partie à plusieurs téléphones : chacun voit son rôle sur son écran (les
+ * loups voient leurs complices) ; le meneur est le téléphone qui ne joue pas.
  */
 export default function Werewolf({ game, players, onPlayersChange }) {
   const [phase, setPhase] = useSessionState('phase', 'setup', oneOf(['setup', 'reveal', 'handover', 'narrate']))
@@ -35,6 +40,9 @@ export default function Werewolf({ game, players, onPlayersChange }) {
   const [shown, setShown] = useState(false)
   const [night, setNight] = useSessionState('night', 1, when((v) => isIntIn(v, 1, 999)))
   const [step, setStep] = useSessionState('step', 0, when((v) => isIntIn(v, 0, 99)))
+  // Une distribution = ses propres « j'ai vu mon rôle ».
+  const [dealId, setDealId] = useSessionState('dealId', 'd')
+  const { inRoom, myName, watchers } = useRoomPlayer()
 
   const ready = players.length >= MIN_WEREWOLF_PLAYERS
   const wolves = werewolfCount(Math.max(players.length, MIN_WEREWOLF_PLAYERS))
@@ -47,6 +55,7 @@ export default function Werewolf({ game, players, onPlayersChange }) {
 
   function deal() {
     setRoles(dealWerewolfRoles(players.length, specials))
+    setDealId(Math.random().toString(36).slice(2, 8))
     setAlive(players.map(() => true))
     setRevealIndex(0)
     setShown(false)
@@ -59,7 +68,9 @@ export default function Werewolf({ game, players, onPlayersChange }) {
     return (
       <div className="flex flex-col gap-4">
         <p className="rounded-2xl border border-[var(--border-color)] bg-[var(--bg-elevated)] p-4 text-sm text-[var(--text-secondary)]">
-          Le meneur ne joue pas : n’ajoute que les joueurs. Il récupère le téléphone après la distribution des rôles.
+          {inRoom
+            ? 'Le meneur ne joue pas : sur son téléphone, « Inviter » puis décocher « Je joue ». Il suit le script, les autres voient leur rôle.'
+            : 'Le meneur ne joue pas : n’ajoute que les joueurs. Il récupère le téléphone après la distribution des rôles.'}
         </p>
         <PlayersEditor players={players} onChange={onPlayersChange} min={MIN_WEREWOLF_PLAYERS} />
 
@@ -103,9 +114,46 @@ export default function Werewolf({ game, players, onPlayersChange }) {
     )
   }
 
+  function roleFace(index) {
+    const meta = WEREWOLF_ROLES[roles[index]]
+    const pack =
+      meta.team === 'wolves' && inRoom
+        ? players.filter((_, i) => i !== index && WEREWOLF_ROLES[roles[i]].team === 'wolves')
+        : []
+    return (
+      <>
+        <p className="text-6xl" aria-hidden="true">
+          {meta.emoji}
+        </p>
+        <p className={`mt-3 font-display text-3xl font-bold ${meta.team === 'wolves' ? 'text-rose-500' : 'text-emerald-500'}`}>
+          {meta.label}
+        </p>
+        <p className="mt-3 text-[var(--text-secondary)]">{meta.description}</p>
+        {pack.length > 0 && (
+          <p className="mt-3 text-sm">
+            Tes complices : <strong>{pack.join(', ')}</strong>
+          </p>
+        )}
+      </>
+    )
+  }
+
+  if ((phase === 'reveal' || phase === 'handover') && inRoom) {
+    return (
+      <RoomReveal
+        key={dealId}
+        field={`seen-${dealId}`}
+        players={players}
+        gradient={game.gradient}
+        renderRole={roleFace}
+        startLabel="Tout le monde a son rôle, la nuit tombe"
+        onStart={() => setPhase('narrate')}
+      />
+    )
+  }
+
   if (phase === 'reveal') {
     const name = players[revealIndex]
-    const meta = WEREWOLF_ROLES[roles[revealIndex]]
     const last = revealIndex >= players.length - 1
 
     return (
@@ -124,17 +172,7 @@ export default function Werewolf({ game, players, onPlayersChange }) {
               <p className="mt-4 text-sm text-white/80">Les autres, on ne regarde pas !</p>
             </>
           ) : (
-            <>
-              <p className="text-6xl" aria-hidden="true">
-                {meta.emoji}
-              </p>
-              <p
-                className={`mt-3 font-display text-3xl font-bold ${meta.team === 'wolves' ? 'text-rose-500' : 'text-emerald-500'}`}
-              >
-                {meta.label}
-              </p>
-              <p className="mt-3 text-[var(--text-secondary)]">{meta.description}</p>
-            </>
+            roleFace(revealIndex)
           )}
         </div>
         {!shown ? (
@@ -184,6 +222,11 @@ export default function Werewolf({ game, players, onPlayersChange }) {
   const current = steps[Math.min(step, steps.length - 1)]
   const lastStep = step >= steps.length - 1
   const winner = werewolfWinner(roles, alive)
+  // Partie partagée : seul le meneur (téléphone qui ne joue pas) voit les rôles.
+  // Sans meneur connecté, tout le monde garde les commandes, rôles masqués.
+  const myIndex = myName ? players.indexOf(myName) : -1
+  const narrator = !inRoom || myIndex < 0
+  const controls = narrator || watchers === 0
 
   return (
     <div className="flex flex-col gap-4">
@@ -209,33 +252,44 @@ export default function Werewolf({ game, players, onPlayersChange }) {
         <p className="mt-3 font-display text-xl font-bold leading-snug sm:text-2xl">{current?.text}</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <button type="button" className={btnGhost} disabled={step === 0} onClick={() => setStep((s) => s - 1)}>
-          Précédent
-        </button>
-        {lastStep ? (
-          <button
-            type="button"
-            className={btnPrimary}
-            onClick={() => {
-              setNight((n) => n + 1)
-              setStep(0)
-            }}
-          >
-            Nuit suivante
+      {!narrator && (
+        <details className="glass-card rounded-3xl px-4 py-3">
+          <summary className="cursor-pointer font-semibold">Mon rôle (à l’abri des regards)</summary>
+          <div className="mt-3 flex flex-col items-center pb-2 text-center">{roleFace(myIndex)}</div>
+        </details>
+      )}
+
+      {controls && (
+        <div className="grid grid-cols-2 gap-3">
+          <button type="button" className={btnGhost} disabled={step === 0} onClick={() => setStep((s) => s - 1)}>
+            Précédent
           </button>
-        ) : (
-          <button type="button" className={btnPrimary} onClick={() => setStep((s) => s + 1)}>
-            Suivant
-          </button>
-        )}
-      </div>
+          {lastStep ? (
+            <button
+              type="button"
+              className={btnPrimary}
+              onClick={() => {
+                setNight((n) => n + 1)
+                setStep(0)
+              }}
+            >
+              Nuit suivante
+            </button>
+          ) : (
+            <button type="button" className={btnPrimary} onClick={() => setStep((s) => s + 1)}>
+              Suivant
+            </button>
+          )}
+        </div>
+      )}
 
       <section className="glass-card rounded-3xl p-4" aria-labelledby="ww-players-title">
         <h2 id="ww-players-title" className="mb-1 font-display text-lg font-bold">
           Joueurs
         </h2>
-        <p className="mb-3 text-xs text-[var(--text-muted)]">Écran du meneur : touche un joueur pour le marquer mort.</p>
+        <p className="mb-3 text-xs text-[var(--text-muted)]">
+          {controls ? 'Écran du meneur : touche un joueur pour le marquer mort.' : 'Le meneur marque les morts.'}
+        </p>
         <ul className="flex flex-col gap-2">
           {players.map((name, i) => {
             const meta = WEREWOLF_ROLES[roles[i]]
@@ -244,6 +298,7 @@ export default function Werewolf({ game, players, onPlayersChange }) {
                 <button
                   type="button"
                   aria-pressed={!alive[i]}
+                  disabled={!controls}
                   onClick={() => setAlive((a) => a.map((v, j) => (j === i ? !v : v)))}
                   className={`flex w-full items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition ${
                     alive[i]
@@ -252,11 +307,15 @@ export default function Werewolf({ game, players, onPlayersChange }) {
                   }`}
                 >
                   <span className={`font-semibold ${alive[i] ? '' : 'line-through'}`}>{name}</span>
-                  <span className="text-sm text-[var(--text-secondary)]">
-                    <span aria-hidden="true">{meta.emoji} </span>
-                    {meta.label}
-                    {!alive[i] && ' · mort'}
-                  </span>
+                  {narrator ? (
+                    <span className="text-sm text-[var(--text-secondary)]">
+                      <span aria-hidden="true">{meta.emoji} </span>
+                      {meta.label}
+                      {!alive[i] && ' · mort'}
+                    </span>
+                  ) : (
+                    !alive[i] && <span className="text-sm text-[var(--text-secondary)]">mort</span>
+                  )}
                 </button>
               </li>
             )
@@ -264,9 +323,11 @@ export default function Werewolf({ game, players, onPlayersChange }) {
         </ul>
       </section>
 
-      <button type="button" className={btnGhost} onClick={() => setPhase('setup')}>
-        Nouvelle partie
-      </button>
+      {controls && (
+        <button type="button" className={btnGhost} onClick={() => setPhase('setup')}>
+          Nouvelle partie
+        </button>
+      )}
     </div>
   )
 }

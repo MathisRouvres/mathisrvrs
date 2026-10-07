@@ -35,8 +35,20 @@ interface GameBase {
   noLevels?: boolean
 }
 
+/** Vote sur chaque téléphone, pour les jeux de cartes d'une partie partagée. */
+export type CardVote =
+  /** Chacun désigne un joueur ; résultats quand tout le monde a voté. */
+  | { kind: 'players'; title: string }
+  /** Chacun répond ; on voit qui a répondu quoi. */
+  | { kind: 'options'; title: string; options: string[] }
+  /** Chacun choisit une des deux options de la carte (Tu préfères). */
+  | { kind: 'card'; title: string }
+  /** Chacun donne une note de 0 à 10. */
+  | { kind: 'score'; title: string }
+
 export interface DeckGame extends GameBase {
   kind: 'deck'
+  vote?: CardVote
   /** Début de phrase affiché au-dessus de chaque carte. */
   prefix: string
   cards: Record<Level, string[]>
@@ -44,6 +56,7 @@ export interface DeckGame extends GameBase {
 
 export interface ChoiceGame extends GameBase {
   kind: 'choice'
+  vote?: CardVote
   prefix: string
   cards: Record<Level, [string, string][]>
 }
@@ -178,6 +191,7 @@ const GAMES: PartyGame[] = [
     gradient: 'from-fuchsia-500 to-pink-600',
     minPlayers: 2,
     prefix: 'Je n’ai jamais…',
+    vote: { kind: 'options', title: 'Et toi ?', options: ['Je l’ai déjà fait', 'Jamais'] },
     rules: [
       'Lisez la carte à voix haute.',
       'Ceux qui l’ont déjà fait lèvent la main (ou boivent une gorgée, avec modération).',
@@ -194,6 +208,7 @@ const GAMES: PartyGame[] = [
     gradient: 'from-amber-400 to-orange-600',
     minPlayers: 2,
     prefix: 'C’est un 10 mais…',
+    vote: { kind: 'score', title: 'Ta nouvelle note' },
     rules: [
       'Imaginez une personne parfaite, notée 10/10.',
       'Lisez son défaut : chacun annonce sa nouvelle note.',
@@ -210,6 +225,7 @@ const GAMES: PartyGame[] = [
     gradient: 'from-sky-500 to-indigo-600',
     minPlayers: 3,
     prefix: 'Qui pourrait le plus…',
+    vote: { kind: 'players', title: 'Vote en secret' },
     rules: [
       'Lisez la carte à voix haute.',
       'Comptez jusqu’à trois : chacun pointe la personne qui correspond le mieux.',
@@ -242,6 +258,7 @@ const GAMES: PartyGame[] = [
     gradient: 'from-emerald-500 to-teal-700',
     minPlayers: 2,
     prefix: 'Tu préfères…',
+    vote: { kind: 'card', title: 'Ton choix' },
     rules: [
       'Lisez les deux options.',
       'Chacun choisit son camp en même temps, à main levée.',
@@ -290,6 +307,7 @@ const GAMES: PartyGame[] = [
     gradient: 'from-pink-500 to-orange-500',
     minPlayers: 2,
     prefix: 'Qui de nous deux…',
+    vote: { kind: 'players', title: 'Vote en secret' },
     rules: [
       'Deux joueurs se mettent dos à dos (en couple, entre amis ou par paires).',
       'À chaque carte, les deux pointent en même temps celui qui correspond le mieux.',

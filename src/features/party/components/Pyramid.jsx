@@ -11,7 +11,9 @@ import {
 } from '../engine'
 import { isIntIn, isPlayingCard } from '../session'
 import { oneOf, useSessionState, when } from '../useSessionState'
+import { useRoomPlayer } from '../room/hooks'
 import PlayersEditor from './PlayersEditor'
+import RoomReveal from './RoomReveal'
 import PlayingCardFace from './PlayingCardFace'
 import { btnGhost, btnPrimary, cardEnter } from './buttons'
 import { sips } from './penalty'
@@ -48,6 +50,7 @@ export default function Pyramid({ level, players, onPlayersChange }) {
   // doit jamais se réafficher toute seule devant les autres.
   const [shown, setShown] = useState(false)
   const [check, setCheck] = useState(null)
+  const { inRoom } = useRoomPlayer()
 
   const count = players.length
   const ready = count >= MIN_PYRAMID_PLAYERS && count <= MAX_PYRAMID_PLAYERS
@@ -72,6 +75,33 @@ export default function Pyramid({ level, players, onPlayersChange }) {
           Distribuer les cartes
         </button>
       </div>
+    )
+  }
+
+  // Partie à plusieurs téléphones : chacun mémorise sa main sur son écran.
+  if (phase === 'memorize' && inRoom) {
+    const dealKey = deal.pyramid.map((c) => `${c.rank}${c.suit}`).join('')
+    return (
+      <RoomReveal
+        key={dealKey}
+        field={`seen-${dealKey}`}
+        players={players}
+        gradient="from-amber-500 to-orange-700"
+        what="tes cartes"
+        renderRole={(index) => (
+          <>
+            <p className="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--text-muted)]">Tes cartes</p>
+            <div className="flex gap-2">
+              {deal.hands[index].map((card) => (
+                <PlayingCardFace key={`${card.rank}${card.suit}`} card={card} size="sm" />
+              ))}
+            </div>
+            <p className="mt-4 text-sm text-[var(--text-secondary)]">Mémorise-les : elles se cachent pour la suite.</p>
+          </>
+        )}
+        startLabel="Mémorisé, on lance la pyramide"
+        onStart={() => setPhase('board')}
+      />
     )
   }
 

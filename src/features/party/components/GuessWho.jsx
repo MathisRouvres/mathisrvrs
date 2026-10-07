@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react'
 import { GUESS_WHO_CODE_LENGTH, GUESS_WHO_SIZE, dealGuessWho, isGuessWhoCode, normalizeCode, randomCode } from '../engine'
 import { isBoolArray, isIntIn } from '../session'
 import { LEVEL_META } from '../usePartySettings'
-import { oneOf, useSessionState, when } from '../useSessionState'
+import { oneOf, useSessionState, useSessionVotes, when } from '../useSessionState'
+import { useRoom, useRoomPlayer } from '../room/hooks'
 import { btnGhost, btnPrimary, cardEnter } from './buttons'
 import { sips } from './penalty'
 import { suspectPhotos } from '../content/guessWhoPhotos'
@@ -40,13 +41,21 @@ function Face({ suspect, className = '' }) {
  * du niveau et de la manche : deux téléphones avec le même code jouent la même
  * partie sans connexion. Mode « un seul téléphone » : un écran de passage
  * cache le plateau entre les deux joueurs.
+ *
+ * Partie à plusieurs téléphones : le code de la partie sert de code, chacun
+ * choisit son camp sur son téléphone et voit qui a pris l'autre.
  */
 export default function GuessWho({ game, level }) {
   const pool = game.cards[level]
-  const [code, setCode] = useSessionState('code', '', when((v) => v === '' || isGuessWhoCode(v)))
-  const [seat, setSeat] = useSessionState('seat', '', oneOf(['', ...SEATS]))
+  const room = useRoom()
+  const { myName } = useRoomPlayer()
+  // Le camp et l'écran de passage restent propres à chaque téléphone.
+  const [savedCode, setCode] = useSessionState('code', '', when((v) => v === '' || isGuessWhoCode(v)), { shared: false })
+  const [seat, setSeat] = useSessionState('seat', '', oneOf(['', ...SEATS]), { shared: false })
   const [round, setRound] = useSessionState('round', 0, when((v) => isIntIn(v, 0, 9999)))
-  const [viewer, setViewer] = useSessionState('viewer', 0, oneOf([0, 1]))
+  const [viewer, setViewer] = useSessionState('viewer', 0, oneOf([0, 1]), { shared: false })
+  const [seats, claimSeat] = useSessionVotes('seats', myName)
+  const code = room ? room.code : savedCode
   const [down0, setDown0] = useSessionState('down0', allUp, when((v) => isBoolArray(v, GUESS_WHO_SIZE)))
   const [down1, setDown1] = useSessionState('down1', allUp, when((v) => isBoolArray(v, GUESS_WHO_SIZE)))
   const [verdict, setVerdict] = useSessionState(
@@ -70,10 +79,41 @@ export default function GuessWho({ game, level }) {
   if (!deal || !seat) {
     const ready = draft.length === GUESS_WHO_CODE_LENGTH
     const start = (s) => {
-      setCode(draft)
+      if (!room) setCode(draft)
       setSeat(s)
+      claimSeat(s)
       setViewer(0)
       setCovered(true)
+    }
+    const takenBy = (s) =>
+      Object.entries(seats)
+        .filter(([name, v]) => v === s && name !== myName)
+        .map(([name]) => name)
+    if (room) {
+      return (
+        <div className="flex flex-col gap-4">
+          <p className="glass-card rounded-3xl p-5 text-sm text-[var(--text-secondary)]">
+            Deux joueurs, chacun sur son téléphone : choisis ton camp. Les autres peuvent suivre en prenant le même camp
+            qu’un joueur.
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            {PLAYER.map((label, i) => {
+              const others = takenBy(SEATS[i])
+              return (
+                <button
+                  key={label}
+                  type="button"
+                  className={`${btnPrimary} min-h-16 flex-col text-lg`}
+                  onClick={() => start(SEATS[i])}
+                >
+                  {label}
+                  {others.length > 0 && <span className="text-xs font-normal opacity-80">avec {others.join(', ')}</span>}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )
     }
     return (
       <div className="flex flex-col gap-4">
@@ -169,6 +209,12 @@ export default function GuessWho({ game, level }) {
 
   function quit() {
     resetTransient()
+    // Partie partagée : on quitte son camp sans effacer la partie de l'autre.
+    if (room) {
+      setSeat('')
+      claimSeat(null)
+      return
+    }
     setVerdict(null)
     setDown0(allUp())
     setDown1(allUp())
@@ -214,7 +260,7 @@ export default function GuessWho({ game, level }) {
           Revanche
         </button>
         <button type="button" className={btnGhost} onClick={quit}>
-          Changer de code
+          {room ? 'Changer de camp' : 'Changer de code'}
         </button>
       </div>
     )
@@ -389,7 +435,7 @@ export default function GuessWho({ game, level }) {
       </details>
 
       <button type="button" className={btnGhost} onClick={quit}>
-        Quitter la partie
+        {room ? 'Changer de camp' : 'Quitter la partie'}
       </button>
     </div>
   )

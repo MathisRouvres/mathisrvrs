@@ -1,5 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { blip, unlockAudio } from '../../../lib/synth'
+import { SessionContext } from '../sessionContext'
+import { RoomContext, useRoomValue } from '../room/hooks'
+import { roomKey } from '../useSessionState'
 
 /**
  * Compte à rebours calé sur l'heure absolue (pas de dérive si l'onglet ralentit).
@@ -8,9 +11,21 @@ import { blip, unlockAudio } from '../../../lib/synth'
  *
  * Option `ticks` : nombre de dernières secondes signalées par un bip (0 = aucun,
  * par défaut, pour ne rien trahir d'un chrono secret).
+ *
+ * Partie à plusieurs téléphones : l'heure de fin est partagée, le chrono
+ * tourne et sonne sur tous les téléphones à la fois, et chacun appelle
+ * `onDone` (les jeux n'y font que des changements idempotents).
  */
 export function useCountdown(onDone, { ticks = 0 } = {}) {
-  const [endAt, setEndAt] = useState(null)
+  const scope = useContext(SessionContext)
+  const room = useContext(RoomContext)
+  const key = room && scope ? roomKey(scope, 'timerEnd') : null
+  const sharedEnd = useRoomValue(room, key)
+  const [localEnd, setLocalEnd] = useState(null)
+  // Partagé : fin déjà traitée sur ce téléphone (les autres peuvent ne pas l'avoir encore vue).
+  const [handled, setHandled] = useState(null)
+  const endAt = key ? (Number.isFinite(sharedEnd) && sharedEnd !== handled ? sharedEnd : null) : localEnd
+  const setEndAt = useCallback((value) => (key ? room.set(key, value) : setLocalEnd(value)), [room, key])
   const [now, setNow] = useState(0)
   const onDoneRef = useRef(onDone)
   const lastTickRef = useRef(null)
@@ -26,10 +41,12 @@ export function useCountdown(onDone, { ticks = 0 } = {}) {
     lastTickRef.current = null
     setNow(t)
     setEndAt(t + seconds * 1000)
-  }, [])
+  }, [setEndAt])
 
   useEffect(() => {
     if (endAt === null) return undefined
+    // Une fin déjà passée en arrivant dans la partie ne déclenche rien.
+    const armed = endAt > Date.now()
     const id = setInterval(() => {
       const t = Date.now()
       setNow(t)
@@ -41,14 +58,15 @@ export function useCountdown(onDone, { ticks = 0 } = {}) {
       if (t >= endAt) {
         // Coupé tout de suite : `onDone` ne doit jamais partir deux fois.
         clearInterval(id)
-        setEndAt(null)
-        onDoneRef.current?.(start)
+        if (key) setHandled(endAt)
+        else setLocalEnd(null)
+        if (armed) onDoneRef.current?.(start)
       }
     }, 200)
     return () => clearInterval(id)
-  }, [endAt, start, ticks])
+  }, [endAt, start, ticks, key])
 
-  const stop = useCallback(() => setEndAt(null), [])
+  const stop = useCallback(() => setEndAt(null), [setEndAt])
 
   const remaining = endAt === null ? 0 : Math.max(0, Math.ceil((endAt - now) / 1000))
   return { remaining, running: endAt !== null, start, stop }
