@@ -24,6 +24,7 @@ const MonovomyApp = named(() => import('./features/monovomy'), 'MonovomyApp')
 const SpinApp = named(() => import('./features/spin'), 'SpinApp')
 const GamesHub = named(() => import('./features/games'), 'GamesHub')
 const PartyApp = named(() => import('./features/party'), 'PartyApp')
+const StatsApp = named(() => import('./features/stats'), 'StatsApp')
 
 function normalizePathname(pathname) {
   if (!pathname || pathname === '/') return '/'
@@ -123,6 +124,15 @@ function SpinRouteGate({ children }) {
 
 export default function App() {
   const path = normalizePathname(window.location.pathname)
+
+  // Statistiques d'usage (privé, protégé par clé ; non indexé).
+  if (path === '/stats') {
+    return (
+      <LazyRoute>
+        <StatsApp />
+      </LazyRoute>
+    )
+  }
 
   if (path === '/games') {
     return (

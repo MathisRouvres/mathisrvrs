@@ -38,6 +38,7 @@ import {
 import { createSupabaseChannel } from '../net/supabaseTransport'
 import { getBoardMap } from '../content'
 import { SUPABASE_CONFIG, SUPABASE_ENABLED } from '../../../config/features'
+import { track } from '../../../lib/analytics/tracker'
 import { describeOutcome } from './describeOutcome'
 
 const POOL = actionCards.map((card) => card.id)
@@ -303,6 +304,7 @@ export function useOnlineGame() {
     }
     setRole('host'); setRoomCode(code); setMembers(membersRef.current); setScreen('lobby'); setNetStatus('connected')
     persistSession({ role: 'host', roomCode: code, me })
+    track('room_create', 'monovomy:online')
   }, [onEnvelopeHost, makeStore])
 
   const clientJoin = useCallback(async (form, code) => {
@@ -322,6 +324,7 @@ export function useOnlineGame() {
     } catch (err) { setError(String(err instanceof Error ? err.message : err)); setNetStatus('offline'); return }
     setRole('client'); setRoomCode(upper); setScreen('lobby'); setNetStatus('connected')
     persistSession({ role: 'client', roomCode: upper, me })
+    track('room_join', 'monovomy:online')
   }, [onEnvelopeClient])
 
   /** Reprend une partie après rechargement de page (rejoint + resync). */
@@ -368,6 +371,7 @@ export function useOnlineGame() {
     epochRef.current = snap.hostEpoch; versionRef.current = snap.snapshotVersion
     broadcast({ t: 'state', state, sync: null, hostEpoch: snap.hostEpoch, snapshotVersion: snap.snapshotVersion })
     applyLocalState(state, null)
+    track('game_start', 'monovomy:online')
     storeRef.current?.save(roomCode, snap)
   }, [role, broadcast, applyLocalState, roomCode])
 

@@ -3,6 +3,7 @@ import { SUPABASE_CONFIG, SUPABASE_ENABLED } from '../../../config/features'
 import { clearSavedRoom, createRoomStore, readSavedRoom } from './store'
 import { cleanName, isRoomCode, newRoomCode, randomClientId } from './doc'
 import { broadcastChannelTransport, supabaseTransport } from './transport'
+import { track } from '../../../lib/analytics/tracker'
 
 /** Partie à plusieurs téléphones en cours (RoomStore), ou null en mode un seul téléphone. */
 export const RoomContext = createContext(null)
@@ -154,8 +155,16 @@ export function useRoomSession(factory, storage) {
     return () => document.removeEventListener('visibilitychange', onVisible)
   }, [store])
 
-  const join = useCallback((code, name) => (factory ? manager.join(code, name) : false), [factory, manager])
-  const create = useCallback((name) => join(newRoomCode(), name), [join])
+  const open = useCallback(
+    (code, name, event) => {
+      const ok = factory ? manager.join(code, name) : false
+      if (ok) track(event, 'soiree')
+      return ok
+    },
+    [factory, manager],
+  )
+  const join = useCallback((code, name) => open(code, name, 'room_join'), [open])
+  const create = useCallback((name) => open(newRoomCode(), name, 'room_create'), [open])
   const leave = useCallback(() => manager.leave?.(), [manager])
 
   return { store, available: Boolean(factory), create, join, leave }

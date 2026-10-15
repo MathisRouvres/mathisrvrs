@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { ThemeProvider } from '../../context/ThemeProvider'
 import { MONOVOMY_ENABLED } from '../../config/features'
+import { track } from '../../lib/analytics/tracker'
 
 /**
  * Catalogue des jeux publiés. `enabled` suit le flag build-time de chaque jeu :
@@ -80,6 +81,8 @@ export default function GamesHub() {
                 <li key={game.id}>
                   <a
                     href={game.href}
+                    // HEXLAND est une page statique hors de l'appli : on compte le lancement ici.
+                    onClick={game.id === 'hexland' ? () => track('game_start', 'hexland') : undefined}
                     className="group glass-card flex h-full flex-col rounded-2xl p-6 transition-all duration-300 hover:-translate-y-1 hover:border-[var(--accent)] hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
                   >
                     <div className="flex items-center gap-4">

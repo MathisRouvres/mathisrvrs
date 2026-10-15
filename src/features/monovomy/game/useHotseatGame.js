@@ -40,6 +40,7 @@ import {
   resolveAuction,
   DIFFICULTY_MULTIPLIER,
 } from '../engine'
+import { track } from '../../../lib/analytics/tracker'
 
 const CARD_POOL = actionCards.map((card) => card.id)
 const TICK_MS = 1000
@@ -91,6 +92,7 @@ export function useHotseatGame() {
     setState(fresh)
     setResult(null)
     setScreen('playing')
+    track('game_start', 'monovomy:local')
   }, [])
 
   // Horloge de partie : tick régulier, fin automatique au timer.

@@ -18,7 +18,9 @@
     "src/game-content/**/*",
     "src/features/career/**/*.ts",
     "src/features/monovomy/**/*.ts",
-    "src/features/party/**/*.ts"
+    "src/features/party/**/*.ts",
+    "src/features/stats/**/*.ts",
+    "src/lib/analytics/**/*.ts"
   ],
   "exclude": ["node_modules", "dist"]
 }
