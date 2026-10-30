@@ -29,7 +29,8 @@ echo "command=\"/usr/bin/rrsync /opt/site/www\",restrict $(cat ~/.ssh/mathisrvrs
   | ssh deploy@185.226.172.52 'sudo tee /home/site/.ssh/authorized_keys >/dev/null \
   && sudo chown site:site /home/site/.ssh/authorized_keys && sudo chmod 600 /home/site/.ssh/authorized_keys'
 gh secret set VPS_SSH_KEY < ~/.ssh/mathisrvrs_deploy_ci
-# Contrôle : écriture possible dans www, rien d'autre (shell refusé)
+# Contrôle : écriture possible dans www, rien d'autre (shell refusé). rrsync refuse le
+# openrsync de macOS : utiliser rsync 3 (brew install rsync, ou un conteneur ubuntu).
 rsync -n -rl dist/ -e 'ssh -i ~/.ssh/mathisrvrs_deploy_ci' site@185.226.172.52: && echo rsync-ok
 ssh -i ~/.ssh/mathisrvrs_deploy_ci site@185.226.172.52 id   # doit être refusé par rrsync
 ```
