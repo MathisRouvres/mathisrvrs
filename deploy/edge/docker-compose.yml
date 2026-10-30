@@ -1,0 +1,43 @@
+# Caddy frontal du VPS, lancé depuis /opt/edge avec un fichier .env (voir .env.example).
+# Le réseau « edge » est partagé : chaque pile y branche le conteneur qu'elle expose.
+name: edge
+
+services:
+  caddy:
+    image: caddy:2.11-alpine
+    environment:
+      ACME_EMAIL: ${ACME_EMAIL:?}
+      CLUB_SITE: ${CLUB_SITE:?}
+      CLUB_ALIASES: ${CLUB_ALIASES:?}
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+      - "${HTTPS_PORT:-443}:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./sites:/etc/caddy/sites:ro
+      # Certificats : à conserver (limites de délivrance de Let's Encrypt). Amorcé par une copie
+      # du volume club_caddy-data à la bascule : aucun certificat redemandé.
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      - edge
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:2019/config/"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+networks:
+  edge:
+    name: edge
+
+volumes:
+  caddy-data:
+  caddy-config:

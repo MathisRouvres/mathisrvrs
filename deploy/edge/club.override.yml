@@ -1,0 +1,22 @@
+# Copié en /opt/club/docker-compose.override.yml : chargé automatiquement par « docker compose »
+# (deploy.sh compris) et jamais écrasé par le déploiement de ClubAscent, qui ne recopie que
+# docker-compose.yml et deploy.sh. Met club-web derrière le Caddy frontal (/opt/edge).
+# Exige l'image web avec SITE_SCHEME et trusted_proxies (deploy/Caddyfile de ClubAscent).
+services:
+  web:
+    # Plus aucun port publié : le frontal joint club-web par le réseau edge.
+    ports: !reset []
+    environment:
+      # Caddy de club-web en HTTP seul (le frontal fait le HTTPS) ; SITE_ADDRESS reste le domaine
+      # nu, l'API en dérive toujours PUBLIC_URL=https://<domaine>.
+      SITE_SCHEME: "http://"
+      # Redirections www et sslip.io : faites par le frontal.
+      SITE_ALIASES: ""
+    networks:
+      default:
+      edge:
+        aliases: [club-web]
+
+networks:
+  edge:
+    external: true

@@ -1,0 +1,21 @@
+# Caddy frontal du VPS : seul à publier 80/443. Termine le HTTPS de tous les sites et relaie
+# chacun vers son conteneur sur le réseau Docker « edge » (aucun autre port publié).
+# Domaines lus dans .env (voir .env.example) ; en test local, des noms en .localhost (CA interne).
+{
+	email {$ACME_EMAIL}
+}
+
+# --- Eskudo (pile /opt/club) ---
+# Le Caddy de club-web sert en HTTP sur le réseau edge et garde ses en-têtes (CSP, HSTS, cache
+# PWA). Il fait confiance aux IP privées (trusted_proxies) : l'IP réelle du joueur lui arrive dans
+# X-Forwarded-For, l'API (trustProxy) s'en sert pour ses limites par IP.
+{$CLUB_SITE} {
+	reverse_proxy club-web:80
+}
+
+{$CLUB_ALIASES} {
+	redir https://{$CLUB_SITE}{uri} permanent
+}
+
+# Sites suivants (mathis-rvrs.fr, dashboards) : un fichier par site dans sites/.
+import sites/*.caddy
