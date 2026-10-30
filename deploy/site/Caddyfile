@@ -1,0 +1,84 @@
+# mathis-rvrs.fr dans le conteneur site-web (FrankenPHP), derrière le Caddy frontal (/opt/edge)
+# qui fait le HTTPS. Reprend les règles des .htaccess servis par Apache chez OVH
+# (public/.htaccess, public/catan/.htaccess).
+{
+	skip_install_trust
+	auto_https off
+	admin off
+	servers {
+		# IP réelle du visiteur (REMOTE_ADDR de contact.php) : X-Forwarded-For du frontal.
+		trusted_proxies static private_ranges
+	}
+	frankenphp
+}
+
+:80 {
+	root * /srv/www
+	header -Server
+
+	# Rien à servir : fichiers de configuration Apache et état de l'ancien envoi FTP.
+	@private path */.htaccess /.ftp-deploy-sync-state.json
+	handle @private {
+		respond 404
+	}
+
+	@php path /contact.php
+	handle @php {
+		php {
+			# FrankenPHP met l'IP du frontal dans REMOTE_ADDR ; client_ip suit trusted_proxies.
+			env REMOTE_ADDR {client_ip}
+		}
+	}
+
+	# HEXLAND (export Godot) : fichiers .br/.gz précompressés, servis tels quels.
+	@catan path /catan /catan/*
+	handle @catan {
+		header {
+			X-Content-Type-Options nosniff
+			Referrer-Policy no-referrer
+			# Le moteur Godot évalue du code au démarrage et fabrique des ressources en blob:.
+			Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' blob: data:; object-src 'none'; base-uri 'self'; form-action 'none'"
+		}
+		# Moteur et données gardent le même nom d'un build à l'autre : toujours revalidés.
+		# Les images, elles, ne changent pas d'un build à l'autre.
+		@png path *.png
+		header @png Cache-Control "public, max-age=31536000, immutable"
+		@notpng not path *.png
+		header @notpng Cache-Control "no-cache, must-revalidate"
+		@pck path *.pck
+		header @pck Content-Type application/octet-stream
+		@manifest path *.webmanifest
+		header @manifest Content-Type application/manifest+json
+		file_server {
+			precompressed br gzip
+		}
+	}
+
+	# Application React : fallback SPA vers index.html.
+	handle {
+		encode zstd gzip
+		route {
+			try_files {path} /index.html
+
+			# HTML toujours revalidé (Safari iOS gardait un index.html périmé) ; fichiers à
+			# empreinte Vite (`index-BR4v069a.css`) en cache un an.
+			@html path *.html
+			header @html Cache-Control "no-cache, must-revalidate"
+			@hashed path_regexp -[A-Za-z0-9_-]{8,}\.(js|css)$
+			header @hashed Cache-Control "public, max-age=31536000, immutable"
+
+			@sw path /monovomy-sw.js
+			header @sw {
+				Cache-Control "no-cache, no-store, must-revalidate"
+				Service-Worker-Allowed /monovomy
+			}
+			@manifest path *.webmanifest
+			header @manifest {
+				Cache-Control no-cache
+				Content-Type application/manifest+json
+			}
+
+			file_server
+		}
+	}
+}

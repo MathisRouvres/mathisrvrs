@@ -1,0 +1,30 @@
+# mathis-rvrs.fr, lancé depuis /opt/site avec un fichier .env (voir .env.example).
+# Image construite sur le serveur (docker compose build) : elle ne change qu'avec ce dossier ;
+# les fichiers du site arrivent dans ./www à chaque déploiement, sans redémarrage.
+name: site
+
+services:
+  web:
+    build: .
+    image: mathisrvrs-site:local
+    environment:
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-contact@mathis-rvrs.fr}
+    volumes:
+      - ./www:/srv/www:ro
+    networks:
+      edge:
+        aliases: [site-web]
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+networks:
+  edge:
+    external: true

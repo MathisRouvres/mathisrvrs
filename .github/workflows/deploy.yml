@@ -57,7 +57,8 @@ jobs:
       - name: Drop uncompressed HEXLAND wasm
         run: |
           test -f dist/catan/index.wasm.br
-          rm dist/catan/index.wasm
+          # Mis de côté, pas supprimé : le VPS (sans quota) le reçoit après OVH.
+          mv dist/catan/index.wasm "$RUNNER_TEMP/"
           du -sh dist
 
       - name: Deploy to OVH
@@ -72,46 +73,25 @@ jobs:
           # Envoi incrémental (fichier d'état .ftp-deploy-sync-state.json sur le
           # serveur) : un échec en cours d'envoi ne vide plus tout le site.
 
-      # Contrôle de la production : la page d'accueil doit référencer le build
-      # qu'on vient d'envoyer, chaque fichier JS/CSS doit être servi avec le bon
-      # type (sinon : écran blanc) et les routes principales doivent répondre.
+      # Contrôle de la production (voir scripts/smoke-test.sh).
       - name: Smoke test production
+        run: scripts/smoke-test.sh https://mathis-rvrs.fr
+
+      # VPS (Caddy frontal + FrankenPHP, deploy/site), après OVH qui reste la production tant que
+      # le DNS n'a pas basculé : un échec ici ne bloque pas OVH. Wasm brut remis (pas de quota).
+      # Clé dédiée, limitée côté serveur à rrsync dans /opt/site/www. Tant que le DNS pointe
+      # vers OVH, le VPS est visé par son IP (certificat local : -k).
+      - name: Deploy to VPS
         env:
-          SITE_URL: https://mathis-rvrs.fr
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
         run: |
-          set -u
-          expected=$(grep -oE 'assets/index-[^"]+\.js' dist/index.html | head -1)
-          echo "Build attendu : $expected"
-          for attempt in 1 2 3 4 5 6; do
-            if curl -fsS "$SITE_URL/?deploy=$GITHUB_SHA" | grep -q "$expected"; then
-              echo "index.html à jour"
-              break
-            fi
-            if [ "$attempt" = 6 ]; then
-              echo "::error::La production ne sert pas le nouveau build ($expected)"
-              exit 1
-            fi
-            sleep 10
-          done
+          mv "$RUNNER_TEMP/index.wasm" dist/catan/
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/vps
+          chmod 600 ~/.ssh/vps
+          echo '185.226.172.52 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIE8ujsYTA/UJFTdglRnPALWMtSGSk7fFm6P4v/d4gQDG' > ~/.ssh/known_hosts
+          rsync -rlptz --delete-after --delay-updates --exclude '.htaccess' \
+            -e 'ssh -i ~/.ssh/vps -o IdentitiesOnly=yes' dist/ site@185.226.172.52:
 
-          failed=0
-          for file in dist/assets/*.js dist/assets/*.css; do
-            path="/assets/$(basename "$file")"
-            type=$(curl -sS -o /dev/null -w '%{http_code} %{content_type}' "$SITE_URL$path")
-            case "$file" in
-              *.js) want=javascript ;;
-              *.css) want=css ;;
-            esac
-            if ! echo "$type" | grep -q "^200 .*$want"; then
-              echo "::error::$path servi en « $type »"
-              failed=1
-            fi
-          done
-
-          for route in / /games /games/soiree /monovomy /carriere /spin /catan/; do
-            code=$(curl -sS -o /dev/null -w '%{http_code}' "$SITE_URL$route")
-            echo "$route -> $code"
-            [ "$code" = 200 ] || { echo "::error::$route répond $code"; failed=1; }
-          done
-
-          exit $failed
+      - name: Smoke test VPS
+        run: scripts/smoke-test.sh https://mathis-rvrs.fr --resolve mathis-rvrs.fr:443:185.226.172.52 -k

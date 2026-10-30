@@ -1,0 +1,14 @@
+# mathis-rvrs.fr (pile /opt/site).
+# TRANSITION : tant que le DNS pointe vers OVH, Let's Encrypt ne peut pas valider le domaine ;
+# certificat local (« tls internal », tests avec curl --resolve -k). Après la bascule DNS :
+# retirer les deux lignes « tls internal », puis recharger sans coupure :
+#   docker compose -f /opt/edge/docker-compose.yml exec caddy caddy reload --config /etc/caddy/Caddyfile
+mathis-rvrs.fr {
+	tls internal
+	reverse_proxy site-web:80
+}
+
+www.mathis-rvrs.fr {
+	tls internal
+	redir https://mathis-rvrs.fr{uri} permanent
+}
