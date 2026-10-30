@@ -1,0 +1,62 @@
+# MySQL + phpMyAdmin, lancés depuis /opt/db avec un fichier .env (voir .env.example).
+# Le réseau « db » est créé ici : les dashboards le déclarent `external` et joignent « mysql:3306 ».
+# MySQL ne publie aucun port ; phpMyAdmin n'est joignable que par le frontal, derrière la connexion.
+name: db
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "3"
+
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?}
+    # VPS de 4 Go partagé avec Eskudo (PostgreSQL 1 Go) : mémoire de MySQL bornée.
+    command:
+      - --innodb-buffer-pool-size=256M
+      - --performance-schema=OFF
+      - --max-connections=60
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      - --skip-name-resolve
+    volumes:
+      - mysql-data:/var/lib/mysql
+    networks:
+      db:
+        aliases: [mysql]
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_ROOT_PASSWORD\" mysqladmin ping -h 127.0.0.1 -uroot --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+    logging: *logging
+
+  phpmyadmin:
+    image: phpmyadmin:5.2-apache
+    environment:
+      PMA_HOST: mysql
+      PMA_ABSOLUTE_URI: https://pma.mathis-rvrs.fr/
+      UPLOAD_LIMIT: 64M
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      db:
+      edge:
+        aliases: [pma-web]
+    restart: unless-stopped
+    logging: *logging
+
+networks:
+  db:
+    name: db
+  edge:
+    external: true
+
+volumes:
+  mysql-data:

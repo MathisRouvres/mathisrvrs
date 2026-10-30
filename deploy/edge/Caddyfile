@@ -17,5 +17,13 @@
 	redir https://{$CLUB_SITE}{uri} permanent
 }
 
+# Accès réservé : chaque requête passe d'abord par le service de connexion (deploy/auth), qui
+# répond 200 (session valide) ou renvoie vers auth.mathis-rvrs.fr/login.
+(private) {
+	forward_auth auth-web:8080 {
+		uri /verify
+	}
+}
+
 # Sites suivants (mathis-rvrs.fr, dashboards) : un fichier par site dans sites/.
 import sites/*.caddy

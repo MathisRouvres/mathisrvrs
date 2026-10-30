@@ -1,0 +1,27 @@
+# Service de connexion, lancé depuis /opt/auth. Compte : docker compose run --rm -it web node setup.mjs
+name: auth
+
+services:
+  web:
+    build: .
+    image: mathisrvrs-auth:local
+    environment:
+      AUTH_DOMAIN: mathis-rvrs.fr
+      SESSION_DAYS: "30"
+      AUTH_APPS: "Travaux=https://travaux.mathis-rvrs.fr,Arbitre=https://arbitre.mathis-rvrs.fr,Job Radar=https://job.mathis-rvrs.fr,phpMyAdmin=https://pma.mathis-rvrs.fr"
+    volumes:
+      # credentials.json (600) : empreinte du mot de passe, secret TOTP, secret des sessions.
+      - ./config:/config
+    networks:
+      edge:
+        aliases: [auth-web]
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+networks:
+  edge:
+    external: true
