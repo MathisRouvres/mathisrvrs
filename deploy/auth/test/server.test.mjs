@@ -75,6 +75,29 @@ test('envoi depuis une autre origine refusé', async () => {
   assert.equal(res.status, 403);
 });
 
+// Formulaire réel d'un navigateur : Origin peut valoir « null » ; Sec-Fetch-Site tranche.
+const rawPost = (headers) =>
+  fetch(`${base}/login`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Forwarded-For': '198.51.100.7', ...headers },
+    body: new URLSearchParams({ password: 'faux', code: '000000' }),
+  });
+
+test('Origin null : accepté seulement si Sec-Fetch-Site vaut same-origin', async () => {
+  assert.equal((await rawPost({ Origin: 'null', 'Sec-Fetch-Site': 'same-origin' })).status, 401);
+  assert.equal((await rawPost({ 'Sec-Fetch-Site': 'same-origin' })).status, 401);
+  assert.equal((await rawPost({ Origin: 'null', 'Sec-Fetch-Site': 'cross-site' })).status, 403);
+  assert.equal((await rawPost({ Origin: 'null' })).status, 403);
+  assert.equal((await rawPost({})).status, 403);
+  assert.equal((await rawPost({ Origin: 'https://evil.com', 'Sec-Fetch-Site': 'same-origin' })).status, 403);
+});
+
+test('page de connexion : politique de référent same-origin', async () => {
+  const res = await fetch(`${base}/login`);
+  assert.equal(res.headers.get('referrer-policy'), 'same-origin');
+});
+
 test('mauvais mot de passe ou mauvais code refusés', async () => {
   assert.equal((await login({ password: 'faux', code: totpAt(secret, step()) }, { ip: '198.51.100.1' })).status, 401);
   assert.equal((await login({ password: PASSWORD, code: '000000' }, { ip: '198.51.100.1' })).status, 401);

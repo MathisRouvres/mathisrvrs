@@ -101,7 +101,9 @@ function page(res, status, title, body, extraHeaders = {}) {
     'Cache-Control': 'no-store',
     'Content-Security-Policy': `default-src 'none'; style-src 'sha256-${STYLE_HASH}'; form-action 'self' https://*.${DOMAIN}; frame-ancestors 'none'; base-uri 'none'`,
     'X-Content-Type-Options': 'nosniff',
-    'Referrer-Policy': 'no-referrer',
+    // same-origin et pas no-referrer : avec no-referrer, le navigateur envoie « Origin: null » sur les
+    // formulaires, refusés par sameOrigin(). L'adresse de retour (?rd=) ne fuit toujours pas ailleurs.
+    'Referrer-Policy': 'same-origin',
     ...extraHeaders,
   });
   res.end(`<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${escapeHtml(title)}</title><style>${STYLE}</style></head><body><main>${body}</main></body></html>`);
@@ -135,8 +137,12 @@ function redirect(res, location, status = 303, headers = {}) {
 }
 
 // Formulaires : même origine exigée (en plus de SameSite=Lax) contre les envois depuis un autre site.
+// Origine absente ou « null » (politique de référent, page restaurée…) : Sec-Fetch-Site, posé par le
+// navigateur et impossible à falsifier depuis une page, doit dire same-origin.
 function sameOrigin(req) {
-  return req.headers.origin === ORIGIN;
+  const origin = req.headers.origin;
+  if (origin && origin !== 'null') return origin === ORIGIN;
+  return req.headers['sec-fetch-site'] === 'same-origin';
 }
 
 function readForm(req) {
