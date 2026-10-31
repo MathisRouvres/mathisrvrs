@@ -28,7 +28,8 @@ services:
       db:
         aliases: [mysql]
     healthcheck:
-      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_ROOT_PASSWORD\" mysqladmin ping -h 127.0.0.1 -uroot --silent"]
+      # Socket local (root@localhost) : root n'a pas de compte réseau (root@'%' supprimé).
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_ROOT_PASSWORD\" mysqladmin ping -uroot --silent"]
       interval: 10s
       timeout: 5s
       retries: 10

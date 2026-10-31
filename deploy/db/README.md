@@ -2,7 +2,10 @@
 
 MySQL 8.4 (256 Mo de cache InnoDB, aucun port publié) sur le réseau Docker `db`, alias `mysql`.
 phpMyAdmin sur `pma.mathis-rvrs.fr`, derrière la connexion de l'espace privé (`deploy/auth`),
-puis sa propre connexion MySQL (root ou l'utilisateur d'une app).
+puis sa propre connexion MySQL (compte `admin`, ou l'utilisateur d'une app).
+
+`root` n'existe qu'en `root@localhost` : joignable seulement par le socket, depuis l'intérieur du
+conteneur (sauvegarde, `create-app-db.sh`, contrôle de santé), jamais par phpMyAdmin ni le réseau.
 
 | Base | Utilisateur | `.env` de l'app |
 |---|---|---|
