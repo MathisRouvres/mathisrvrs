@@ -2,13 +2,14 @@
 // Le Caddy frontal interroge GET /verify avant chaque requête vers un dashboard (forward_auth) :
 // session valide et hôte autorisé pour le compte → 200 avec X-Auth-User, hôte hors périmètre → 403,
 // pas de session → redirection vers /login (GET/HEAD) ou 401.
-// Comptes : identifiant + mot de passe (scrypt) + code TOTP, définis par `node setup.mjs`.
+// Comptes : identifiant + mot de passe (scrypt) + code TOTP, définis par `node setup.mjs`. Un compte limité
+// à des hôtes listés peut se passer du TOTP ; il a alors sa propre limite d'échecs (10 par heure).
 import http from 'node:http';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import {
-  ACCOUNT_NAME, LEGACY_ACCOUNT, checkTotp, createLimiter, findAccount, hashPassword, hostAllowed, normalizeCredentials,
-  normalizeHost, readSession, safeReturnUrl, signSession, verifyPassword,
+  ACCOUNT_NAME, LEGACY_ACCOUNT, accountError, checkTotp, createLimiter, findAccount, hashPassword, hostAllowed,
+  normalizeCredentials, normalizeHost, readSession, safeReturnUrl, signSession, verifyPassword,
 } from './lib.mjs';
 
 const PORT = Number(process.env.PORT || 8080);
@@ -27,12 +28,19 @@ const APPS = (process.env.AUTH_APPS || '')
 const log = (...a) => console.log(new Date().toISOString(), ...a);
 
 // Ancien format (un seul compte) accepté : il devient le compte « mathis » (voir lib.mjs).
+// Un compte inutilisable (accès partout sans TOTP, champ manquant) est ignoré par findAccount.
 function loadCredentials() {
+  let loaded;
   try {
-    return normalizeCredentials(JSON.parse(fs.readFileSync(CREDENTIALS_FILE, 'utf8')));
+    loaded = normalizeCredentials(JSON.parse(fs.readFileSync(CREDENTIALS_FILE, 'utf8')));
   } catch {
     return null; // absent : setup pas encore fait
   }
+  for (const [name, a] of Object.entries(loaded?.accounts || {})) {
+    const err = accountError(a);
+    if (err) log(`compte ignoré compte=${JSON.stringify(name)} : ${err}`);
+  }
+  return loaded;
 }
 
 // Gardé en mémoire pour /verify (appelé à chaque requête des dashboards) et rechargé quand
@@ -58,6 +66,8 @@ function saveLastStep(name, step) {
 }
 
 const limiter = createLimiter();
+// Comptes sans TOTP, et identifiants inconnus pour ne pas les distinguer : 10 échecs par heure.
+const accountLimiter = createLimiter({ perIp: 10, total: Infinity, windowMs: 60 * 60_000 });
 // Compte inconnu : scrypt calculé quand même, le temps de réponse ne dit pas quels comptes existent.
 const DUMMY_HASH = hashPassword(crypto.randomBytes(16).toString('hex'));
 
@@ -109,7 +119,7 @@ input:focus-visible,button:focus-visible,a:focus-visible{outline:3px solid var(-
 button{width:100%;margin-top:22px;font:inherit;font-weight:600;padding:11px;border:0;border-radius:9px;background:var(--accent);color:#fff;cursor:pointer}
 @media (prefers-color-scheme:dark){button{color:#111}}
 button:hover{filter:brightness(1.08)}
-.err{color:var(--err);font-weight:600;margin:16px 0 0}
+.err{color:var(--err);font-weight:600;margin:16px 0 0}.hint{margin:6px 0 0;font-size:.85rem}
 ul{list-style:none;padding:0;margin:0}li a{display:block;padding:12px 14px;margin-top:8px;border:1px solid var(--line);border-radius:9px;color:inherit;text-decoration:none;font-weight:600}
 li a:hover{border-color:var(--accent)}.link{background:none;color:var(--muted);text-decoration:underline;margin-top:18px;font-weight:400}`;
 const STYLE_HASH = crypto.createHash('sha256').update(STYLE).digest('base64');
@@ -143,7 +153,8 @@ function loginPage(res, { status = 200, rd = '', error = '', user = '' } = {}) {
 <label for="password">Mot de passe</label>
 <input id="password" name="password" type="password" autocomplete="current-password" required${user ? ' autofocus' : ''}>
 <label for="code">Code de l'application d'authentification</label>
-<input id="code" name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required>
+<input id="code" name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" aria-describedby="code-hint">
+<p class="hint" id="code-hint">Laisser vide si ton compte n'en demande pas.</p>
 ${error ? `<p class="err" role="alert">${escapeHtml(error)}</p>` : ''}
 <button type="submit">Se connecter</button>
 </form>`);
@@ -218,18 +229,31 @@ async function handleLogin(req, res) {
   const rd = safeReturnUrl(form.get('rd') || '', DOMAIN) || '';
   const name = (form.get('user') || '').trim().toLowerCase();
   const account = ACCOUNT_NAME.test(name) ? findAccount(creds, name) : null;
-  const passwordOk = verifyPassword(form.get('password') || '', account ? account.passwordHash : DUMMY_HASH);
-  const step = account
-    ? checkTotp(account.totpSecret, (form.get('code') || '').trim(), { lastStep: account.lastTotpStep ?? -1 })
-    : null;
   const shownName = ACCOUNT_NAME.test(name) ? name : '?';
+  // Sans TOTP, seul le mot de passe protège le compte : limite propre à l'identifiant, en plus de l'IP.
+  const limitedName = shownName !== '?' && !(account && account.totpSecret !== null) ? name : null;
+  const nameWait = limitedName ? accountLimiter.waitMs(limitedName) : 0;
+  if (nameWait > 0) {
+    const minutes = Math.ceil(nameWait / 60_000);
+    log(`connexion bloquée compte=${limitedName} ip=${ip} (${minutes} min)`);
+    return page(res, 429, 'Trop de tentatives', `<h1>Trop de tentatives</h1><p>Réessaie dans ${minutes} min.</p>`, {
+      'Retry-After': String(Math.ceil(nameWait / 1000)),
+    });
+  }
+  const passwordOk = verifyPassword(form.get('password') || '', account ? account.passwordHash : DUMMY_HASH);
+  // Compte sans TOTP : le champ code est ignoré.
+  const step = !account || account.totpSecret === null
+    ? -1
+    : checkTotp(account.totpSecret, (form.get('code') || '').trim(), { lastStep: account.lastTotpStep ?? -1 });
   if (!account || !passwordOk || step === null) {
     limiter.fail(ip);
+    if (limitedName) accountLimiter.fail(limitedName);
     log(`connexion refusée compte=${shownName} ip=${ip}`);
     return loginPage(res, { status: 401, rd, user: shownName === '?' ? '' : name, error: 'Identifiant, mot de passe ou code incorrect.' });
   }
   limiter.success(ip);
-  saveLastStep(name, step);
+  if (limitedName) accountLimiter.success(limitedName);
+  if (account.totpSecret !== null) saveLastStep(name, step);
   log(`connexion compte=${name} ip=${ip}`);
   const token = signSession({ days: SESSION_DAYS, epoch: account.epoch, secret: creds.sessionSecret, user: name });
   redirect(res, allowedReturnUrl(rd, account) || '/', 303, { 'Set-Cookie': sessionCookie(token, SESSION_DAYS * 86400) });

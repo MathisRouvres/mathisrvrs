@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  MIN_PASSWORD_LENGTH, base32Decode, base32Encode, checkTotp, createLimiter, findAccount, hashPassword, hostAllowed, normalizeCredentials,
+  MIN_PASSWORD_LENGTH, accountError, base32Decode, base32Encode, checkTotp, createLimiter, findAccount, hashPassword, hostAllowed, normalizeCredentials,
   parseHosts, readSession, safeReturnUrl, signSession, totpAt, verifyPassword, verifySession,
 } from '../lib.mjs';
 
@@ -101,6 +101,22 @@ test('périmètre des comptes', () => {
   assert.throws(() => parseHosts(''), /au moins un hôte/);
   assert.throws(() => parseHosts('budget'), /hôte invalide/);
   assert.throws(() => parseHosts('a.fr/x'), /hôte invalide/);
+});
+
+test('compte sans TOTP : seulement avec des hôtes listés', () => {
+  const base = { passwordHash: 'scrypt$x', epoch: 1, lastTotpStep: -1 };
+  assert.equal(accountError({ ...base, totpSecret: null, hosts: ['budget.mathis-rvrs.fr'] }), null);
+  assert.equal(accountError({ ...base, totpSecret: 'ABCD', hosts: ['*'] }), null);
+  assert.match(accountError({ ...base, totpSecret: null, hosts: ['*'] }), /accès partout/);
+  assert.match(accountError({ ...base, totpSecret: null, hosts: ['budget.mathis-rvrs.fr', '*'] }), /accès partout/);
+  assert.match(accountError({ ...base, hosts: ['budget.mathis-rvrs.fr'] }), /TOTP manquant/, 'champ absent ≠ null');
+  assert.match(accountError({ ...base, totpSecret: '', hosts: ['*'] }), /TOTP manquant/);
+  const creds = { sessionSecret: 's', accounts: {
+    couple: { ...base, totpSecret: null, hosts: ['budget.mathis-rvrs.fr'] },
+    mathis: { ...base, totpSecret: null, hosts: ['*'] },
+  } };
+  assert.ok(findAccount(creds, 'couple'));
+  assert.equal(findAccount(creds, 'mathis'), null);
 });
 
 test('mot de passe : 8 caractères minimum', () => {

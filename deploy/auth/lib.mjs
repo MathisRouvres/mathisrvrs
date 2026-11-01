@@ -120,7 +120,8 @@ export function verifySession(token, { epoch, secret, now = Date.now() }) {
 }
 
 // --- Comptes : { sessionSecret, accounts: { nom: { passwordHash, totpSecret, epoch, lastTotpStep, hosts } } } ---
-// « hosts » : hôtes autorisés, ou « * » pour tous.
+// « hosts » : hôtes autorisés, ou « * » pour tous. « totpSecret: null » : connexion par mot de passe
+// seul, réservée aux comptes limités à des hôtes listés (jamais « * »).
 export const LEGACY_ACCOUNT = 'mathis';
 export const ACCOUNT_NAME = /^[a-z0-9][a-z0-9_-]{0,31}$/;
 const HOSTNAME = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/;
@@ -144,8 +145,15 @@ export function normalizeCredentials(raw) {
 export function findAccount(creds, name) {
   if (!creds || typeof name !== 'string' || !ACCOUNT_NAME.test(name) || !Object.hasOwn(creds.accounts, name)) return null;
   const a = creds.accounts[name];
-  const ok = a && a.passwordHash && a.totpSecret && Number.isInteger(a.epoch) && Array.isArray(a.hosts);
-  return ok ? a : null;
+  return accountError(a) ? null : a;
+}
+
+// Raison pour laquelle un compte est inutilisable, ou null.
+export function accountError(a) {
+  if (!a || typeof a !== 'object') return 'entrée invalide';
+  if (!a.passwordHash || !Number.isInteger(a.epoch) || !Array.isArray(a.hosts)) return 'champs manquants';
+  if (a.totpSecret === null) return a.hosts.includes('*') ? 'accès partout sans TOTP interdit' : null;
+  return typeof a.totpSecret === 'string' && a.totpSecret ? null : 'secret TOTP manquant';
 }
 
 export function normalizeHost(host) {
@@ -166,7 +174,7 @@ export function parseHosts(value) {
   return [...new Set(hosts)];
 }
 
-// --- Limite de tentatives : échecs par IP et au total sur une fenêtre glissante ---
+// --- Limite de tentatives : échecs par clé (IP ou compte) et au total sur une fenêtre glissante ---
 export function createLimiter({ perIp = 5, total = 30, windowMs = 15 * 60_000 } = {}) {
   const fails = new Map();
   let all = [];
@@ -183,6 +191,10 @@ export function createLimiter({ perIp = 5, total = 30, windowMs = 15 * 60_000 } 
       return 0;
     },
     fail(ip, now = Date.now()) {
+      // Clés jamais réinterrogées (IP de passage, identifiants inventés) : purgées de temps en temps.
+      if (fails.size > 1000) {
+        for (const [k, list] of fails) if (!prune(list, now).length) fails.delete(k);
+      }
       fails.set(ip, [...prune(fails.get(ip) || [], now), now]);
       all = [...prune(all, now), now];
     },

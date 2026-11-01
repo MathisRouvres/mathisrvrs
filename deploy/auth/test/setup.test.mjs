@@ -18,7 +18,7 @@ test('ancien format : list le montre comme « mathis », revoke le convertit san
   const file = tempCredentials(legacy);
   const list = run(file, 'list');
   assert.equal(list.status, 0, list.stderr);
-  assert.match(list.stdout, /^mathis\t\*\t\(époque 3\)$/m);
+  assert.match(list.stdout, /^mathis\t\*\tTOTP\t\(époque 3\)$/m);
   assert.deepEqual(read(file), legacy, 'list ne réécrit pas');
   const revoke = run(file, 'revoke');
   assert.equal(revoke.status, 0, revoke.stderr);
@@ -58,6 +58,35 @@ test('add : contrôles avant toute saisie, fichier intact', () => {
   assert.match(run(file, 'add', 'nouveau', '--hosts', 'budget.mathis-rvrs.fr').stderr, /terminal interactif/);
   assert.match(run(file, 'password', 'inconnu').stderr, /inconnu/);
   assert.match(run(file).stderr, /terminal interactif/, 'setup.mjs sans argument : compte mathis, interactif');
+  assert.equal(fs.readFileSync(file, 'utf8'), before);
+});
+
+test('TOTP optionnel : totp off/on, jamais pour un accès partout', () => {
+  const file = tempCredentials({ sessionSecret: 's'.repeat(64), accounts: { mathis: account(['*'], 2), couple: account(['budget.mathis-rvrs.fr'], 5) } });
+  const off = run(file, 'totp', 'couple', 'off');
+  assert.equal(off.status, 0, off.stderr);
+  assert.equal(read(file).accounts.couple.totpSecret, null);
+  assert.equal(read(file).accounts.couple.epoch, 5, 'retirer le TOTP ne déconnecte pas');
+  assert.match(run(file, 'list').stdout, /^couple\tbudget\.mathis-rvrs\.fr\tsans TOTP\t\(époque 5\)$/m);
+
+  const before = fs.readFileSync(file, 'utf8');
+  assert.match(run(file, 'totp', 'mathis', 'off').stderr, /accès partout/);
+  assert.match(run(file, 'hosts', 'couple', '*').stderr, /accès partout/);
+  assert.match(run(file, 'hosts', 'couple', 'budget.mathis-rvrs.fr,*').stderr, /accès partout/);
+  assert.match(run(file, 'add', 'autre', '--hosts', '*', '--no-totp').stderr, /accès partout/);
+  assert.match(run(file, 'add', 'autre', '--hosts', 'budget.mathis-rvrs.fr', '--no-totp').stderr, /terminal interactif/);
+  assert.match(run(file, 'totp', 'couple', 'on').stderr, /terminal interactif/);
+  assert.match(run(file, 'totp', 'mathis', 'on').stderr, /déjà un TOTP/);
+  assert.match(run(file, 'totp', 'couple').stderr, /usage/);
+  assert.equal(fs.readFileSync(file, 'utf8'), before, 'aucun refus ne touche au fichier');
+});
+
+test('fichier modifié à la main avec un accès partout sans TOTP : aucune écriture', () => {
+  const file = tempCredentials({ sessionSecret: 's'.repeat(64), accounts: { mathis: { ...account(['*']), totpSecret: null } } });
+  const before = fs.readFileSync(file, 'utf8');
+  const res = run(file, 'revoke');
+  assert.equal(res.status, 1);
+  assert.match(res.stderr, /« mathis » : accès partout sans TOTP interdit/);
   assert.equal(fs.readFileSync(file, 'utf8'), before);
 });
 
