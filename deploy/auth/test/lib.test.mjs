@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  base32Decode, base32Encode, checkTotp, createLimiter, findAccount, hashPassword, hostAllowed, normalizeCredentials,
+  MIN_PASSWORD_LENGTH, base32Decode, base32Encode, checkTotp, createLimiter, findAccount, hashPassword, hostAllowed, normalizeCredentials,
   parseHosts, readSession, safeReturnUrl, signSession, totpAt, verifyPassword, verifySession,
 } from '../lib.mjs';
 
@@ -101,6 +101,11 @@ test('périmètre des comptes', () => {
   assert.throws(() => parseHosts(''), /au moins un hôte/);
   assert.throws(() => parseHosts('budget'), /hôte invalide/);
   assert.throws(() => parseHosts('a.fr/x'), /hôte invalide/);
+});
+
+test('mot de passe : 8 caractères minimum', () => {
+  assert.equal(MIN_PASSWORD_LENGTH, 8);
+  assert.ok(verifyPassword('8carac!!', hashPassword('8carac!!')));
 });
 
 test('limite de tentatives par IP et au total', () => {

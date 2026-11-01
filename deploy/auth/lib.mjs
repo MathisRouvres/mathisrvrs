@@ -4,6 +4,8 @@ import crypto from 'node:crypto';
 
 // --- Mot de passe : scrypt$N$r$p$sel$empreinte (base64) ---
 const SCRYPT = { N: 2 ** 15, r: 8, p: 1, maxmem: 64 * 1024 * 1024 };
+// Le TOTP reste obligatoire : 8 caractères suffisent avec le second facteur et la limite de tentatives.
+export const MIN_PASSWORD_LENGTH = 8;
 
 export function hashPassword(password) {
   const salt = crypto.randomBytes(16);

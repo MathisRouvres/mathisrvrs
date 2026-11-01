@@ -14,7 +14,8 @@ import crypto from 'node:crypto';
 import readline from 'node:readline';
 import { spawnSync } from 'node:child_process';
 import {
-  ACCOUNT_NAME, LEGACY_ACCOUNT, checkTotp, hashPassword, newTotpSecret, normalizeCredentials, otpauthUri, parseHosts,
+  ACCOUNT_NAME, LEGACY_ACCOUNT, MIN_PASSWORD_LENGTH, checkTotp, hashPassword, newTotpSecret, normalizeCredentials,
+  otpauthUri, parseHosts,
 } from './lib.mjs';
 
 const FILE = process.env.CREDENTIALS_FILE || '/config/credentials.json';
@@ -79,8 +80,8 @@ function ask(question, { hidden = false } = {}) {
 
 async function askPassword() {
   for (;;) {
-    const a = await ask('Nouveau mot de passe (12 caractères min.) : ', { hidden: true });
-    if (a.length < 12) {
+    const a = await ask(`Nouveau mot de passe (${MIN_PASSWORD_LENGTH} caractères min.) : `, { hidden: true });
+    if (a.length < MIN_PASSWORD_LENGTH) {
       console.log('Trop court.');
       continue;
     }
