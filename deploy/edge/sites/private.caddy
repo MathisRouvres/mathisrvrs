@@ -2,7 +2,6 @@
 # TRANSITION : « tls internal » tant que ces sous-domaines n'existent pas dans le DNS (voir
 # mathis-rvrs.caddy) ; à retirer après la bascule, puis caddy reload.
 auth.mathis-rvrs.fr {
-	tls internal
 	reverse_proxy auth-web:8080
 }
 
@@ -32,7 +31,6 @@ job.mathis-rvrs.fr {
 
 # App budget du couple (compte « couple » limité à cet hôte).
 budget.mathis-rvrs.fr {
-	tls internal
 	import private
 	reverse_proxy budget-web:5200
 }
