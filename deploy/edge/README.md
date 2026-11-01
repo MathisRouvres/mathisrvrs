@@ -12,6 +12,28 @@ Docker `edge`. Aucune autre pile ne publie de port.
 | `club.override.yml` | Copié en `/opt/club/docker-compose.override.yml` : club-web sans port, en HTTP, sur `edge`. |
 | `.env.example` | Variables à copier en `/opt/edge/.env`. |
 
+## Mettre à jour la configuration
+
+Valider la nouvelle config dans le conteneur avant de la mettre en place, puis recharger (aucune
+coupure) :
+
+```bash
+# Depuis ce dépôt
+ssh deploy@185.226.172.52 'rm -rf /opt/edge/next && mkdir /opt/edge/next'
+scp -r deploy/edge/{Caddyfile,sites} deploy@185.226.172.52:/opt/edge/next/
+# Sur le serveur
+cd /opt/edge && docker compose cp next/. caddy:/tmp/next
+docker compose exec caddy caddy validate --config /tmp/next/Caddyfile --adapter caddyfile
+cp next/Caddyfile Caddyfile && cp next/sites/*.caddy sites/ && rm -r next
+docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
+```
+
+## Espace privé (`sites/private.caddy`)
+
+Les sites qui font `import private` passent par le service de connexion (`deploy/auth`). Le site
+reçoit le compte connecté dans `X-Auth-User` ; un `X-Auth-User` envoyé par le client est retiré
+avant, il ne peut pas être forgé. Un compte hors de son périmètre reçoit un 403.
+
 ## IP réelle des joueurs
 
 L'API d'Eskudo limite par IP (`trustProxy: true`, IP la plus à gauche de `X-Forwarded-For`).

@@ -88,26 +88,80 @@ export function otpauthUri(secret, { issuer = 'mathis-rvrs.fr', account = 'mathi
 }
 
 // --- Session : base64url(JSON).signature HMAC-SHA256 ---
-// « e » (époque) : l'incrémenter dans credentials.json déconnecte toutes les sessions.
-export function signSession({ days, epoch, secret, now = Date.now() }) {
+// « u » : compte ; « e » : époque du compte, l'incrémenter dans credentials.json déconnecte ses sessions.
+export function signSession({ days, epoch, secret, user, now = Date.now() }) {
   const iat = Math.floor(now / 1000);
-  const body = Buffer.from(JSON.stringify({ iat, exp: iat + days * 86400, e: epoch })).toString('base64url');
+  const payload = { iat, exp: iat + days * 86400, e: epoch, ...(user ? { u: user } : {}) };
+  const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
   const sig = crypto.createHmac('sha256', secret).update(body).digest('base64url');
   return `${body}.${sig}`;
 }
 
-export function verifySession(token, { epoch, secret, now = Date.now() }) {
+// Contenu { u, e } d'un jeton bien signé et non expiré, sinon null. « u » est absent des jetons
+// émis avant les comptes multiples.
+export function readSession(token, { secret, now = Date.now() }) {
   const [body, sig, extra] = String(token || '').split('.');
-  if (!body || !sig || extra !== undefined) return false;
+  if (!body || !sig || extra !== undefined) return null;
   const expected = crypto.createHmac('sha256', secret).update(body).digest();
   const given = Buffer.from(sig, 'base64url');
-  if (given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) return false;
+  if (given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) return null;
   try {
-    const { exp, e } = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'));
-    return e === epoch && Number.isFinite(exp) && exp > now / 1000;
+    const { exp, e, u } = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'));
+    return Number.isFinite(exp) && exp > now / 1000 ? { u, e } : null;
   } catch {
-    return false;
+    return null;
   }
+}
+
+export function verifySession(token, { epoch, secret, now = Date.now() }) {
+  return readSession(token, { secret, now })?.e === epoch;
+}
+
+// --- Comptes : { sessionSecret, accounts: { nom: { passwordHash, totpSecret, epoch, lastTotpStep, hosts } } } ---
+// « hosts » : hôtes autorisés, ou « * » pour tous.
+export const LEGACY_ACCOUNT = 'mathis';
+export const ACCOUNT_NAME = /^[a-z0-9][a-z0-9_-]{0,31}$/;
+const HOSTNAME = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/;
+
+// Fichier lu tel quel, ou null s'il est inutilisable. L'ancien format (un seul compte, champs à la
+// racine) devient le compte « mathis » avec accès partout ; mêmes secrets et même époque, donc
+// ses sessions en cours restent valides.
+export function normalizeCredentials(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  if (raw.passwordHash) {
+    const { sessionSecret, passwordHash, totpSecret, epoch, lastTotpStep = -1 } = raw;
+    raw = { sessionSecret, accounts: { [LEGACY_ACCOUNT]: { passwordHash, totpSecret, epoch, lastTotpStep, hosts: ['*'] } } };
+  }
+  if (typeof raw.sessionSecret !== 'string' || !raw.sessionSecret) return null;
+  if (!raw.accounts || typeof raw.accounts !== 'object' || Array.isArray(raw.accounts)) return null;
+  return { sessionSecret: raw.sessionSecret, accounts: raw.accounts };
+}
+
+// Compte utilisable ou null. Nom validé et Object.hasOwn : « __proto__ » ou « constructor » ne sont
+// pas des comptes.
+export function findAccount(creds, name) {
+  if (!creds || typeof name !== 'string' || !ACCOUNT_NAME.test(name) || !Object.hasOwn(creds.accounts, name)) return null;
+  const a = creds.accounts[name];
+  const ok = a && a.passwordHash && a.totpSecret && Number.isInteger(a.epoch) && Array.isArray(a.hosts);
+  return ok ? a : null;
+}
+
+export function normalizeHost(host) {
+  return String(host || '').trim().toLowerCase().replace(/:\d+$/, '').replace(/\.$/, '');
+}
+
+export function hostAllowed(hosts, host) {
+  if (!Array.isArray(hosts)) return false;
+  const h = normalizeHost(host);
+  return hosts.includes('*') || (h !== '' && hosts.includes(h));
+}
+
+// « a.fr,b.fr » ou « * » → liste validée, sinon erreur.
+export function parseHosts(value) {
+  const hosts = String(value || '').split(',').map((h) => h.trim().toLowerCase()).filter(Boolean);
+  if (!hosts.length) throw new Error('au moins un hôte requis (ex. budget.mathis-rvrs.fr, ou * pour tous)');
+  for (const h of hosts) if (h !== '*' && !HOSTNAME.test(h)) throw new Error(`hôte invalide : ${h}`);
+  return [...new Set(hosts)];
 }
 
 // --- Limite de tentatives : échecs par IP et au total sur une fenêtre glissante ---

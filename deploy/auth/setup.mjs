@@ -1,29 +1,63 @@
-// Configuration du compte (dans le conteneur, terminal interactif) :
-//   docker compose run --rm -it web node setup.mjs           mot de passe + nouveau secret TOTP
-//   docker compose run --rm -it web node setup.mjs password  change seulement le mot de passe
-//   docker compose run --rm web node setup.mjs revoke        déconnecte toutes les sessions
-// Écrit /config/credentials.json (600) ; le service le recharge sans redémarrage.
+// Comptes de l'espace privé (dans le conteneur ; -it pour les commandes qui demandent une saisie) :
+//   docker compose run --rm -it web node setup.mjs                             compte « mathis » (accès partout) : mot de passe + nouveau secret TOTP
+//   docker compose run --rm -it web node setup.mjs add <compte> --hosts h1,h2  nouveau compte limité à ces hôtes : mot de passe + TOTP
+//   docker compose run --rm -it web node setup.mjs reset <compte>              mot de passe + nouveau secret TOTP d'un compte
+//   docker compose run --rm -it web node setup.mjs password [compte]           change seulement le mot de passe (« mathis » par défaut)
+//   docker compose run --rm web node setup.mjs hosts <compte> h1,h2|*          change les hôtes autorisés
+//   docker compose run --rm web node setup.mjs revoke [compte]                 déconnecte les sessions du compte, sinon de tous
+//   docker compose run --rm web node setup.mjs remove <compte>                 supprime le compte
+//   docker compose run --rm web node setup.mjs list                            comptes et hôtes autorisés
+// Écrit /config/credentials.json (600) ; le service le recharge sans redémarrage. Un ancien fichier
+// (un seul compte) est converti : il devient le compte « mathis », sessions en cours conservées.
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import readline from 'node:readline';
 import { spawnSync } from 'node:child_process';
-import { checkTotp, hashPassword, newTotpSecret, otpauthUri } from './lib.mjs';
+import {
+  ACCOUNT_NAME, LEGACY_ACCOUNT, checkTotp, hashPassword, newTotpSecret, normalizeCredentials, otpauthUri, parseHosts,
+} from './lib.mjs';
 
 const FILE = process.env.CREDENTIALS_FILE || '/config/credentials.json';
-const mode = process.argv[2] || 'all';
+const [mode = 'all', ...args] = process.argv.slice(2);
 
+// null si le fichier n'existe pas ; erreur s'il existe mais est illisible (jamais écrasé).
 function read() {
+  let text;
   try {
-    return JSON.parse(fs.readFileSync(FILE, 'utf8'));
-  } catch {
-    return null;
+    text = fs.readFileSync(FILE, 'utf8');
+  } catch (err) {
+    if (err.code === 'ENOENT') return null;
+    throw err;
   }
+  const creds = normalizeCredentials(JSON.parse(text));
+  if (!creds) throw new Error(`${FILE} illisible : corriger ou supprimer le fichier à la main.`);
+  return creds;
 }
 
 function write(creds) {
   const tmp = `${FILE}.tmp`;
   fs.writeFileSync(tmp, JSON.stringify(creds, null, 2), { mode: 0o600 });
   fs.renameSync(tmp, FILE);
+}
+
+function requireFile(creds) {
+  if (!creds) throw new Error(`${FILE} absent : lancer setup d'abord.`);
+  return creds;
+}
+
+function accountName(value) {
+  const name = String(value || '').trim().toLowerCase();
+  if (!ACCOUNT_NAME.test(name)) throw new Error('nom de compte requis : lettres minuscules, chiffres, - ou _ (32 max.)');
+  return name;
+}
+
+function requireAccount(creds, name) {
+  if (!Object.hasOwn(requireFile(creds).accounts, name)) throw new Error(`compte « ${name} » inconnu (voir : setup.mjs list).`);
+  return creds.accounts[name];
+}
+
+function requireTty() {
+  if (!process.stdin.isTTY) throw new Error('terminal interactif requis (docker compose run --rm -it …)');
 }
 
 function ask(question, { hidden = false } = {}) {
@@ -56,26 +90,14 @@ async function askPassword() {
   }
 }
 
-async function main() {
-  const current = read();
-  if (mode === 'revoke') {
-    if (!current) throw new Error(`${FILE} absent : lancer setup d'abord.`);
-    write({ ...current, epoch: current.epoch + 1 });
-    console.log(`Toutes les sessions sont déconnectées (époque ${current.epoch + 1}).`);
-    return;
-  }
-  if (!process.stdin.isTTY) throw new Error('terminal interactif requis (docker compose run --rm -it …)');
-
-  if (mode === 'password') {
-    if (!current) throw new Error(`${FILE} absent : lancer setup d'abord.`);
-    write({ ...current, passwordHash: hashPassword(await askPassword()), epoch: current.epoch + 1 });
-    console.log('Mot de passe changé, sessions existantes déconnectées.');
-    return;
-  }
-
+// Mot de passe + nouveau secret TOTP (vérifié par un code) ; l'époque augmente : les sessions du
+// compte sont déconnectées.
+async function enroll(creds, name, hosts) {
+  requireTty();
+  console.log(`Compte « ${name} », accès : ${hosts.join(', ')}`);
   const password = await askPassword();
   const totpSecret = newTotpSecret();
-  const uri = otpauthUri(totpSecret);
+  const uri = otpauthUri(totpSecret, { account: name });
   console.log("\nAjoute ce compte dans ton application d'authentification :");
   const qr = spawnSync('qrencode', ['-t', 'ANSIUTF8', uri], { encoding: 'utf8' });
   if (qr.status === 0) console.log(qr.stdout);
@@ -85,14 +107,90 @@ async function main() {
     if (checkTotp(totpSecret, code) !== null) break;
     console.log("Code incorrect, réessaie (vérifie l'heure du téléphone).");
   }
-  write({
+  // Relu après la saisie : une connexion d'un autre compte a pu réécrire le fichier entre-temps.
+  const latest = read() || creds || { sessionSecret: crypto.randomBytes(32).toString('hex'), accounts: {} };
+  const previous = Object.hasOwn(latest.accounts, name) ? latest.accounts[name] : null;
+  latest.accounts[name] = {
     passwordHash: hashPassword(password),
     totpSecret,
-    sessionSecret: crypto.randomBytes(32).toString('hex'),
-    epoch: (current?.epoch ?? 0) + 1,
+    epoch: (previous?.epoch ?? 0) + 1,
     lastTotpStep: -1,
-  });
-  console.log(`Compte configuré (${FILE}).`);
+    hosts,
+  };
+  write(latest);
+  console.log(`Compte « ${name} » configuré (${FILE}).`);
+}
+
+async function main() {
+  const creds = read();
+
+  if (mode === 'all') {
+    const hosts = creds && Object.hasOwn(creds.accounts, LEGACY_ACCOUNT) ? creds.accounts[LEGACY_ACCOUNT].hosts : ['*'];
+    return enroll(creds, LEGACY_ACCOUNT, hosts);
+  }
+
+  if (mode === 'add') {
+    const name = accountName(args[0]);
+    const i = args.indexOf('--hosts');
+    if (i < 0) throw new Error('usage : setup.mjs add <compte> --hosts budget.mathis-rvrs.fr[,autre.mathis-rvrs.fr]');
+    const hosts = parseHosts(args[i + 1]);
+    if (creds && Object.hasOwn(creds.accounts, name)) throw new Error(`compte « ${name} » déjà présent (setup.mjs reset ${name} pour le refaire).`);
+    return enroll(creds, name, hosts);
+  }
+
+  if (mode === 'reset') {
+    const name = accountName(args[0]);
+    return enroll(creds, name, requireAccount(creds, name).hosts);
+  }
+
+  if (mode === 'password') {
+    const name = accountName(args[0] || LEGACY_ACCOUNT);
+    requireAccount(creds, name);
+    requireTty();
+    const passwordHash = hashPassword(await askPassword());
+    const latest = read();
+    const account = requireAccount(latest, name);
+    Object.assign(account, { passwordHash, epoch: account.epoch + 1 });
+    write(latest);
+    console.log(`Mot de passe de « ${name} » changé, ses sessions existantes sont déconnectées.`);
+    return;
+  }
+
+  if (mode === 'hosts') {
+    const name = accountName(args[0]);
+    const account = requireAccount(creds, name);
+    account.hosts = parseHosts(args[1]);
+    write(creds);
+    console.log(`Accès de « ${name} » : ${account.hosts.join(', ')} (effet immédiat sur ses sessions).`);
+    return;
+  }
+
+  if (mode === 'revoke') {
+    requireFile(creds);
+    const names = args[0] ? [accountName(args[0])] : Object.keys(creds.accounts);
+    for (const name of names) requireAccount(creds, name).epoch += 1;
+    write(creds);
+    console.log(args[0] ? `Sessions de « ${names[0]} » déconnectées.` : `Toutes les sessions sont déconnectées (${names.join(', ')}).`);
+    return;
+  }
+
+  if (mode === 'remove') {
+    const name = accountName(args[0]);
+    requireAccount(creds, name);
+    delete creds.accounts[name];
+    write(creds);
+    console.log(`Compte « ${name} » supprimé, ses sessions ne valent plus rien.`);
+    return;
+  }
+
+  if (mode === 'list') {
+    for (const [name, a] of Object.entries(requireFile(creds).accounts)) {
+      console.log(`${name}\t${(a.hosts || []).join(', ')}\t(époque ${a.epoch})`);
+    }
+    return;
+  }
+
+  throw new Error(`commande inconnue : ${mode} (add, reset, password, hosts, revoke, remove, list)`);
 }
 
 main().catch((err) => {

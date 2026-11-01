@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  base32Decode, base32Encode, checkTotp, createLimiter, hashPassword, safeReturnUrl, signSession, totpAt,
-  verifyPassword, verifySession,
+  base32Decode, base32Encode, checkTotp, createLimiter, findAccount, hashPassword, hostAllowed, normalizeCredentials,
+  parseHosts, readSession, safeReturnUrl, signSession, totpAt, verifyPassword, verifySession,
 } from '../lib.mjs';
 
 // Vecteurs de la RFC 6238 (annexe B), secret ASCII « 12345678901234567890 », 8 chiffres → 6 derniers.
@@ -53,6 +53,54 @@ test('session signée : expiration, époque, falsification', () => {
   assert.equal(verifySession(`${forged}.${sig}`, { epoch: 3, secret, now }), false);
   assert.equal(verifySession(`${body}.${sig}.x`, { epoch: 3, secret, now }), false);
   assert.equal(verifySession('', { epoch: 3, secret, now }), false);
+});
+
+test('session : le compte voyage dans le jeton, anciens jetons sans compte', () => {
+  const secret = 'a'.repeat(64);
+  const now = 1_700_000_000_000;
+  assert.deepEqual(readSession(signSession({ days: 1, epoch: 2, secret, user: 'couple', now }), { secret, now }), { u: 'couple', e: 2 });
+  assert.deepEqual(readSession(signSession({ days: 1, epoch: 2, secret, now }), { secret, now }), { u: undefined, e: 2 });
+  assert.equal(readSession(signSession({ days: 1, epoch: 2, secret, now }), { secret, now: now + 2 * 86400_000 }), null);
+});
+
+test('ancien credentials.json → compte « mathis » partout, mêmes secrets', () => {
+  const legacy = { passwordHash: 'h', totpSecret: 't', sessionSecret: 's', epoch: 7, lastTotpStep: 9 };
+  assert.deepEqual(normalizeCredentials(legacy), {
+    sessionSecret: 's',
+    accounts: { mathis: { passwordHash: 'h', totpSecret: 't', epoch: 7, lastTotpStep: 9, hosts: ['*'] } },
+  });
+  const v2 = { sessionSecret: 's', accounts: { couple: { passwordHash: 'h', totpSecret: 't', epoch: 1, hosts: ['budget.mathis-rvrs.fr'] } } };
+  assert.deepEqual(normalizeCredentials(v2), v2);
+  assert.equal(normalizeCredentials({ accounts: {} }), null);
+  assert.equal(normalizeCredentials({ sessionSecret: 's', accounts: [] }), null);
+  assert.equal(normalizeCredentials(null), null);
+});
+
+test('findAccount : comptes complets seulement, pas de prototype', () => {
+  const creds = normalizeCredentials(JSON.parse('{"sessionSecret":"s","accounts":{"__proto__":{"passwordHash":"h","totpSecret":"t","epoch":1,"hosts":["*"]},"a":{"passwordHash":"h","totpSecret":"t","epoch":1,"hosts":["*"]},"b":{"passwordHash":"h"}}}'));
+  assert.ok(findAccount(creds, 'a'));
+  assert.equal(findAccount(creds, 'b'), null);
+  assert.equal(findAccount(creds, '__proto__'), null);
+  assert.equal(findAccount(creds, 'constructor'), null);
+  assert.equal(findAccount(creds, 'toString'), null);
+  assert.equal(findAccount(null, 'a'), null);
+});
+
+test('périmètre des comptes', () => {
+  assert.equal(hostAllowed(['*'], 'pma.mathis-rvrs.fr'), true);
+  assert.equal(hostAllowed(['*'], ''), true);
+  assert.equal(hostAllowed(['budget.mathis-rvrs.fr'], 'budget.mathis-rvrs.fr'), true);
+  assert.equal(hostAllowed(['budget.mathis-rvrs.fr'], 'Budget.Mathis-rvrs.fr:443'), true);
+  assert.equal(hostAllowed(['budget.mathis-rvrs.fr'], 'budget.mathis-rvrs.fr.'), true);
+  assert.equal(hostAllowed(['budget.mathis-rvrs.fr'], 'pma.mathis-rvrs.fr'), false);
+  assert.equal(hostAllowed(['budget.mathis-rvrs.fr'], ''), false);
+  assert.equal(hostAllowed(['budget.mathis-rvrs.fr'], undefined), false);
+  assert.equal(hostAllowed(undefined, 'budget.mathis-rvrs.fr'), false);
+  assert.deepEqual(parseHosts(' Budget.mathis-rvrs.fr,budget.mathis-rvrs.fr ,'), ['budget.mathis-rvrs.fr']);
+  assert.deepEqual(parseHosts('*'), ['*']);
+  assert.throws(() => parseHosts(''), /au moins un hôte/);
+  assert.throws(() => parseHosts('budget'), /hôte invalide/);
+  assert.throws(() => parseHosts('a.fr/x'), /hôte invalide/);
 });
 
 test('limite de tentatives par IP et au total', () => {

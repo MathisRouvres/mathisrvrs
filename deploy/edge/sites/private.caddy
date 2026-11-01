@@ -29,3 +29,10 @@ job.mathis-rvrs.fr {
 	import private
 	reverse_proxy job-web:5190
 }
+
+# App budget du couple (compte « couple » limité à cet hôte).
+budget.mathis-rvrs.fr {
+	tls internal
+	import private
+	reverse_proxy budget-web:5200
+}

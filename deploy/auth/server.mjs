@@ -1,11 +1,15 @@
 // Service de connexion de *.mathis-rvrs.fr (auth.mathis-rvrs.fr), sans dépendance.
 // Le Caddy frontal interroge GET /verify avant chaque requête vers un dashboard (forward_auth) :
-// session valide → 200, sinon redirection vers /login (GET/HEAD) ou 401.
-// Un seul compte : mot de passe (scrypt) + code TOTP, définis par `node setup.mjs`.
+// session valide et hôte autorisé pour le compte → 200 avec X-Auth-User, hôte hors périmètre → 403,
+// pas de session → redirection vers /login (GET/HEAD) ou 401.
+// Comptes : identifiant + mot de passe (scrypt) + code TOTP, définis par `node setup.mjs`.
 import http from 'node:http';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
-import { checkTotp, createLimiter, safeReturnUrl, signSession, verifyPassword, verifySession } from './lib.mjs';
+import {
+  ACCOUNT_NAME, LEGACY_ACCOUNT, checkTotp, createLimiter, findAccount, hashPassword, hostAllowed, normalizeCredentials,
+  normalizeHost, readSession, safeReturnUrl, signSession, verifyPassword,
+} from './lib.mjs';
 
 const PORT = Number(process.env.PORT || 8080);
 const DOMAIN = process.env.AUTH_DOMAIN || 'mathis-rvrs.fr';
@@ -22,14 +26,13 @@ const APPS = (process.env.AUTH_APPS || '')
 
 const log = (...a) => console.log(new Date().toISOString(), ...a);
 
+// Ancien format (un seul compte) accepté : il devient le compte « mathis » (voir lib.mjs).
 function loadCredentials() {
   try {
-    const c = JSON.parse(fs.readFileSync(CREDENTIALS_FILE, 'utf8'));
-    if (c.passwordHash && c.totpSecret && c.sessionSecret && Number.isInteger(c.epoch)) return c;
+    return normalizeCredentials(JSON.parse(fs.readFileSync(CREDENTIALS_FILE, 'utf8')));
   } catch {
-    /* absent : setup pas encore fait */
+    return null; // absent : setup pas encore fait
   }
-  return null;
 }
 
 // Gardé en mémoire pour /verify (appelé à chaque requête des dashboards) et rechargé quand
@@ -40,10 +43,14 @@ fs.watchFile(CREDENTIALS_FILE, { interval: 2000 }, () => {
   log('identifiants rechargés');
 });
 
-function saveLastStep(step) {
+const configured = () => Boolean(creds) && Object.keys(creds.accounts).length > 0;
+
+// Réécrit le fichier au nouveau format : un ancien fichier est converti à la première connexion.
+function saveLastStep(name, step) {
   const current = loadCredentials();
-  if (!current) return;
-  current.lastTotpStep = step;
+  const account = findAccount(current, name);
+  if (!account) return;
+  account.lastTotpStep = step;
   const tmp = `${CREDENTIALS_FILE}.tmp`;
   fs.writeFileSync(tmp, JSON.stringify(current, null, 2), { mode: 0o600 });
   fs.renameSync(tmp, CREDENTIALS_FILE);
@@ -51,6 +58,8 @@ function saveLastStep(step) {
 }
 
 const limiter = createLimiter();
+// Compte inconnu : scrypt calculé quand même, le temps de réponse ne dit pas quels comptes existent.
+const DUMMY_HASH = hashPassword(crypto.randomBytes(16).toString('hex'));
 
 // IP du visiteur : le frontal remplace tout X-Forwarded-For venu d'Internet par la vraie IP.
 function clientIp(req) {
@@ -66,8 +75,21 @@ function readCookie(req) {
   return '';
 }
 
-function hasSession(req) {
-  return Boolean(creds) && verifySession(readCookie(req), { epoch: creds.epoch, secret: creds.sessionSecret });
+// Compte de la session ({ name, account }) ou null. Un jeton émis avant les comptes multiples n'a
+// pas de « u » : c'est celui du compte unique d'alors, « mathis ».
+function sessionUser(req) {
+  if (!creds) return null;
+  const session = readSession(readCookie(req), { secret: creds.sessionSecret });
+  if (!session) return null;
+  const name = session.u === undefined ? LEGACY_ACCOUNT : session.u;
+  const account = findAccount(creds, name);
+  return account && session.e === account.epoch ? { name, account } : null;
+}
+
+// Adresse de retour gardée seulement si le compte a accès à cet hôte (sinon 403 juste après).
+function allowedReturnUrl(rd, account) {
+  const url = safeReturnUrl(rd, DOMAIN);
+  return url && hostAllowed(account.hosts, new URL(url).hostname) ? url : null;
 }
 
 function sessionCookie(value, maxAge) {
@@ -109,15 +131,17 @@ function page(res, status, title, body, extraHeaders = {}) {
   res.end(`<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${escapeHtml(title)}</title><style>${STYLE}</style></head><body><main>${body}</main></body></html>`);
 }
 
-function loginPage(res, { status = 200, rd = '', error = '' } = {}) {
-  if (!creds) {
+function loginPage(res, { status = 200, rd = '', error = '', user = '' } = {}) {
+  if (!configured()) {
     return page(res, 503, 'Connexion', '<h1>Connexion indisponible</h1><p>Compte pas encore configuré : lancer setup sur le serveur.</p>');
   }
   page(res, status, 'Connexion', `<h1>Connexion</h1><p>Espace privé de mathis-rvrs.fr</p>
 <form method="post" action="/login">
 <input type="hidden" name="rd" value="${escapeHtml(rd)}">
+<label for="user">Identifiant</label>
+<input id="user" name="user" value="${escapeHtml(user)}" autocomplete="username" autocapitalize="none" spellcheck="false" required${user ? '' : ' autofocus'}>
 <label for="password">Mot de passe</label>
-<input id="password" name="password" type="password" autocomplete="current-password" required autofocus>
+<input id="password" name="password" type="password" autocomplete="current-password" required${user ? ' autofocus' : ''}>
 <label for="code">Code de l'application d'authentification</label>
 <input id="code" name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required>
 ${error ? `<p class="err" role="alert">${escapeHtml(error)}</p>` : ''}
@@ -125,10 +149,22 @@ ${error ? `<p class="err" role="alert">${escapeHtml(error)}</p>` : ''}
 </form>`);
 }
 
-function homePage(res) {
-  const links = APPS.map((a) => `<li><a href="${escapeHtml(a.url)}">${escapeHtml(a.name)}</a></li>`).join('');
-  page(res, 200, 'Espace privé', `<h1>Espace privé</h1><p>Connecté.</p><ul>${links}</ul>
+// Liens limités aux sites auxquels le compte a accès.
+function homePage(res, { name, account }) {
+  const links = APPS.filter((a) => {
+    try {
+      return hostAllowed(account.hosts, new URL(a.url).hostname);
+    } catch {
+      return false;
+    }
+  }).map((a) => `<li><a href="${escapeHtml(a.url)}">${escapeHtml(a.name)}</a></li>`).join('');
+  page(res, 200, 'Espace privé', `<h1>Espace privé</h1><p>Connecté (${escapeHtml(name)}).</p><ul>${links}</ul>
 <form method="post" action="/logout"><button class="link" type="submit">Se déconnecter</button></form>`);
+}
+
+function forbiddenPage(res, name) {
+  page(res, 403, 'Accès refusé', `<h1>Accès refusé</h1><p>Le compte « ${escapeHtml(name)} » n'a pas accès à ce site.</p>
+<ul><li><a href="${escapeHtml(ORIGIN)}/">Espace privé</a></li></ul>`);
 }
 
 function redirect(res, location, status = 303, headers = {}) {
@@ -163,7 +199,7 @@ function readForm(req) {
 
 async function handleLogin(req, res) {
   if (!sameOrigin(req)) return page(res, 403, 'Refusé', '<h1>Requête refusée</h1>');
-  if (!creds) return loginPage(res);
+  if (!configured()) return loginPage(res);
   const ip = clientIp(req);
   const wait = limiter.waitMs(ip);
   if (wait > 0) {
@@ -180,24 +216,36 @@ async function handleLogin(req, res) {
     return page(res, 413, 'Refusé', '<h1>Requête refusée</h1>');
   }
   const rd = safeReturnUrl(form.get('rd') || '', DOMAIN) || '';
-  const passwordOk = verifyPassword(form.get('password') || '', creds.passwordHash);
-  const step = checkTotp(creds.totpSecret, (form.get('code') || '').trim(), { lastStep: creds.lastTotpStep ?? -1 });
-  if (!passwordOk || step === null) {
+  const name = (form.get('user') || '').trim().toLowerCase();
+  const account = ACCOUNT_NAME.test(name) ? findAccount(creds, name) : null;
+  const passwordOk = verifyPassword(form.get('password') || '', account ? account.passwordHash : DUMMY_HASH);
+  const step = account
+    ? checkTotp(account.totpSecret, (form.get('code') || '').trim(), { lastStep: account.lastTotpStep ?? -1 })
+    : null;
+  const shownName = ACCOUNT_NAME.test(name) ? name : '?';
+  if (!account || !passwordOk || step === null) {
     limiter.fail(ip);
-    log(`connexion refusée ip=${ip}`);
-    return loginPage(res, { status: 401, rd, error: 'Mot de passe ou code incorrect.' });
+    log(`connexion refusée compte=${shownName} ip=${ip}`);
+    return loginPage(res, { status: 401, rd, user: shownName === '?' ? '' : name, error: 'Identifiant, mot de passe ou code incorrect.' });
   }
   limiter.success(ip);
-  saveLastStep(step);
-  log(`connexion ip=${ip}`);
-  const token = signSession({ days: SESSION_DAYS, epoch: creds.epoch, secret: creds.sessionSecret });
-  redirect(res, rd || '/', 303, { 'Set-Cookie': sessionCookie(token, SESSION_DAYS * 86400) });
+  saveLastStep(name, step);
+  log(`connexion compte=${name} ip=${ip}`);
+  const token = signSession({ days: SESSION_DAYS, epoch: account.epoch, secret: creds.sessionSecret, user: name });
+  redirect(res, allowedReturnUrl(rd, account) || '/', 303, { 'Set-Cookie': sessionCookie(token, SESSION_DAYS * 86400) });
 }
 
 // forward_auth : Caddy transmet la requête d'origine dans X-Forwarded-{Method,Proto,Host,Uri}.
+// Le compte part vers le site dans X-Auth-User (copy_headers du snippet « private »).
 function handleVerify(req, res) {
-  if (hasSession(req)) {
-    res.writeHead(200, { 'Cache-Control': 'no-store' });
+  const user = sessionUser(req);
+  if (user) {
+    const host = normalizeHost(req.headers['x-forwarded-host']);
+    if (!hostAllowed(user.account.hosts, host)) {
+      log(`accès refusé compte=${user.name} hôte=${JSON.stringify(host)}`);
+      return forbiddenPage(res, user.name);
+    }
+    res.writeHead(200, { 'Cache-Control': 'no-store', 'X-Auth-User': user.name });
     return res.end();
   }
   const method = String(req.headers['x-forwarded-method'] || 'GET').toUpperCase();
@@ -216,20 +264,24 @@ const server = http.createServer(async (req, res) => {
     const route = `${req.method} ${url.pathname}`;
     if (route === 'GET /health') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ ok: true, configured: Boolean(creds) }));
+      return res.end(JSON.stringify({ ok: true, configured: configured() }));
     }
     if (route === 'GET /verify' || route === 'HEAD /verify') return handleVerify(req, res);
     if (route === 'GET /login') {
-      const rd = safeReturnUrl(url.searchParams.get('rd') || '', DOMAIN);
-      if (hasSession(req)) return redirect(res, rd || '/');
-      return loginPage(res, { rd: rd || '' });
+      const rd = url.searchParams.get('rd') || '';
+      const user = sessionUser(req);
+      if (user) return redirect(res, allowedReturnUrl(rd, user.account) || '/');
+      return loginPage(res, { rd: safeReturnUrl(rd, DOMAIN) || '' });
     }
     if (route === 'POST /login') return await handleLogin(req, res);
     if (route === 'POST /logout') {
       if (!sameOrigin(req)) return page(res, 403, 'Refusé', '<h1>Requête refusée</h1>');
       return redirect(res, '/login', 303, { 'Set-Cookie': sessionCookie('', 0) });
     }
-    if (route === 'GET /') return hasSession(req) ? homePage(res) : redirect(res, '/login', 302);
+    if (route === 'GET /') {
+      const user = sessionUser(req);
+      return user ? homePage(res, user) : redirect(res, '/login', 302);
+    }
     page(res, 404, 'Introuvable', '<h1>Page introuvable</h1>');
   } catch (err) {
     log('erreur', err);
@@ -237,7 +289,8 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, '0.0.0.0', () => log(`auth → :${PORT} (domaine ${DOMAIN}, compte ${creds ? 'configuré' : 'NON configuré'})`));
+server.listen(PORT, '0.0.0.0', () =>
+  log(`auth → :${PORT} (domaine ${DOMAIN}, comptes : ${configured() ? Object.keys(creds.accounts).join(', ') : 'AUCUN'})`));
 const stop = () => server.close(() => process.exit(0));
 process.on('SIGTERM', stop);
 process.on('SIGINT', stop);

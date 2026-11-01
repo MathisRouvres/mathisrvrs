@@ -1,40 +1,24 @@
-// Parcours HTTP complet du service, sur un vrai serveur et un credentials.json temporaire.
+// Parcours HTTP complet du service, sur un vrai serveur et un credentials.json temporaire à
+// l'ANCIEN format (un seul compte) : il doit fonctionner tel quel comme compte « mathis ».
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
-import { spawn } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
-import { hashPassword, newTotpSecret, totpAt } from '../lib.mjs';
+import { hashPassword, newTotpSecret, signSession, totpAt } from '../lib.mjs';
+import { ORIGIN, startServer, tempCredentials, until } from './helpers.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const ORIGIN = 'https://auth.mathis-rvrs.fr';
 const PASSWORD = 'mot de passe de test assez long';
-const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'auth-test-'));
-const file = path.join(dir, 'credentials.json');
 const secret = newTotpSecret();
-fs.writeFileSync(file, JSON.stringify({
+const legacy = {
   passwordHash: hashPassword(PASSWORD), totpSecret: secret, sessionSecret: 'c'.repeat(64), epoch: 1, lastTotpStep: -1,
-}));
+};
+const file = tempCredentials(legacy);
 
-const port = 18000 + Math.floor(Math.random() * 1000);
-const base = `http://127.0.0.1:${port}`;
-let proc;
-
+let base;
+let stop;
 test.before(async () => {
-  proc = spawn(process.execPath, ['server.mjs'], {
-    cwd: ROOT, env: { ...process.env, PORT: String(port), CREDENTIALS_FILE: file }, stdio: 'ignore',
-  });
-  for (let i = 0; i < 50; i++) {
-    try {
-      if ((await fetch(`${base}/health`)).ok) return;
-    } catch { /* pas encore prêt */ }
-    await new Promise((r) => setTimeout(r, 100));
-  }
-  throw new Error('serveur non démarré');
+  ({ base, stop } = await startServer(file));
 });
-test.after(() => proc.kill());
+test.after(() => stop());
 
 const step = () => Math.floor(Date.now() / 30000);
 const login = (fields, { origin = ORIGIN, ip = '203.0.113.9' } = {}) =>
@@ -42,14 +26,14 @@ const login = (fields, { origin = ORIGIN, ip = '203.0.113.9' } = {}) =>
     method: 'POST',
     redirect: 'manual',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded', Origin: origin, 'X-Forwarded-For': ip },
-    body: new URLSearchParams(fields),
+    body: new URLSearchParams({ user: 'mathis', ...fields }),
   });
-const verify = (cookie, method = 'GET') =>
+const verify = (cookie, method = 'GET', host = 'travaux.mathis-rvrs.fr') =>
   fetch(`${base}/verify`, {
     redirect: 'manual',
     headers: {
       ...(cookie ? { Cookie: cookie } : {}),
-      'X-Forwarded-Method': method, 'X-Forwarded-Host': 'travaux.mathis-rvrs.fr', 'X-Forwarded-Uri': '/plans?id=3',
+      'X-Forwarded-Method': method, 'X-Forwarded-Host': host, 'X-Forwarded-Uri': '/plans?id=3',
     },
   });
 
@@ -59,7 +43,17 @@ test('sans session : redirection vers la connexion avec adresse de retour', asyn
   const res = await verify('');
   assert.equal(res.status, 302);
   assert.equal(res.headers.get('location'), `${ORIGIN}/login?rd=${encodeURIComponent('https://travaux.mathis-rvrs.fr/plans?id=3')}`);
+  assert.equal(res.headers.get('x-auth-user'), null);
   assert.equal((await verify('', 'POST')).status, 401);
+});
+
+test('ancien format : session émise avant les comptes (sans « u ») toujours valide, partout', async () => {
+  const old = `__Secure-mr_session=${signSession({ days: 30, epoch: 1, secret: legacy.sessionSecret })}`;
+  for (const host of ['travaux.mathis-rvrs.fr', 'job.mathis-rvrs.fr', 'arbitre.mathis-rvrs.fr', 'pma.mathis-rvrs.fr', 'budget.mathis-rvrs.fr']) {
+    const res = await verify(old, 'GET', host);
+    assert.equal(res.status, 200, host);
+    assert.equal(res.headers.get('x-auth-user'), 'mathis', host);
+  }
 });
 
 test('page de connexion : en-têtes de sécurité, adresse de retour étrangère ignorée', async () => {
@@ -67,7 +61,9 @@ test('page de connexion : en-têtes de sécurité, adresse de retour étrangère
   assert.equal(res.status, 200);
   assert.match(res.headers.get('content-security-policy'), /default-src 'none'.*frame-ancestors 'none'/);
   assert.equal(res.headers.get('cache-control'), 'no-store');
-  assert.doesNotMatch(await res.text(), /evil\.com/);
+  const html = await res.text();
+  assert.doesNotMatch(html, /evil\.com/);
+  assert.match(html, /name="user"[^>]*autocomplete="username"/);
 });
 
 test('envoi depuis une autre origine refusé', async () => {
@@ -81,7 +77,7 @@ const rawPost = (headers) =>
     method: 'POST',
     redirect: 'manual',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Forwarded-For': '198.51.100.7', ...headers },
-    body: new URLSearchParams({ password: 'faux', code: '000000' }),
+    body: new URLSearchParams({ user: 'mathis', password: 'faux', code: '000000' }),
   });
 
 test('Origin null : accepté seulement si Sec-Fetch-Site vaut same-origin', async () => {
@@ -98,20 +94,38 @@ test('page de connexion : politique de référent same-origin', async () => {
   assert.equal(res.headers.get('referrer-policy'), 'same-origin');
 });
 
-test('mauvais mot de passe ou mauvais code refusés', async () => {
+test('mauvais identifiant, mot de passe ou code refusés', async () => {
   assert.equal((await login({ password: 'faux', code: totpAt(secret, step()) }, { ip: '198.51.100.1' })).status, 401);
   assert.equal((await login({ password: PASSWORD, code: '000000' }, { ip: '198.51.100.1' })).status, 401);
+  assert.equal((await login({ user: 'inconnu', password: PASSWORD, code: totpAt(secret, step()) }, { ip: '198.51.100.3' })).status, 401);
+  assert.equal((await login({ user: '', password: PASSWORD, code: totpAt(secret, step()) }, { ip: '198.51.100.3' })).status, 401);
 });
 
-test('connexion réussie : cookie de domaine, retour vers le dashboard', async () => {
-  const res = await login({ password: PASSWORD, code: totpAt(secret, step()), rd: 'https://travaux.mathis-rvrs.fr/plans' });
+test('connexion réussie : cookie de domaine, retour vers le dashboard, X-Auth-User', async () => {
+  const res = await login({ user: ' Mathis ', password: PASSWORD, code: totpAt(secret, step()), rd: 'https://travaux.mathis-rvrs.fr/plans' });
   assert.equal(res.status, 303);
   assert.equal(res.headers.get('location'), 'https://travaux.mathis-rvrs.fr/plans');
   const setCookie = res.headers.get('set-cookie');
   assert.match(setCookie, /^__Secure-mr_session=[^;]+; Domain=mathis-rvrs\.fr; Path=\/; Max-Age=2592000; HttpOnly; Secure; SameSite=Lax$/);
   cookie = setCookie.split(';')[0];
-  assert.equal((await verify(cookie)).status, 200);
+  const ok = await verify(cookie);
+  assert.equal(ok.status, 200);
+  assert.equal(ok.headers.get('x-auth-user'), 'mathis');
   assert.equal((await verify(cookie, 'POST')).status, 200);
+  assert.equal((await verify(cookie, 'GET', 'pma.mathis-rvrs.fr')).status, 200);
+});
+
+test('migration : après connexion, le fichier passe au nouveau format sans rien perdre', () => {
+  const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
+  assert.equal(saved.sessionSecret, legacy.sessionSecret);
+  assert.deepEqual(Object.keys(saved.accounts), ['mathis']);
+  const m = saved.accounts.mathis;
+  assert.equal(m.passwordHash, legacy.passwordHash);
+  assert.equal(m.totpSecret, legacy.totpSecret);
+  assert.equal(m.epoch, 1);
+  assert.deepEqual(m.hosts, ['*']);
+  assert.ok(m.lastTotpStep >= step() - 1);
+  assert.equal(saved.passwordHash, undefined);
 });
 
 test('un code déjà utilisé ne sert pas deux fois', async () => {
@@ -128,9 +142,9 @@ test('limite : 5 échecs par IP puis 429', async () => {
 
 test('révocation (époque) : la session existante est refusée', async () => {
   const current = JSON.parse(fs.readFileSync(file, 'utf8'));
-  fs.writeFileSync(file, JSON.stringify({ ...current, epoch: 2 }));
-  for (let i = 0; i < 40 && (await verify(cookie)).status === 200; i++) await new Promise((r) => setTimeout(r, 100));
-  assert.equal((await verify(cookie)).status, 302);
+  current.accounts.mathis.epoch = 2;
+  fs.writeFileSync(file, JSON.stringify(current));
+  assert.ok(await until(async () => (await verify(cookie)).status === 302));
 });
 
 test('déconnexion : cookie effacé, origine exigée', async () => {

@@ -18,10 +18,17 @@
 }
 
 # Accès réservé : chaque requête passe d'abord par le service de connexion (deploy/auth), qui
-# répond 200 (session valide) ou renvoie vers auth.mathis-rvrs.fr/login.
+# répond 200 (session valide, site autorisé pour le compte), 403 (site hors du périmètre du compte)
+# ou renvoie vers auth.mathis-rvrs.fr/login. Le site reçoit le compte dans X-Auth-User.
+# « route » garde l'ordre écrit : sans lui, Caddy placerait request_header après forward_auth et
+# effacerait l'en-tête posé par le service. Un X-Auth-User envoyé par le client est retiré d'abord.
 (private) {
-	forward_auth auth-web:8080 {
-		uri /verify
+	route {
+		request_header -X-Auth-User
+		forward_auth auth-web:8080 {
+			uri /verify
+			copy_headers X-Auth-User
+		}
 	}
 }
 
