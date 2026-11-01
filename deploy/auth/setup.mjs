@@ -17,8 +17,8 @@ import crypto from 'node:crypto';
 import readline from 'node:readline';
 import { spawnSync } from 'node:child_process';
 import {
-  ACCOUNT_NAME, LEGACY_ACCOUNT, MIN_PASSWORD_LENGTH, accountError, checkTotp, hashPassword, newTotpSecret, normalizeCredentials,
-  otpauthUri, parseHosts,
+  ACCOUNT_NAME, LEGACY_ACCOUNT, MIN_PASSWORD_LENGTH, accountError, checkTotp, hashPassword, newTotpSecret,
+  normalizeCredentials, otpauthUri, parseHosts, readHidden,
 } from './lib.mjs';
 
 const FILE = process.env.CREDENTIALS_FILE || '/config/credentials.json';
@@ -69,18 +69,13 @@ function requireTty() {
   if (!process.stdin.isTTY) throw new Error('terminal interactif requis (docker compose run --rm -it …)');
 }
 
+// Saisie masquée : lecture brute du terminal (readHidden), sans écho ni historique readline.
 function ask(question, { hidden = false } = {}) {
+  if (hidden) return readHidden(question);
   return new Promise((resolve) => {
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: true });
-    if (hidden) {
-      // Rien n'est affiché pendant la saisie.
-      rl._writeToOutput = (s) => {
-        if (s.includes(question)) process.stdout.write(s);
-      };
-    }
     rl.question(question, (answer) => {
       rl.close();
-      if (hidden) process.stdout.write('\n');
       resolve(answer);
     });
   });

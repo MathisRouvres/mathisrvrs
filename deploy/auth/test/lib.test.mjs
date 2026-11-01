@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { PassThrough } from 'node:stream';
 import {
   MIN_PASSWORD_LENGTH, accountError, base32Decode, base32Encode, checkTotp, createLimiter, findAccount, hashPassword, hostAllowed, normalizeCredentials,
-  parseHosts, readSession, safeReturnUrl, signSession, totpAt, verifyPassword, verifySession,
+  parseHosts, readHidden, readSession, safeReturnUrl, signSession, totpAt, verifyPassword, verifySession,
 } from '../lib.mjs';
 
 // Vecteurs de la RFC 6238 (annexe B), secret ASCII « 12345678901234567890 », 8 chiffres → 6 derniers.
@@ -145,4 +146,50 @@ test('adresse de retour limitée au domaine en https', () => {
   assert.equal(safeReturnUrl('https://user:pw@travaux.mathis-rvrs.fr/', d), null);
   assert.equal(safeReturnUrl('//evil.com', d), null);
   assert.equal(safeReturnUrl('javascript:alert(1)', d), null);
+});
+
+// Faux terminal : entrée qui note les passages en mode brut, sortie qui garde tout ce qui est écrit.
+function fakeTty({ tty = true } = {}) {
+  const input = new PassThrough();
+  input.isTTY = tty;
+  input.rawModes = [];
+  if (tty) input.setRawMode = (on) => input.rawModes.push(on);
+  let shown = '';
+  const output = { write: (s) => { shown += s; } };
+  return { input, output, shown: () => shown };
+}
+
+test('saisie masquée : rien n\'est affiché, retour arrière et Ctrl+U pris en compte', async () => {
+  const t = fakeTty();
+  const answer = readHidden('Mot de passe : ', t);
+  t.input.write('secrxt');
+  t.input.write('\u007f\u007fté');
+  t.input.write('\u001b[D'); // flèche gauche ignorée
+  t.input.write('9\r');
+  assert.equal(await answer, 'secrté9');
+  assert.equal(t.shown(), 'Mot de passe : \n', 'aucun caractère saisi à l\'écran');
+  assert.deepEqual(t.input.rawModes, [true, false], 'terminal rendu en mode normal');
+
+  const t2 = fakeTty();
+  const cleared = readHidden('? ', t2);
+  t2.input.write('erreur\u0015bon\n');
+  assert.equal(await cleared, 'bon');
+});
+
+test('saisie masquée : Ctrl+C annule, entrée hors terminal refusée', async () => {
+  const t = fakeTty();
+  const answer = readHidden('? ', t);
+  t.input.write('abc\u0003');
+  await assert.rejects(answer, /annulée/);
+  assert.deepEqual(t.input.rawModes, [true, false]);
+  assert.equal(t.input.listenerCount('data'), 0);
+
+  const empty = fakeTty();
+  const eof = readHidden('? ', empty);
+  empty.input.write('\u0004');
+  await assert.rejects(eof, /annulée/);
+
+  const pipe = fakeTty({ tty: false });
+  await assert.rejects(readHidden('? ', pipe), /terminal interactif/);
+  assert.equal(pipe.shown(), '', 'question même pas affichée');
 });

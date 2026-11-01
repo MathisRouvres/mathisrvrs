@@ -216,3 +216,39 @@ export function safeReturnUrl(rd, domain) {
     return null;
   }
 }
+
+// --- Saisie masquée (setup.mjs) : terminal en mode brut, rien n'est renvoyé à l'écran ---
+// Entrée valide, retour arrière efface, Ctrl+U vide, Ctrl+C (ou Ctrl+D sur une saisie vide) annule,
+// flèches et autres touches de contrôle ignorées. Refusée si l'entrée n'est pas un terminal.
+export function readHidden(question, { input = process.stdin, output = process.stdout } = {}) {
+  return new Promise((resolve, reject) => {
+    if (!input.isTTY || typeof input.setRawMode !== 'function') {
+      reject(new Error('saisie masquée impossible : terminal interactif requis (docker compose run --rm -it …)'));
+      return;
+    }
+    let chars = [];
+    const finish = (err) => {
+      input.removeListener('data', onData);
+      input.setRawMode(false);
+      input.pause();
+      output.write('\n');
+      if (err) reject(err);
+      else resolve(chars.join(''));
+    };
+    function onData(chunk) {
+      for (const ch of String(chunk)) {
+        if (ch === '\r' || ch === '\n') return finish();
+        if (ch === '\u0003' || (ch === '\u0004' && !chars.length)) return finish(new Error('saisie annulée'));
+        if (ch === '\u007f' || ch === '\b') chars.pop();
+        else if (ch === '\u0015') chars = [];
+        else if (ch === '\u001b') return; // séquence d'échappement (flèches…) : reste du morceau ignoré
+        else if (ch >= ' ') chars.push(ch);
+      }
+    }
+    output.write(question);
+    input.setRawMode(true);
+    input.setEncoding('utf8');
+    input.on('data', onData);
+    input.resume();
+  });
+}
