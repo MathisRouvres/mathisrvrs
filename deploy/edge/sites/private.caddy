@@ -12,13 +12,11 @@ pma.mathis-rvrs.fr {
 }
 
 travaux.mathis-rvrs.fr {
-	tls internal
 	import private
 	reverse_proxy travaux-web:8090
 }
 
 arbitre.mathis-rvrs.fr {
-	tls internal
 	import private
 	reverse_proxy arbitre-web:3210
 }
