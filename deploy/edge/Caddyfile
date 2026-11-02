@@ -3,6 +3,9 @@
 # Domaines lus dans .env (voir .env.example) ; en test local, des noms en .localhost (CA interne).
 {
 	email {$ACME_EMAIL}
+	# Au reload, les connexions ouvertes sur l'ancienne config sont fermées après 30 s (sinon jamais :
+	# un onglet qui interroge le site en continu garderait l'ancien certificat indéfiniment).
+	grace_period 30s
 }
 
 # --- Eskudo (pile /opt/club) ---
