@@ -1,12 +1,9 @@
 # Espace privé : page de connexion et sites protégés par elle (snippet « private » du Caddyfile).
-# TRANSITION : « tls internal » tant que ces sous-domaines n'existent pas dans le DNS (voir
-# mathis-rvrs.caddy) ; à retirer après la bascule, puis caddy reload.
 auth.mathis-rvrs.fr {
 	reverse_proxy auth-web:8080
 }
 
 pma.mathis-rvrs.fr {
-	tls internal
 	import private
 	reverse_proxy pma-web:80
 }
@@ -22,7 +19,6 @@ arbitre.mathis-rvrs.fr {
 }
 
 job.mathis-rvrs.fr {
-	tls internal
 	import private
 	reverse_proxy job-web:5190
 }
