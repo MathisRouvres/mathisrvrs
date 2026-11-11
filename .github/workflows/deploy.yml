@@ -1,4 +1,4 @@
-name: Deploy React Vite to OVH
+name: Deploy to VPS
 
 on:
   push:
@@ -47,45 +47,16 @@ jobs:
         run: |
           test -f dist/index.html
           test -f dist/contact.php
+          test -f dist/dispo-api.php
           test -d dist/assets
           ls -la dist
 
-      # L'hébergement OVH est à la limite de son quota disque (553 Disk quota
-      # exceeded). HEXLAND est servi en Brotli (catan/.htaccess réécrit vers
-      # index.wasm.br dès que le navigateur accepte br, soit tous les navigateurs
-      # actuels en HTTPS) : la copie brute de 39 Mo n'est jamais téléchargée.
-      - name: Drop uncompressed HEXLAND wasm
-        run: |
-          test -f dist/catan/index.wasm.br
-          # Mis de côté, pas supprimé : le VPS (sans quota) le reçoit après OVH.
-          mv dist/catan/index.wasm "$RUNNER_TEMP/"
-          du -sh dist
-
-      - name: Deploy to OVH
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-        with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          local-dir: ./dist/
-          server-dir: ${{ secrets.FTP_SERVER_DIR }}
-          protocol: ftp
-          # Envoi incrémental (fichier d'état .ftp-deploy-sync-state.json sur le
-          # serveur) : un échec en cours d'envoi ne vide plus tout le site.
-
-      # Contrôle de la production (voir scripts/smoke-test.sh).
-      - name: Smoke test production
-        run: scripts/smoke-test.sh https://mathis-rvrs.fr
-
-      # VPS (Caddy frontal + FrankenPHP, deploy/site), après OVH qui reste la production tant que
-      # le DNS n'a pas basculé : un échec ici ne bloque pas OVH. Wasm brut remis (pas de quota).
-      # Clé dédiée, limitée côté serveur à rrsync dans /opt/site/www. Tant que le DNS pointe
-      # vers OVH, le VPS est visé par son IP (certificat local : -k).
+      # VPS (Caddy frontal + FrankenPHP, deploy/site), qui sert mathis-rvrs.fr depuis la bascule DNS.
+      # Clé dédiée, limitée côté serveur à rrsync dans /opt/site/www.
       - name: Deploy to VPS
         env:
           VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
         run: |
-          mv "$RUNNER_TEMP/index.wasm" dist/catan/
           install -m 700 -d ~/.ssh
           printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/vps
           chmod 600 ~/.ssh/vps
@@ -93,5 +64,6 @@ jobs:
           rsync -rlptz --delete-after --delay-updates --exclude '.htaccess' \
             -e 'ssh -i ~/.ssh/vps -o IdentitiesOnly=yes' dist/ site@185.226.172.52:
 
-      - name: Smoke test VPS
-        run: scripts/smoke-test.sh https://mathis-rvrs.fr --resolve mathis-rvrs.fr:443:185.226.172.52 -k
+      # Contrôle de la production (voir scripts/smoke-test.sh).
+      - name: Smoke test production
+        run: scripts/smoke-test.sh https://mathis-rvrs.fr
