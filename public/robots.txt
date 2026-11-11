@@ -1,5 +1,6 @@
 User-agent: *
 Allow: /
 Disallow: /stats
+Disallow: /dispo
 
 Sitemap: https://mathis-rvrs.fr/sitemap.xml

@@ -8,6 +8,7 @@ const SECTION_LABELS: Record<string, string> = {
   carriere: 'Mode carrière',
   spin: 'Spin & Go',
   hexland: 'HEXLAND',
+  dispo: 'Dispos',
 }
 
 export function sectionLabel(section: string): string {

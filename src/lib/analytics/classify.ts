@@ -44,6 +44,7 @@ export function classifyPath(pathname: string): PageInfo | null {
   if (under(path, '/monovomy')) return { path: '/monovomy', section: 'monovomy', game: null }
   if (under(path, '/carriere')) return { path: path === '/carriere' ? path : '/carriere/dev', section: 'carriere', game: null }
   if (path === '/spin') return { path, section: 'spin', game: null }
+  if (path === '/dispo') return { path, section: 'dispo', game: null }
   if (under(path, '/catan')) return { path: '/catan', section: 'hexland', game: null }
 
   // Toute autre adresse affiche le portfolio.

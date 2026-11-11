@@ -20,6 +20,7 @@
     "src/features/monovomy/**/*.ts",
     "src/features/party/**/*.ts",
     "src/features/stats/**/*.ts",
+    "src/features/dispo/**/*.ts",
     "src/lib/analytics/**/*.ts"
   ],
   "exclude": ["node_modules", "dist"]

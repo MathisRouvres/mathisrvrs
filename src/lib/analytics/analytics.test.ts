@@ -7,6 +7,7 @@ describe('classifyPath', () => {
     expect(classifyPath('/')).toEqual({ path: '/', section: 'portfolio', game: null })
     expect(classifyPath('/games/')).toEqual({ path: '/games', section: 'games', game: null })
     expect(classifyPath('/spin')).toEqual({ path: '/spin', section: 'spin', game: null })
+    expect(classifyPath('/dispo/')).toEqual({ path: '/dispo', section: 'dispo', game: null })
     expect(classifyPath('/catan/')).toEqual({ path: '/catan', section: 'hexland', game: null })
     expect(classifyPath('/carri%C3%A8re')).toEqual({ path: '/carriere', section: 'carriere', game: null })
   })

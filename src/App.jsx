@@ -25,6 +25,7 @@ const SpinApp = named(() => import('./features/spin'), 'SpinApp')
 const GamesHub = named(() => import('./features/games'), 'GamesHub')
 const PartyApp = named(() => import('./features/party'), 'PartyApp')
 const StatsApp = named(() => import('./features/stats'), 'StatsApp')
+const DispoApp = named(() => import('./features/dispo'), 'DispoApp')
 
 function normalizePathname(pathname) {
   if (!pathname || pathname === '/') return '/'
@@ -130,6 +131,15 @@ export default function App() {
     return (
       <LazyRoute>
         <StatsApp />
+      </LazyRoute>
+    )
+  }
+
+  // Calendrier de disponibilités partagé par lien (non indexé).
+  if (path === '/dispo') {
+    return (
+      <LazyRoute>
+        <DispoApp />
       </LazyRoute>
     )
   }

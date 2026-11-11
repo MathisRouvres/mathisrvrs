@@ -19,6 +19,17 @@ npm run lint
 Le dossier `dist/` est servi sur **https://mathis-rvrs.fr** via Apache/OVH.  
 Le fichier `public/.htaccess` gère le HTTPS, le fallback SPA et les fichiers statiques (`robots.txt`, `sitemap.xml`, `contact.php`).
 
+## Calendrier de disponibilités (`/dispo`)
+
+Page partagée par lien, non indexée : on choisit son profil (prénom + photo facultative, sans
+compte), puis on coche ses créneaux de 30 min (8 h–23 h). Les créneaux communs sont listés,
+ceux à 4 personnes ou plus sont mis en avant. Code : `src/features/dispo/`.
+
+Données dans Supabase (même projet que `/stats`) : exécuter une fois
+`docs/dispo/supabase-schema.sql` dans l'éditeur SQL. Sans compte, toute personne qui a le lien
+peut créer un profil (60 max) et modifier n'importe quel calendrier. Supprimer un profil :
+à la main en SQL (commentaire en fin de fichier).
+
 ## Formulaire de contact
 
 Le formulaire envoie les messages via **`public/contact.php`** (copié dans `dist/contact.php` au build).
