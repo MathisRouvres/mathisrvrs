@@ -13,11 +13,14 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_FROM: ${SMTP_FROM:-contact@mathis-rvrs.fr}
+      # Base « dispo » du calendrier /dispo : écrit par /opt/db/create-app-db.sh dispo /opt/site/.env
+      DATABASE_URL: ${DATABASE_URL:-}
     volumes:
       - ./www:/srv/www:ro
     networks:
       edge:
         aliases: [site-web]
+      db:
     restart: unless-stopped
     logging:
       driver: json-file
@@ -27,4 +30,7 @@ services:
 
 networks:
   edge:
+    external: true
+  # Créé par la pile /opt/db (MySQL joignable en « mysql:3306 »).
+  db:
     external: true

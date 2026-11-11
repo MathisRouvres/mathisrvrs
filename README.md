@@ -2,7 +2,7 @@
 
 Portfolio personnel de **Mathis Rouvres** — développeur web full-stack, product builder et UX/UI.
 
-Stack : React 19 · Vite 8 · Tailwind CSS v4 · déploiement statique OVH.
+Stack : React 19 · Vite 8 · Tailwind CSS v4 · déploiement sur VPS (FrankenPHP, `deploy/site`).
 
 ## Commandes
 
@@ -16,8 +16,9 @@ npm run lint
 
 ## Déploiement
 
-Le dossier `dist/` est servi sur **https://mathis-rvrs.fr** via Apache/OVH.  
-Le fichier `public/.htaccess` gère le HTTPS, le fallback SPA et les fichiers statiques (`robots.txt`, `sitemap.xml`, `contact.php`).
+Chaque push sur `main` (`.github/workflows/deploy.yml`) : lint, typecheck, tests, build, puis
+`dist/` envoyé par rsync sur le VPS, servi sur **https://mathis-rvrs.fr** par FrankenPHP derrière
+le Caddy frontal (`deploy/site`, `deploy/edge`). Smoke test : `scripts/smoke-test.sh`.
 
 ## Calendrier de disponibilités (`/dispo`)
 
@@ -25,10 +26,11 @@ Page partagée par lien, non indexée : on choisit son profil (prénom + photo f
 compte), puis on coche ses créneaux de 30 min (8 h–23 h). Les créneaux communs sont listés,
 ceux à 4 personnes ou plus sont mis en avant. Code : `src/features/dispo/`.
 
-Données dans Supabase (même projet que `/stats`) : exécuter une fois
-`docs/dispo/supabase-schema.sql` dans l'éditeur SQL. Sans compte, toute personne qui a le lien
-peut créer un profil (60 max) et modifier n'importe quel calendrier. Supprimer un profil :
-à la main en SQL (commentaire en fin de fichier).
+Données dans le MySQL du VPS (base `dispo`), via `public/dispo-api.php` servi par FrankenPHP ;
+tables créées au premier appel. Mise en place serveur : `deploy/site/README.md` (section 4).
+Sans compte, toute personne qui a le lien peut créer un profil (60 max) et modifier n'importe
+quel calendrier. Supprimer un profil : `DELETE FROM dispo_people WHERE name = '…'` dans
+phpMyAdmin (les créneaux suivent).
 
 ## Formulaire de contact
 

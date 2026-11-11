@@ -40,7 +40,7 @@ for file in dist/assets/*.js dist/assets/*.css; do
   fi
 done
 
-for route in / /games /games/soiree /monovomy /carriere /spin /catan/; do
+for route in / /games /games/soiree /monovomy /carriere /spin /dispo /catan/; do
   code=$(curl -sS "${curl_opts[@]}" -o /dev/null -w '%{http_code}' "$site_url$route")
   echo "$route -> $code"
   [ "$code" = 200 ] || { echo "::error::$route répond $code"; failed=1; }

@@ -43,7 +43,7 @@ function usePageMeta() {
 
 /**
  * /dispo : calendrier de disponibilités partagé, sans compte. On choisit (ou crée) son
- * profil, puis on coche ses créneaux ; les données vivent dans Supabase (docs/dispo).
+ * profil, puis on coche ses créneaux ; les données vivent dans MySQL (public/dispo-api.php).
  */
 export default function DispoApp() {
   usePageMeta()
@@ -87,11 +87,6 @@ export default function DispoApp() {
         <div className={card} role="alert">
           <h1 className="font-display text-xl font-bold">Calendrier indisponible</h1>
           <p className="mt-2 text-sm text-[var(--text-secondary)]">{error.message}</p>
-          {error.kind === 'not-installed' && (
-            <p className="mt-2 text-sm text-[var(--text-secondary)]">
-              Exécuter <code>docs/dispo/supabase-schema.sql</code> dans l’éditeur SQL Supabase.
-            </p>
-          )}
           <button
             type="button"
             onClick={() => {

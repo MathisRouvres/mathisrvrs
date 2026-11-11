@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { DispoError, addSlots, listSlots, removeSlots, updateAvatar } from './api'
+import { DispoError, listSlots, saveSlots, updateAvatar } from './api'
 import BestSlots from './BestSlots'
 import PhotoInput from './PhotoInput'
 import WeekGrid from './WeekGrid'
@@ -63,8 +63,11 @@ function useWeekAvailability(weekStart, meId) {
     busy.current = true
     setSaveState('saving')
     try {
-      await addSlots(meId, batch.filter(([, on]) => on).map(([key]) => key))
-      await removeSlots(meId, batch.filter(([, on]) => !on).map(([key]) => key))
+      await saveSlots(
+        meId,
+        batch.filter(([, on]) => on).map(([key]) => key),
+        batch.filter(([, on]) => !on).map(([key]) => key),
+      )
       await refresh()
       setSaveState('saved')
     } catch (error) {

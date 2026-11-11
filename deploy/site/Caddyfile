@@ -22,7 +22,8 @@
 		respond 404
 	}
 
-	@php path /contact.php
+	# contact.php (formulaire) et dispo-api.php (calendrier /dispo, MySQL du VPS).
+	@php path /contact.php /dispo-api.php
 	handle @php {
 		php {
 			# FrankenPHP met l'IP du frontal dans REMOTE_ADDR ; client_ip suit trusted_proxies.

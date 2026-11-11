@@ -1,6 +1,6 @@
 # mathis-rvrs.fr sur le VPS (`/opt/site`)
 
-FrankenPHP (Caddy + PHP) sert `dist/` et `contact.php` sur le réseau Docker `edge`, derrière le
+FrankenPHP (Caddy + PHP) sert `dist/`, `contact.php` et `dispo-api.php` sur le réseau Docker `edge`, derrière le
 Caddy frontal (`deploy/edge`, site `sites/mathis-rvrs.caddy`). Le `Caddyfile` reprend les règles
 des `.htaccess` d'Apache (fallback SPA, cache, service worker MonoVomy, HEXLAND précompressé).
 
@@ -9,8 +9,8 @@ des `.htaccess` d'Apache (fallback SPA, cache, service worker MonoVomy, HEXLAND 
 | `Dockerfile` | Image `mathisrvrs-site:local`, construite sur le serveur (`docker compose build`). |
 | `Caddyfile` | Routes et en-têtes du site ; `REMOTE_ADDR` = IP réelle du visiteur. |
 | `entrypoint.sh` | Écrit `/etc/msmtprc` (relais SMTP de `mail()`) depuis `.env`. |
-| `docker-compose.yml` | Pile `site` ; `./www` monté en lecture seule. |
-| `.env.example` | SMTP Scaleway TEM, à copier en `/opt/site/.env` (600). |
+| `docker-compose.yml` | Pile `site` ; `./www` monté en lecture seule ; réseaux `edge` et `db`. |
+| `.env.example` | SMTP Scaleway TEM et `DATABASE_URL`, à copier en `/opt/site/.env` (600). |
 
 Déploiement : `.github/workflows/deploy.yml` envoie `dist/` dans `/opt/site/www` par rsync
 (`--delay-updates` : les fichiers changent tous à la fin), sans redémarrer le conteneur.
@@ -47,10 +47,24 @@ ssh -i ~/.ssh/mathisrvrs_deploy_ci site@185.226.172.52 id   # doit être refusé
 5. Essai : formulaire de contact visé par l'IP du VPS (`curl --resolve … -k`), journal :
    `docker compose logs web | grep msmtp`.
 
-## 3. Bascule DNS
+## 3. Bascule DNS (faite pour `mathis-rvrs.fr`, reste `www`)
 
 1. DNS OVH : `A mathis-rvrs.fr → 185.226.172.52`, `www` → idem (remplace `51.91.236.255`).
 2. Une fois propagé (`dig +short mathis-rvrs.fr`) : retirer `tls internal` de
    `deploy/edge/sites/mathis-rvrs.caddy`, copier sur le serveur, `caddy reload` (sans coupure).
 3. Workflow : supprimer les étapes OVH (FTP, wasm mis de côté) et le `--resolve … -k` du
    smoke test VPS.
+
+## 4. Base du calendrier `/dispo`
+
+`dispo-api.php` lit `DATABASE_URL` (MySQL de `/opt/db`, réseau Docker `db`) et crée ses tables
+au premier appel. Sans base, `/dispo` affiche « pas encore configuré ».
+
+```bash
+# Depuis ce dépôt
+scp deploy/site/{Dockerfile,Caddyfile,docker-compose.yml} deploy@185.226.172.52:/opt/site/
+# Sur le serveur
+bash /opt/db/create-app-db.sh dispo /opt/site/.env    # base + utilisateur, DATABASE_URL dans .env
+cd /opt/site && docker compose build && docker compose up -d --wait
+curl -s https://mathis-rvrs.fr/dispo-api.php?action=people   # {"people":[]}
+```

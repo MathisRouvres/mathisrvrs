@@ -12,6 +12,7 @@ conteneur (sauvegarde, `create-app-db.sh`, contrôle de santé), jamais par phpM
 | `travaux` | `travaux` | `/opt/travaux/.env` |
 | `arbitre` | `arbitre` | `/opt/arbitre/.env` |
 | `job` | `job` | `/opt/job/.env` |
+| `dispo` | `dispo` | `/opt/site/.env` (calendrier `/dispo` de mathis-rvrs.fr) |
 
 Chaque utilisateur n'a de droits que sur sa base. `create-app-db.sh <app> <.env>` crée la base et
 l'utilisateur (ou change son mot de passe) et écrit `DATABASE_URL` dans le `.env` de l'app.
