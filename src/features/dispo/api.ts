@@ -43,13 +43,21 @@ export class DispoError extends Error {
 }
 
 const ENDPOINT = import.meta.env.VITE_DISPO_ENDPOINT || '/dispo-api.php'
+const COURTS_ENDPOINT = import.meta.env.VITE_DISPO_COURTS_ENDPOINT || '/dispo-courts.php'
 const KINDS: DispoErrorKind[] = ['unavailable', 'duplicate', 'full', 'invalid', 'not-found']
 
-async function call<T>(action: string, init: { query?: Record<string, string>; body?: unknown; signal?: AbortSignal } = {}): Promise<T> {
-  const params = new URLSearchParams({ action, ...init.query })
+interface CallInit {
+  query?: Record<string, string>
+  body?: unknown
+  signal?: AbortSignal
+  endpoint?: string
+}
+
+async function call<T>(action: string, init: CallInit = {}): Promise<T> {
+  const params = new URLSearchParams(action ? { action, ...init.query } : init.query)
   let response: Response
   try {
-    response = await fetch(`${ENDPOINT}?${params}`, {
+    response = await fetch(`${init.endpoint ?? ENDPOINT}?${params}`, {
       method: init.body === undefined ? 'GET' : 'POST',
       headers: init.body === undefined ? undefined : { 'Content-Type': 'application/json' },
       body: init.body === undefined ? undefined : JSON.stringify(init.body),
@@ -87,4 +95,27 @@ export async function listSlots(from: Date, to: Date, signal?: AbortSignal): Pro
 export async function saveSlots(personId: string, changes: SlotChanges): Promise<void> {
   if (Object.values(changes).every((list) => list.length === 0)) return
   await call('slots', { body: { personId, ...changes } })
+}
+
+/** Créneau libre d'un club : début (ISO UTC), durée en minutes, terrains libres, prix en centimes. */
+export interface CourtSlot {
+  start: string
+  duration: number
+  courts: number
+  price: number | null
+  url: string
+}
+
+export interface Club {
+  id: string
+  name: string
+  url: string
+  /** `not-configured` : source pas encore branchée ; `unavailable` : club injoignable. */
+  status: 'ok' | 'unavailable' | 'not-configured'
+  slots: CourtSlot[]
+}
+
+/** Terrains de padel libres de la semaine qui commence le lundi `week` (`public/dispo-courts.php`). */
+export async function listCourts(week: string, signal?: AbortSignal): Promise<Club[]> {
+  return (await call<{ clubs: Club[] }>('', { endpoint: COURTS_ENDPOINT, query: { week }, signal })).clubs
 }

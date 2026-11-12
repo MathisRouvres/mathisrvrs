@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { DispoError, listSlots, saveSlots, updateAvatar } from './api'
+import { DispoError, listCourts, listSlots, saveSlots, updateAvatar } from './api'
 import BestSlots from './BestSlots'
+import CourtSlots from './CourtSlots'
+import { courtMatches, weekParam } from './courts'
 import PhotoInput from './PhotoInput'
 import WeekGrid from './WeekGrid'
 import {
@@ -22,6 +24,9 @@ import { Avatar, Spinner, card, focusRing, secondaryButton } from './ui'
 
 const SAVE_DELAY_MS = 400
 const REFRESH_MS = 30_000
+const COURTS_REFRESH_MS = 5 * 60_000
+/** Semaines dont on cherche les terrains : la courante et les 8 suivantes (dispo-courts.php). */
+const COURTS_WEEKS_AHEAD = 8
 
 const monthDay = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short' })
 
@@ -151,6 +156,42 @@ function useWeekAvailability(weekStart, meId) {
   return { data, loadError: loadError?.week === week ? loadError.error : null, saveState, applyOps, retry }
 }
 
+/**
+ * Terrains libres des clubs pour la semaine affichée, relus toutes les 5 min (le serveur les
+ * garde 5 min en cache). `enabled` = faux pour une semaine passée ou trop lointaine.
+ */
+function useCourts(weekStart, enabled) {
+  // Réponse étiquetée par semaine, comme useWeekAvailability.
+  const [state, setState] = useState(null)
+  const week = weekStart.getTime()
+
+  useEffect(() => {
+    if (!enabled) return undefined
+    const controller = new AbortController()
+    const load = () => {
+      if (document.visibilityState !== 'visible') return
+      listCourts(weekParam(weekStart), controller.signal)
+        .then((clubs) => setState({ week, clubs, error: null }))
+        .catch((error) => {
+          if (controller.signal.aborted) return
+          // Un échec de relecture garde les terrains déjà affichés.
+          setState((previous) => ({ week, clubs: previous?.week === week ? previous.clubs : null, error }))
+        })
+    }
+    load()
+    const timer = setInterval(load, COURTS_REFRESH_MS)
+    document.addEventListener('visibilitychange', load)
+    return () => {
+      controller.abort()
+      clearInterval(timer)
+      document.removeEventListener('visibilitychange', load)
+    }
+  }, [weekStart, week, enabled])
+
+  const current = enabled && state?.week === week ? state : null
+  return { clubs: current?.clubs ?? null, error: current?.error ?? null }
+}
+
 const SAVE_LABELS = {
   idle: '',
   pending: 'Modifications en attente…',
@@ -171,7 +212,14 @@ export default function Calendar({ me, people, onSwitch, onAvatarChange }) {
   const pattern = useMemo(() => (data ? weeklyPattern(data, days) : null), [data, days])
   const recurring = useMemo(() => (data ? myRecurringKeys(data, me.id, days) : new Set()), [data, me.id, days])
   const runs = useMemo(() => (availability ? commonRuns(availability, days, now) : []), [availability, days, now])
-  const isCurrentWeek = startOfWeek(now).getTime() === weekStart.getTime()
+  const thisWeek = startOfWeek(now)
+  const isCurrentWeek = thisWeek.getTime() === weekStart.getTime()
+  const courtsEnabled = weekStart >= thisWeek && weekStart <= addDays(thisWeek, 7 * COURTS_WEEKS_AHEAD)
+  const courts = useCourts(weekStart, courtsEnabled)
+  const matches = useMemo(
+    () => (courts.clubs && availability ? courtMatches(courts.clubs, availability, now) : []),
+    [courts.clubs, availability, now],
+  )
   const weekly = mode === 'weekly'
 
   function setSlot(key, on) {
@@ -279,6 +327,15 @@ export default function Calendar({ me, people, onSwitch, onAvatarChange }) {
         </section>
 
         <aside className="space-y-4">
+          {courtsEnabled && (
+            <CourtSlots
+              clubs={availability ? courts.clubs : null}
+              matches={matches}
+              error={courts.error}
+              meId={me.id}
+              peopleById={peopleById}
+            />
+          )}
           <BestSlots runs={runs} meId={me.id} peopleById={peopleById} />
           <section className={card} aria-labelledby="dispo-people">
             <h2 id="dispo-people" className="font-display text-base font-bold">
