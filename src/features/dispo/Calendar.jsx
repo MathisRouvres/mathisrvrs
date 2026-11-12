@@ -197,6 +197,12 @@ export default function Calendar({ me, people, onSwitch, onAvatarChange }) {
           <div className="min-w-0">
             <h1 className="truncate font-display text-xl font-bold sm:text-2xl">Salut {me.name} 👋</h1>
             <p className="text-xs text-[var(--text-secondary)]">Coche les créneaux où tu es dispo.</p>
+            <PhotoInput
+              onChange={changeAvatar}
+              className="mt-1 inline-flex min-h-8 items-center gap-1 rounded-lg text-xs font-semibold text-[var(--accent)] underline-offset-2 hover:underline"
+            >
+              <span aria-hidden="true">📷</span> {me.avatar ? 'Changer ma photo' : 'Ajouter ma photo'}
+            </PhotoInput>
           </div>
         </div>
         <button type="button" onClick={onSwitch} className={secondaryButton}>

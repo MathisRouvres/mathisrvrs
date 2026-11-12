@@ -62,6 +62,25 @@ export default function DispoApp() {
     return () => controller.abort()
   }, [attempt])
 
+  // Profils relus toutes les 30 s (onglet visible) : nouveaux venus et photos ajoutées plus
+  // tard apparaissent sans recharger la page.
+  const loaded = people !== null
+  useEffect(() => {
+    if (!loaded) return
+    const refresh = () => {
+      if (document.visibilityState !== 'visible') return
+      listPeople()
+        .then(setPeople)
+        .catch(() => {})
+    }
+    const timer = setInterval(refresh, 30_000)
+    window.addEventListener('focus', refresh)
+    return () => {
+      clearInterval(timer)
+      window.removeEventListener('focus', refresh)
+    }
+  }, [loaded])
+
   const me = people?.find((person) => person.id === meId) ?? null
 
   function choose(person) {
