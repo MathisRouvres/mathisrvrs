@@ -12,8 +12,17 @@
  *   GET  ?action=people                      → { people: [{ id, name, avatar }] }
  *   POST ?action=people  { name, avatar }    → 201 { person }
  *   POST ?action=avatar  { id, avatar }      → { ok: true }
- *   GET  ?action=slots&from=ISO&to=ISO       → { slots: [{ personId, start }] }
- *   POST ?action=slots   { personId, add: [ISO], remove: [ISO] } → { ok: true }
+ *   GET  ?action=slots&from=ISO&to=ISO       → { slots, weekly, skips }
+ *        slots : [{ personId, start }]                créneaux ponctuels de la période
+ *        weekly : [{ personId, weekday, minute }]     règles « chaque semaine » (toutes)
+ *        skips : [{ personId, start }]                exceptions de la période (règle levée)
+ *   POST ?action=slots   { personId, add, remove, weeklyAdd, weeklyRemove, skipAdd, skipRemove }
+ *        add/remove : [ISO] ; weekly* : [{ weekday, minute }] ; skip* : [{ start, weekday, minute }]
+ *        → { ok: true }
+ *
+ * Règle hebdomadaire = jour ISO (1 = lundi) + minute de l'heure locale des participants (Europe/
+ * Paris) : le navigateur la déroule sur chaque semaine. Ajouter ou retirer une règle efface ses
+ * exceptions.
  *
  * Erreurs : { error: duplicate|full|invalid|not-found|unavailable, message }.
  */
@@ -115,18 +124,31 @@ function list_slots(PDO $pdo): never
     if ($to <= $from || $to - $from > MAX_RANGE_SECONDS) {
         fail(422, 'invalid', 'Période invalide.');
     }
+    $iso = static fn (array $row): array => [
+        'personId' => $row['person_id'],
+        'start' => gmdate('Y-m-d\TH:i:s\Z', (int) $row['slot_start']),
+    ];
+
     $query = $pdo->prepare(
         'SELECT person_id, slot_start FROM dispo_slots WHERE slot_start >= ? AND slot_start < ? ORDER BY slot_start'
     );
     $query->execute([$from, $to]);
-    $slots = array_map(
+    $slots = array_map($iso, $query->fetchAll());
+
+    $weekly = array_map(
         static fn (array $row): array => [
             'personId' => $row['person_id'],
-            'start' => gmdate('Y-m-d\TH:i:s\Z', (int) $row['slot_start']),
+            'weekday' => (int) $row['weekday'],
+            'minute' => (int) $row['minute'],
         ],
-        $query->fetchAll()
+        $pdo->query('SELECT person_id, weekday, minute FROM dispo_weekly ORDER BY weekday, minute')->fetchAll()
     );
-    respond(200, ['slots' => $slots]);
+
+    $query = $pdo->prepare('SELECT person_id, slot_start FROM dispo_skips WHERE slot_start >= ? AND slot_start < ?');
+    $query->execute([$from, $to]);
+    $skips = array_map($iso, $query->fetchAll());
+
+    respond(200, ['slots' => $slots, 'weekly' => $weekly, 'skips' => $skips]);
 }
 
 function save_slots(PDO $pdo, array $body): never
@@ -134,11 +156,16 @@ function save_slots(PDO $pdo, array $body): never
     $personId = clean_id($body['personId'] ?? null);
     $add = clean_slot_list($body['add'] ?? []);
     $remove = clean_slot_list($body['remove'] ?? []);
-    if (count($add) + count($remove) > MAX_SLOTS_PER_REQUEST) {
+    $weeklyAdd = clean_weekly_list($body['weeklyAdd'] ?? []);
+    $weeklyRemove = clean_weekly_list($body['weeklyRemove'] ?? []);
+    $skipAdd = clean_skip_list($body['skipAdd'] ?? []);
+    $skipRemove = clean_skip_list($body['skipRemove'] ?? []);
+    $total = count($add) + count($remove) + count($weeklyAdd) + count($weeklyRemove) + count($skipAdd) + count($skipRemove);
+    if ($total > MAX_SLOTS_PER_REQUEST) {
         fail(422, 'invalid', 'Trop de créneaux à la fois.');
     }
     $now = time();
-    foreach ($add as $start) {
+    foreach ([...$add, ...array_column($skipAdd, 'start')] as $start) {
         if ($start < $now - 86400 || $start > $now + 366 * 86400) {
             fail(422, 'invalid', 'Créneau hors de la période autorisée.');
         }
@@ -151,14 +178,31 @@ function save_slots(PDO $pdo, array $body): never
         $pdo->rollBack();
         fail(404, 'not-found', 'Profil introuvable.');
     }
-    $insert = $pdo->prepare('INSERT IGNORE INTO dispo_slots (person_id, slot_start) VALUES (?, ?)');
-    foreach ($add as $start) {
-        $insert->execute([$personId, $start]);
-    }
-    $delete = $pdo->prepare('DELETE FROM dispo_slots WHERE person_id = ? AND slot_start = ?');
-    foreach ($remove as $start) {
-        $delete->execute([$personId, $start]);
-    }
+
+    $run = static function (string $sql, array $rows) use ($pdo): void {
+        $statement = $pdo->prepare($sql);
+        foreach ($rows as $row) {
+            $statement->execute($row);
+        }
+    };
+    $run('INSERT IGNORE INTO dispo_slots (person_id, slot_start) VALUES (?, ?)', array_map(fn ($s) => [$personId, $s], $add));
+    $run('DELETE FROM dispo_slots WHERE person_id = ? AND slot_start = ?', array_map(fn ($s) => [$personId, $s], $remove));
+
+    // Règles avant exceptions : (re)poser ou retirer une règle efface ses anciennes exceptions,
+    // puis les exceptions envoyées dans la même requête s'appliquent.
+    $byRule = static fn (array $w): array => [$personId, $w['weekday'], $w['minute']];
+    $run('INSERT IGNORE INTO dispo_weekly (person_id, weekday, minute) VALUES (?, ?, ?)', array_map($byRule, $weeklyAdd));
+    $run('DELETE FROM dispo_weekly WHERE person_id = ? AND weekday = ? AND minute = ?', array_map($byRule, $weeklyRemove));
+    $run(
+        'DELETE FROM dispo_skips WHERE person_id = ? AND weekday = ? AND minute = ?',
+        array_map($byRule, [...$weeklyAdd, ...$weeklyRemove])
+    );
+    $run(
+        'INSERT IGNORE INTO dispo_skips (person_id, slot_start, weekday, minute) VALUES (?, ?, ?, ?)',
+        array_map(fn ($k) => [$personId, $k['start'], $k['weekday'], $k['minute']], $skipAdd)
+    );
+    $run('DELETE FROM dispo_skips WHERE person_id = ? AND slot_start = ?', array_map(fn ($k) => [$personId, $k['start']], $skipRemove));
+
     $pdo->commit();
     respond(200, ['ok' => true]);
 }
@@ -212,6 +256,51 @@ function clean_slot_list(mixed $value): array
         $starts[$start] = $start;
     }
     return array_values($starts);
+}
+
+/** @return list<array{weekday: int, minute: int}> */
+function clean_weekly_list(mixed $value): array
+{
+    if (!is_array($value) || !array_is_list($value)) {
+        fail(422, 'invalid', 'Liste de règles invalide.');
+    }
+    $rules = [];
+    foreach ($value as $item) {
+        $rule = clean_weekly($item);
+        $rules[$rule['weekday'] . '-' . $rule['minute']] = $rule;
+    }
+    return array_values($rules);
+}
+
+/** @return array{weekday: int, minute: int} */
+function clean_weekly(mixed $item): array
+{
+    $weekday = is_array($item) ? ($item['weekday'] ?? null) : null;
+    $minute = is_array($item) ? ($item['minute'] ?? null) : null;
+    if (
+        !is_int($weekday) || $weekday < 1 || $weekday > 7
+        || !is_int($minute) || $minute < 0 || $minute >= 1440 || $minute % 30 !== 0
+    ) {
+        fail(422, 'invalid', 'Règle hebdomadaire invalide.');
+    }
+    return ['weekday' => $weekday, 'minute' => $minute];
+}
+
+/** @return list<array{start: int, weekday: int, minute: int}> */
+function clean_skip_list(mixed $value): array
+{
+    if (!is_array($value) || !array_is_list($value)) {
+        fail(422, 'invalid', 'Liste d’exceptions invalide.');
+    }
+    $skips = [];
+    foreach ($value as $item) {
+        $start = parse_time(is_array($item) ? ($item['start'] ?? null) : null);
+        if ($start % SLOT_SECONDS !== 0) {
+            fail(422, 'invalid', 'Créneau non aligné sur 30 minutes.');
+        }
+        $skips[$start] = ['start' => $start] + clean_weekly($item);
+    }
+    return array_values($skips);
 }
 
 function parse_time(mixed $value): int
@@ -289,6 +378,29 @@ function create_schema(PDO $pdo): void
             PRIMARY KEY (person_id, slot_start),
             KEY dispo_slots_start (slot_start),
             CONSTRAINT dispo_slots_person FOREIGN KEY (person_id) REFERENCES dispo_people (id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci'
+    );
+    // Règle « chaque semaine » : jour ISO (1 = lundi) et minute de l'heure locale (Europe/Paris).
+    $pdo->exec(
+        'CREATE TABLE IF NOT EXISTS dispo_weekly (
+            person_id CHAR(36) NOT NULL,
+            weekday TINYINT UNSIGNED NOT NULL,
+            minute SMALLINT UNSIGNED NOT NULL,
+            PRIMARY KEY (person_id, weekday, minute),
+            CONSTRAINT dispo_weekly_person FOREIGN KEY (person_id) REFERENCES dispo_people (id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci'
+    );
+    // Exception : la règle (weekday, minute) ne vaut pas pour ce créneau précis.
+    $pdo->exec(
+        'CREATE TABLE IF NOT EXISTS dispo_skips (
+            person_id CHAR(36) NOT NULL,
+            slot_start INT UNSIGNED NOT NULL,
+            weekday TINYINT UNSIGNED NOT NULL,
+            minute SMALLINT UNSIGNED NOT NULL,
+            PRIMARY KEY (person_id, slot_start),
+            KEY dispo_skips_start (slot_start),
+            KEY dispo_skips_rule (person_id, weekday, minute),
+            CONSTRAINT dispo_skips_person FOREIGN KEY (person_id) REFERENCES dispo_people (id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci'
     );
 }

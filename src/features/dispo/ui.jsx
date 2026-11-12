@@ -15,16 +15,12 @@ function colorFor(name) {
   return COLORS[Math.abs(hash) % COLORS.length]
 }
 
-function initials(name) {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0].toUpperCase())
-    .join('')
+/** Première lettre du prénom (lettre accentuée ou emoji compris). */
+function initial(name) {
+  return ([...name.trim()][0] ?? '?').toUpperCase()
 }
 
-/** Photo de profil, ou initiales sur une couleur tirée du nom. Décorative : le nom est affiché à côté. */
+/** Photo de profil, ou première lettre du prénom sur une couleur tirée du nom. Décorative : le nom est affiché à côté. */
 export function Avatar({ person, size = 40, className = '' }) {
   const style = { width: size, height: size }
   if (person.avatar) {
@@ -43,9 +39,9 @@ export function Avatar({ person, size = 40, className = '' }) {
     <span
       aria-hidden="true"
       className={`inline-flex shrink-0 select-none items-center justify-center rounded-full font-semibold text-white ${className}`}
-      style={{ ...style, background: colorFor(person.name), fontSize: Math.round(size * 0.4) }}
+      style={{ ...style, background: colorFor(person.name), fontSize: Math.max(9, Math.round(size * 0.5)) }}
     >
-      {initials(person.name)}
+      {initial(person.name)}
     </span>
   )
 }

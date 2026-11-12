@@ -23,8 +23,10 @@ le Caddy frontal (`deploy/site`, `deploy/edge`). Smoke test : `scripts/smoke-tes
 ## Calendrier de disponibilités (`/dispo`)
 
 Page partagée par lien, non indexée : on choisit son profil (prénom + photo facultative, sans
-compte), puis on coche ses créneaux de 30 min (8 h–23 h). Les créneaux communs sont listés,
-ceux à 4 personnes ou plus sont mis en avant. Code : `src/features/dispo/`.
+compte), puis on coche ses créneaux de 30 min (8 h–23 h) : « Cette semaine » pour une date,
+« Chaque semaine » pour une règle permanente (une date précise peut être décochée sans casser la
+règle). Chaque case montre les têtes (photo ou initiale) des personnes dispo ; les créneaux
+communs sont listés, ceux à 4 personnes ou plus sont mis en avant. Code : `src/features/dispo/`.
 
 Données dans le MySQL du VPS (base `dispo`), via `public/dispo-api.php` servi par FrankenPHP ;
 tables créées au premier appel. Mise en place serveur : `deploy/site/README.md` (section 4).

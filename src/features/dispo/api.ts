@@ -9,9 +9,26 @@ export interface Person {
   avatar: string | null
 }
 
-export interface SlotRow {
-  personId: string
-  start: string
+export interface WeeklyRuleRow {
+  weekday: number
+  minute: number
+}
+
+/** Ce qu'une semaine contient : créneaux ponctuels, règles hebdomadaires (toutes), exceptions. */
+export interface WeekRows {
+  slots: Array<{ personId: string; start: string }>
+  weekly: Array<{ personId: string } & WeeklyRuleRow>
+  skips: Array<{ personId: string; start: string }>
+}
+
+/** Modifications de mes disponibilités, enregistrées ensemble (transaction). */
+export interface SlotChanges {
+  add: string[]
+  remove: string[]
+  weeklyAdd: WeeklyRuleRow[]
+  weeklyRemove: WeeklyRuleRow[]
+  skipAdd: Array<{ start: string } & WeeklyRuleRow>
+  skipRemove: Array<{ start: string } & WeeklyRuleRow>
 }
 
 export type DispoErrorKind = 'unavailable' | 'duplicate' | 'full' | 'invalid' | 'not-found' | 'network'
@@ -61,13 +78,13 @@ export async function updateAvatar(id: string, avatar: string | null): Promise<v
   await call('avatar', { body: { id, avatar } })
 }
 
-export async function listSlots(from: Date, to: Date, signal?: AbortSignal): Promise<SlotRow[]> {
+export async function listSlots(from: Date, to: Date, signal?: AbortSignal): Promise<WeekRows> {
   const query = { from: from.toISOString(), to: to.toISOString() }
-  return (await call<{ slots: SlotRow[] }>('slots', { query, signal })).slots
+  const rows = await call<Partial<WeekRows>>('slots', { query, signal })
+  return { slots: rows.slots ?? [], weekly: rows.weekly ?? [], skips: rows.skips ?? [] }
 }
 
-/** Ajouts et retraits de créneaux d'une personne, enregistrés ensemble (transaction). */
-export async function saveSlots(personId: string, add: string[], remove: string[]): Promise<void> {
-  if (add.length === 0 && remove.length === 0) return
-  await call('slots', { body: { personId, add, remove } })
+export async function saveSlots(personId: string, changes: SlotChanges): Promise<void> {
+  if (Object.values(changes).every((list) => list.length === 0)) return
+  await call('slots', { body: { personId, ...changes } })
 }

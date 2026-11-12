@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { SLOTS_PER_DAY, isPastSlot, slotKey, slotLabel, slotStart } from './slots'
-import { focusRing } from './ui'
+import { Avatar, focusRing } from './ui'
 
 /** À partir de ce nombre de personnes dispo (soi compris), le créneau est mis en avant. */
 export const GROUP_SIZE = 4
@@ -8,6 +8,7 @@ export const GROUP_SIZE = 4
 const dayShort = new Intl.DateTimeFormat('fr-FR', { weekday: 'short' })
 const dayNumber = new Intl.DateTimeFormat('fr-FR', { day: 'numeric' })
 const dayLong = new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+const weekdayLong = new Intl.DateTimeFormat('fr-FR', { weekday: 'long' })
 
 function sameDay(a, b) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
@@ -17,8 +18,13 @@ function sameDay(a, b) {
  * Grille de la semaine : une colonne par jour, une ligne par créneau de 30 min.
  * Souris : cliquer-glisser coche (ou décoche) plusieurs créneaux d'un coup. Tactile : un
  * appui coche/décoche une case, le défilement reste libre. Clavier : flèches + Entrée/Espace.
+ * Chaque case montre la tête (photo ou initiale) des autres personnes dispo.
+ *
+ * `mode` : `week` (dates de la semaine) ou `weekly` (semaine type : jours sans date).
+ * `recurring` : mes créneaux dus à une règle hebdomadaire, marqués ↻.
  */
-export default function WeekGrid({ days, now, meId, availability, peopleById, onSet }) {
+export default function WeekGrid({ mode = 'week', days, now, meId, availability, recurring, peopleById, onSet }) {
+  const weekly = mode === 'weekly'
   const cells = useRef(new Map())
   const paint = useRef(null)
   const skipClick = useRef(false)
@@ -100,7 +106,7 @@ export default function WeekGrid({ days, now, meId, availability, peopleById, on
   return (
     <div
       role="group"
-      aria-label="Créneaux de la semaine"
+      aria-label={weekly ? 'Créneaux de ma semaine type' : 'Créneaux de la semaine'}
       className="grid select-none grid-cols-[2.5rem_repeat(7,minmax(0,1fr))] sm:grid-cols-[3.5rem_repeat(7,minmax(0,1fr))]"
     >
       <div className="sticky top-0 z-10 bg-[var(--bg-elevated)]" />
@@ -112,13 +118,15 @@ export default function WeekGrid({ days, now, meId, availability, peopleById, on
             className="sticky top-0 z-10 flex flex-col items-center bg-[var(--bg-elevated)] pb-2 pt-1 text-center"
           >
             <span className="text-[11px] uppercase tracking-wide text-[var(--text-muted)]">{dayShort.format(day)}</span>
-            <span
-              className={`mt-0.5 flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold tabular-nums ${
-                today ? 'bg-[var(--accent)] text-white dark:text-[#070b14]' : ''
-              }`}
-            >
-              {dayNumber.format(day)}
-            </span>
+            {!weekly && (
+              <span
+                className={`mt-0.5 flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold tabular-nums ${
+                  today ? 'bg-[var(--accent)] text-white dark:text-[#070b14]' : ''
+                }`}
+              >
+                {dayNumber.format(day)}
+              </span>
+            )}
           </div>
         )
       })}
@@ -126,13 +134,16 @@ export default function WeekGrid({ days, now, meId, availability, peopleById, on
       {Array.from({ length: SLOTS_PER_DAY }, (_, slotIndex) => (
         <Row key={slotIndex} slotIndex={slotIndex}>
           {days.map((day, dayIndex) => {
-            const { start, ids, mine, past } = cellInfo(dayIndex, slotIndex)
-            const others = ids.size - (mine ? 1 : 0)
+            const { key, start, ids, mine, past } = cellInfo(dayIndex, slotIndex)
+            const otherPeople = [...ids].filter((id) => id !== meId).map((id) => peopleById.get(id)).filter(Boolean)
+            const others = otherPeople.length
             const group = ids.size >= GROUP_SIZE
-            const names = [...ids].map((id) => (id === meId ? 'toi' : (peopleById.get(id)?.name ?? '?')))
-            const label = `${dayLong.format(start)}, ${slotLabel(slotIndex)} : ${
-              mine ? 'tu es dispo' : 'tu n’es pas dispo'
-            }${others > 0 ? `, ${others} autre${others > 1 ? 's' : ''} dispo` : ''}${past ? ' (passé)' : ''}`
+            const repeats = mine && recurring.has(key)
+            const names = [...(mine ? ['toi'] : []), ...otherPeople.map((p) => p.name)]
+            const when = weekly ? `Chaque ${weekdayLong.format(start)}` : dayLong.format(start)
+            const label = `${when}, ${slotLabel(slotIndex)} : ${mine ? 'tu es dispo' : 'tu n’es pas dispo'}${
+              repeats ? ' (chaque semaine)' : ''
+            }${others > 0 ? `, aussi dispo : ${otherPeople.map((p) => p.name).join(', ')}` : ''}${past ? ' (passé)' : ''}`
             const isFocused = focus.day === dayIndex && focus.slot === slotIndex
             return (
               <button
@@ -155,13 +166,40 @@ export default function WeekGrid({ days, now, meId, availability, peopleById, on
                   { mine, others, past },
                 )} ${group ? 'ring-2 ring-inset ring-amber-400' : ''}`}
               >
-                {others > 0 && <span aria-hidden="true">{others}</span>}
+                {repeats && (
+                  <span aria-hidden="true" className="absolute left-0.5 top-0 text-[9px] leading-none opacity-80">
+                    ↻
+                  </span>
+                )}
+                {others > 0 && <Faces people={otherPeople} />}
               </button>
             )
           })}
         </Row>
       ))}
     </div>
+  )
+}
+
+/** Têtes des autres personnes dispo : 2 sur mobile, 4 sur grand écran, puis « +n ». */
+function Faces({ people }) {
+  return (
+    <span aria-hidden="true" className="flex items-center">
+      {people.slice(0, 4).map((person, index) => (
+        <Avatar
+          key={person.id}
+          person={person}
+          size={16}
+          className={`ring-1 ring-white/80 dark:ring-black/40 ${index > 0 ? '-ml-1' : ''} ${index >= 2 ? 'hidden sm:inline-flex' : ''}`}
+        />
+      ))}
+      {people.length > 2 && (
+        <span className="ml-0.5 text-[9px] font-bold leading-none sm:hidden">+{people.length - 2}</span>
+      )}
+      {people.length > 4 && (
+        <span className="ml-0.5 hidden text-[9px] font-bold leading-none sm:inline">+{people.length - 4}</span>
+      )}
+    </span>
   )
 }
 
