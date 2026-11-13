@@ -36,3 +36,7 @@ test-results
 playwright-report
 blob-report
 .playwright
+
+# Security scans (resultats + cibles = donnees sensibles clients)
+security/reports/
+security/targets.txt

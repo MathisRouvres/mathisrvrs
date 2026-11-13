@@ -1,0 +1,16 @@
+# Liste de cibles pour scan.sh --targets
+#
+# Copier ce fichier en "targets.txt" (gitignore : les domaines clients sont prives)
+#   cp security/targets.example.txt security/targets.txt
+#
+# Une URL par ligne (http:// ou https://). Les lignes vides et les lignes
+# commencant par # sont ignorees.
+#
+# PORTE D'AUTORISATION OBLIGATOIRE :
+# De-commenter la ligne suivante confirme que vous detenez l'autorisation
+# ECRITE du proprietaire de CHAQUE cible listee. Sans elle, scan.sh refuse.
+#
+# I_AM_AUTHORIZED=yes
+
+https://exemple-client-1.fr
+https://app.exemple-client-2.com
