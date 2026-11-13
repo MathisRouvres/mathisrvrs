@@ -138,37 +138,37 @@ export function tournamentStake(t: TournamentRow): number {
   return stake > 0 ? stake : t[1]
 }
 
+/**
+ * Activité du joueur jour par jour sur la période, triée par jour. Sans filtre de buy-in :
+ * `days` tel quel (complet). Avec : tournois du détail regroupés par jour de Paris.
+ */
+export function activity(player: PlayerSnapshot, filters: Filters): DayRow[] {
+  if (!hasBuyInFilter(filters)) {
+    return (player.days ?? []).filter(([day, count]) => count > 0 && inRange(day, filters))
+  }
+  const byDay = new Map<string, DayRow>()
+  for (const t of filteredTournaments(player, filters)) {
+    const day = dayOf(t[0])
+    const row = byDay.get(day) ?? [day, 0, 0, 0, 0]
+    const spent = tournamentStake(t)
+    row[1] += 1
+    row[2] += t[1] > 0 ? Math.max(1, Math.round(spent / t[1])) : 1
+    row[3] += spent
+    row[4] += t[5]
+    byDay.set(day, row)
+  }
+  return [...byDay.values()].sort((a, b) => a[0].localeCompare(b[0]))
+}
+
 export function summarizePlayer(player: PlayerSnapshot, filters: Filters): PlayerSummary {
   const rate = rakeRate(player.career)
-  let tournaments = 0
-  let entries = 0
-  let stake = 0
-  let profit = 0
-  const days = new Set<string>()
-  let partial = false
-
-  if (hasBuyInFilter(filters)) {
-    for (const t of filteredTournaments(player, filters)) {
-      tournaments += 1
-      const spent = tournamentStake(t)
-      entries += t[1] > 0 ? Math.max(1, Math.round(spent / t[1])) : 1
-      stake += spent
-      profit += t[5]
-      days.add(dayOf(t[0]))
-    }
-    partial = player.found && player.tournamentsComplete === false
-  } else {
-    for (const [day, count, entered, spent, won] of player.days ?? []) {
-      if (!inRange(day, filters)) continue
-      tournaments += count
-      entries += entered
-      stake += spent
-      profit += won
-      if (count > 0) days.add(day)
-    }
-  }
-
-  const sortedDays = [...days].sort()
+  const rows = activity(player, filters)
+  const total = (i: 1 | 2 | 3 | 4) => rows.reduce((sum, row) => sum + row[i], 0)
+  const tournaments = total(1)
+  const entries = total(2)
+  const stake = total(3)
+  const profit = total(4)
+  const partial = hasBuyInFilter(filters) && player.found && player.tournamentsComplete === false
   return {
     nickname: player.nickname,
     found: player.found,
@@ -180,8 +180,8 @@ export function summarizePlayer(player: PlayerSnapshot, filters: Filters): Playe
     rakeRate: rate,
     roi: stake > 0 ? profit / stake : null,
     abi: entries > 0 ? stake / entries : null,
-    activeDays: days.size,
-    lastDay: sortedDays.at(-1) ?? null,
+    activeDays: rows.length,
+    lastDay: rows.at(-1)?.[0] ?? null,
     partial,
   }
 }
@@ -214,33 +214,76 @@ export function weekStart(day: string): string {
   return date.toISOString().slice(0, 10)
 }
 
+/** Lundis des semaines qui touchent la période, du plus ancien au plus récent. */
+export function weeksBetween(from: string, to: string): string[] {
+  const weeks: string[] = []
+  for (let week = weekStart(from); week <= to; ) {
+    weeks.push(week)
+    const next = new Date(`${week}T12:00:00Z`)
+    next.setUTCDate(next.getUTCDate() + 7)
+    week = next.toISOString().slice(0, 10)
+  }
+  return weeks
+}
+
 export interface WeekVolume {
   week: string
+  tournaments: number
   entries: number
   stake: number
   profit: number
   rake: number
+  activeDays: number
+  roi: number | null
+  abi: number | null
 }
 
-/** Volume du club par semaine (activité jour par jour, sans filtre de buy-in). */
-export function weeklyVolume(players: PlayerSnapshot[], filters: Filters): WeekVolume[] {
-  const weeks = new Map<string, WeekVolume>()
-  for (const player of players) {
-    const rate = rakeRate(player.career)
-    for (const [day, , entered, spent, won] of player.days ?? []) {
-      if (!inRange(day, filters)) continue
-      const week = weekStart(day)
-      const row = weeks.get(week) ?? { week, entries: 0, stake: 0, profit: 0, rake: 0 }
-      row.entries += entered
-      row.stake += spent
-      row.profit += won
-      row.rake += spent * rate
-      weeks.set(week, row)
-    }
-  }
+type WeekTotals = Pick<WeekVolume, 'week' | 'tournaments' | 'entries' | 'stake' | 'profit' | 'rake' | 'activeDays'>
+
+function addWeek(weeks: Map<string, WeekTotals>, row: DayRow, rate: number) {
+  const week = weekStart(row[0])
+  const total = weeks.get(week) ?? { week, tournaments: 0, entries: 0, stake: 0, profit: 0, rake: 0, activeDays: 0 }
+  total.tournaments += row[1]
+  total.entries += row[2]
+  total.stake += row[3]
+  total.profit += row[4]
+  total.rake += row[3] * rate
+  total.activeDays += 1
+  weeks.set(week, total)
+}
+
+function finishWeeks(weeks: Map<string, WeekTotals>): WeekVolume[] {
   return [...weeks.values()]
     .sort((a, b) => a.week.localeCompare(b.week))
-    .map((w) => ({ ...w, stake: round2(w.stake), profit: round2(w.profit), rake: round2(w.rake) }))
+    .map((w) => ({
+      ...w,
+      stake: round2(w.stake),
+      profit: round2(w.profit),
+      rake: round2(w.rake),
+      roi: w.stake > 0 ? w.profit / w.stake : null,
+      abi: w.entries > 0 ? w.stake / w.entries : null,
+    }))
+}
+
+/** Semaines jouées par un joueur (seulement celles avec au moins un tournoi). */
+export function playerWeeks(player: PlayerSnapshot, filters: Filters): WeekVolume[] {
+  const weeks = new Map<string, WeekTotals>()
+  const rate = rakeRate(player.career)
+  for (const row of activity(player, filters)) addWeek(weeks, row, rate)
+  return finishWeeks(weeks)
+}
+
+/**
+ * Volume du club par semaine. `activeDays` y compte des jours-joueurs (2 joueurs le même
+ * jour = 2).
+ */
+export function weeklyVolume(players: PlayerSnapshot[], filters: Filters): WeekVolume[] {
+  const weeks = new Map<string, WeekTotals>()
+  for (const player of players) {
+    const rate = rakeRate(player.career)
+    for (const row of activity(player, filters)) addWeek(weeks, row, rate)
+  }
+  return finishWeeks(weeks)
 }
 
 export const BUY_IN_BUCKETS = [

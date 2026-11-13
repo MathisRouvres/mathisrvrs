@@ -8,11 +8,13 @@ import {
   dayOf,
   filteredTournaments,
   hasBuyInFilter,
+  playerWeeks,
   sortSummaries,
   summarizePlayer,
   todayInParis,
   tournamentStake,
   weeklyVolume,
+  weeksBetween,
 } from './club'
 
 const KEY_STORAGE = 'mr-poker-key'
@@ -230,8 +232,50 @@ const COLUMNS = [
   { key: 'lastDay', label: 'Dernier jeu' },
 ]
 
+const weekFormat = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', timeZone: 'UTC' })
+const weekLabel = (week) => weekFormat.format(new Date(`${week}T00:00:00Z`))
+
+/** Semaines jouées par un joueur, de la plus récente à la plus ancienne. */
+function PlayerWeeksTable({ weeks }) {
+  if (weeks.length === 0) return null
+  return (
+    <div className="overflow-x-auto rounded-xl border border-[var(--border-color)]">
+      <table className="w-full min-w-[560px] text-right text-xs tabular-nums">
+        <caption className="sr-only">Semaine par semaine</caption>
+        <thead className="bg-[var(--bg-elevated)] text-[var(--text-muted)]">
+          <tr>
+            <th scope="col" className="px-3 py-2 text-left font-medium">Semaine du</th>
+            <th scope="col" className="px-3 py-2 font-medium">Jours</th>
+            <th scope="col" className="px-3 py-2 font-medium">Entrées</th>
+            <th scope="col" className="px-3 py-2 font-medium">Buy-ins</th>
+            <th scope="col" className="px-3 py-2 font-medium">ABI</th>
+            <th scope="col" className="px-3 py-2 font-medium">Rake ≈</th>
+            <th scope="col" className="px-3 py-2 font-medium">Profit</th>
+            <th scope="col" className="px-3 py-2 font-medium">ROI</th>
+          </tr>
+        </thead>
+        <tbody>
+          {[...weeks].reverse().map((w) => (
+            <tr key={w.week} className="border-t border-[var(--border-color)]">
+              <th scope="row" className="px-3 py-1.5 text-left font-medium">{weekLabel(w.week)}</th>
+              <td className="px-3 py-1.5">{w.activeDays}</td>
+              <td className="px-3 py-1.5">{integer.format(w.entries)}</td>
+              <td className="px-3 py-1.5">{money(w.stake)}</td>
+              <td className="px-3 py-1.5">{money(w.abi, true)}</td>
+              <td className="px-3 py-1.5">{money(w.rake)}</td>
+              <td className={`px-3 py-1.5 font-semibold ${tone(w.profit)}`}>{signedMoney(w.profit)}</td>
+              <td className={`px-3 py-1.5 ${tone(w.profit)}`}>{percent(w.roi)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 function PlayerDetail({ player, summary, filters }) {
   const tournaments = filteredTournaments(player, filters)
+  const weeks = playerWeeks(player, filters)
   const career = player.career
   return (
     // Collé à gauche et limité à la largeur visible : lisible sans faire défiler le grand tableau.
@@ -258,6 +302,8 @@ function PlayerDetail({ player, summary, filters }) {
           </dd>
         </div>
       </dl>
+      <PlayerWeeksTable weeks={weeks} />
+      <h3 className="pt-1 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">Tournois</h3>
       {!player.tournamentsComplete && (
         <p className="text-xs text-amber-700 dark:text-amber-400">
           Détail limité aux 100 derniers tournois (compte pokstats gratuit) : il ne remonte pas jusqu’au début de la période.
@@ -386,6 +432,143 @@ function PlayersTable({ rows, players, filters }) {
           })}
         </tbody>
       </table>
+    </div>
+  )
+}
+
+// ── Semaine par semaine ──────────────────────────────────────────────────────
+
+const METRICS = [
+  { key: 'stake', label: 'Buy-ins', format: (v) => money(v), signed: false },
+  { key: 'profit', label: 'Profit', format: (v) => signedMoney(v), signed: true },
+  { key: 'entries', label: 'Entrées', format: (v) => integer.format(v), signed: false },
+  { key: 'rake', label: 'Rake ≈', format: (v) => money(v), signed: false },
+  { key: 'roi', label: 'ROI', format: (v) => percent(v), signed: true },
+]
+
+/** Valeur d'une métrique pour un ensemble de semaines (ROI recalculé, pas additionné). */
+function metricOf(key, weeks) {
+  if (weeks.length === 0) return null
+  if (key === 'roi') {
+    const stake = weeks.reduce((s, w) => s + w.stake, 0)
+    return stake > 0 ? weeks.reduce((s, w) => s + w.profit, 0) / stake : null
+  }
+  return weeks.reduce((s, w) => s + w[key], 0)
+}
+
+function WeeklyMatrix({ rows, players, filters }) {
+  const [metricKey, setMetricKey] = useState('stake')
+  const metric = METRICS.find((m) => m.key === metricKey)
+  const weeks = useMemo(() => weeksBetween(filters.from, filters.to), [filters.from, filters.to])
+  const byPlayer = useMemo(() => {
+    const visible = new Set(rows.map((r) => r.nickname))
+    return players
+      .filter((p) => visible.has(p.nickname))
+      .map((p) => {
+        const played = playerWeeks(p, filters)
+        return { nickname: p.nickname, cells: new Map(played.map((w) => [w.week, w])), total: metricOf(metricKey, played) }
+      })
+      .sort((a, b) => (b.total ?? -Infinity) - (a.total ?? -Infinity) || a.nickname.localeCompare(b.nickname, 'fr'))
+  }, [rows, players, filters, metricKey])
+
+  if (byPlayer.length === 0) return <p className="text-sm text-[var(--text-secondary)]">Aucun joueur ne correspond aux filtres.</p>
+
+  const column = (week) => byPlayer.map((p) => p.cells.get(week)).filter(Boolean)
+  const max = metric.signed
+    ? 0
+    : Math.max(1, ...byPlayer.flatMap((p) => [...p.cells.values()].map((w) => w[metricKey])))
+  const cellClass = (value) =>
+    value === null ? 'text-[var(--text-muted)]' : metric.signed ? tone(value) : ''
+  const heat = (value) =>
+    !metric.signed && value ? { backgroundColor: `color-mix(in srgb, var(--accent) ${Math.round((value / max) * 35)}%, transparent)` } : undefined
+
+  return (
+    <div>
+      <div role="radiogroup" aria-label="Valeur affichée" className="mb-4 flex flex-wrap gap-1.5">
+        {METRICS.map((m) => (
+          <button
+            key={m.key}
+            type="button"
+            role="radio"
+            aria-checked={metricKey === m.key}
+            onClick={() => setMetricKey(m.key)}
+            className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium transition ${focusRing} ${
+              metricKey === m.key
+                ? 'border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--text-primary)]'
+                : 'border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+            }`}
+          >
+            {m.label}
+          </button>
+        ))}
+      </div>
+      <div className="-mx-5 max-h-[32rem] overflow-auto">
+        <table className="w-max min-w-full text-right text-xs tabular-nums">
+          <caption className="sr-only">{metric.label} par joueur et par semaine</caption>
+          <thead className="sticky top-0 z-20 bg-[var(--bg-elevated)] text-[var(--text-muted)]">
+            <tr className="border-b border-[var(--border-color)]">
+              <th scope="col" className="sticky left-0 z-10 bg-[var(--bg-elevated)] py-2 pl-5 pr-3 text-left font-medium">
+                Joueur
+              </th>
+              {weeks.map((w) => (
+                <th key={w} scope="col" className="whitespace-nowrap px-2 py-2 font-medium" title={`Semaine du lundi ${weekLabel(w)}`}>
+                  {weekLabel(w)}
+                </th>
+              ))}
+              <th scope="col" className="py-2 pl-3 pr-5 font-semibold text-[var(--text-primary)]">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {byPlayer.map((p) => (
+              <tr key={p.nickname} className="border-b border-[var(--border-color)]">
+                <th scope="row" className="sticky left-0 z-10 whitespace-nowrap bg-[var(--bg-elevated)] py-1.5 pl-5 pr-3 text-left font-medium">
+                  {p.nickname}
+                </th>
+                {weeks.map((w) => {
+                  const cell = p.cells.get(w)
+                  const value = cell ? metricOf(metricKey, [cell]) : null
+                  return (
+                    <td
+                      key={w}
+                      className={`whitespace-nowrap px-2 py-1.5 ${cellClass(value)}`}
+                      style={heat(value)}
+                      title={cell ? `${p.nickname}, semaine du ${weekLabel(w)} : ${cell.entries} entrées, ${money(cell.stake)}, ${signedMoney(cell.profit)}` : undefined}
+                    >
+                      {value === null ? '·' : metric.format(value)}
+                    </td>
+                  )
+                })}
+                <td className={`whitespace-nowrap py-1.5 pl-3 pr-5 font-semibold ${cellClass(p.total)}`}>
+                  {p.total === null ? '—' : metric.format(p.total)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot className="sticky bottom-0 bg-[var(--bg-elevated)]">
+            <tr className="border-t-2 border-[var(--border-color)] font-semibold">
+              <th scope="row" className="sticky left-0 z-10 bg-[var(--bg-elevated)] py-2 pl-5 pr-3 text-left">
+                Total
+              </th>
+              {weeks.map((w) => {
+                const value = metricOf(metricKey, column(w))
+                return (
+                  <td key={w} className={`whitespace-nowrap px-2 py-2 ${cellClass(value)}`}>
+                    {value === null ? '·' : metric.format(value)}
+                  </td>
+                )
+              })}
+              {(() => {
+                const value = metricOf(metricKey, byPlayer.flatMap((p) => [...p.cells.values()]))
+                return (
+                  <td className={`whitespace-nowrap py-2 pl-3 pr-5 ${cellClass(value)}`}>
+                    {value === null ? '—' : metric.format(value)}
+                  </td>
+                )
+              })()}
+            </tr>
+          </tfoot>
+        </table>
+      </div>
     </div>
   )
 }
@@ -574,13 +757,24 @@ function Dashboard({ snapshot, onLock, onRefresh, loading }) {
 
         <Card
           title="Joueurs"
-          hint={`${rows.length} affiché${rows.length > 1 ? 's' : ''} · clique un pseudo pour ses tournois · rake ≈ buy-ins × taux de rake carrière`}
+          hint={`${rows.length} affiché${rows.length > 1 ? 's' : ''} · clique un pseudo pour ses semaines et ses tournois · rake ≈ buy-ins × taux de rake carrière`}
         >
           <PlayersTable rows={rows} players={found} filters={filters} />
         </Card>
 
+        <Card
+          title="Semaine par semaine"
+          hint="Chaque joueur, semaine du lundi au dimanche · mêmes filtres que le tableau · survol d’une case pour le détail"
+        >
+          <WeeklyMatrix rows={rows} players={found} filters={filters} />
+        </Card>
+
         <div className="grid gap-5 lg:grid-cols-5">
-          <Card title="Buy-ins par semaine" hint="Toutes mises confondues, survol pour le détail" className="lg:col-span-3">
+          <Card
+            title="Buy-ins par semaine"
+            hint={buyInActive ? 'Filtre de buy-in appliqué (détail des 100 derniers tournois)' : 'Toutes mises confondues, survol pour le détail'}
+            className="lg:col-span-3"
+          >
             <WeeklyChart weeks={weeks} />
           </Card>
           <Card

@@ -4,11 +4,13 @@ import {
   clubTotals,
   dayOf,
   filteredTournaments,
+  playerWeeks,
   rakeRate,
   sortSummaries,
   summarizePlayer,
   weekStart,
   weeklyVolume,
+  weeksBetween,
   type Filters,
   type PlayerSnapshot,
 } from './club'
@@ -82,6 +84,20 @@ describe('dashboard poker du club', () => {
     const weeks = weeklyVolume([alice, bob], season)
     expect(weeks.map((w) => w.week)).toEqual(['2026-08-31', '2026-09-07'])
     expect(weeks[0]).toMatchObject({ entries: 6, stake: 34, profit: 46, rake: 3.2 })
+  })
+
+  it('détaille chaque joueur semaine par semaine, filtre de buy-in compris', () => {
+    expect(playerWeeks(alice, season)).toEqual([
+      { week: '2026-08-31', tournaments: 3, entries: 4, stake: 30, profit: 50, rake: 3, activeDays: 1, roi: 50 / 30, abi: 7.5 },
+      { week: '2026-09-07', tournaments: 1, entries: 1, stake: 100, profit: -100, rake: 10, activeDays: 1, roi: -1, abi: 100 },
+    ])
+    expect(playerWeeks(alice, { ...season, buyInMin: 50 }).map((w) => w.week)).toEqual(['2026-09-07'])
+    expect(playerWeeks(ghost, season)).toEqual([])
+  })
+
+  it('liste toutes les semaines de la période, même vides', () => {
+    expect(weeksBetween('2026-09-01', '2026-09-20')).toEqual(['2026-08-31', '2026-09-07', '2026-09-14'])
+    expect(weeksBetween('2026-09-07', '2026-09-07')).toEqual(['2026-09-07'])
   })
 
   it('répartit les tournois par tranche de buy-in', () => {
