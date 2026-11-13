@@ -22,6 +22,9 @@ before(async () => {
   fs.writeFileSync(path.join(dir, 'zap-report.html'), '<!doctype html><html><body>ZAP</body></html>');
   process.env.PORT = String(PORT);
   process.env.REPORTS_DIR = tmp;
+  process.env.ORIGIN = `http://127.0.0.1:${PORT}`;
+  process.env.SCAN_SCRIPT = '/usr/bin/true'; // n'exécute pas un vrai scan en test
+  process.env.SCAN_DOCKER_VOLUME = '';
   mod = await import('../server.mjs');
   // laisse le serveur se lier
   await new Promise((r) => setTimeout(r, 150));
@@ -85,7 +88,41 @@ test('path traversal bloqué', async () => {
   assert.equal(res.status, 404);
 });
 
-test('POST refusé', async () => {
+test('POST / refusé', async () => {
   const res = await fetch(`http://127.0.0.1:${PORT}/`, { method: 'POST' });
   assert.equal(res.status, 404);
+});
+
+const postScan = (body, origin = `http://127.0.0.1:${PORT}`) =>
+  fetch(`http://127.0.0.1:${PORT}/security/scan`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...(origin ? { Origin: origin } : {}) },
+    body,
+  });
+
+test('scan refusé si autorisation non cochée', async () => {
+  const res = await postScan('url=https://example.com');
+  assert.equal(res.status, 400);
+});
+
+test('scan refusé si origine étrangère (CSRF)', async () => {
+  const res = await postScan('url=https://example.com&authorized=yes', 'https://evil.test');
+  assert.equal(res.status, 403);
+});
+
+test('scan refusé si URL invalide', async () => {
+  const res = await postScan('url=ftp://x&authorized=yes');
+  assert.equal(res.status, 400);
+});
+
+test('scan lancé → 303 + dossier créé', async () => {
+  const before = fs.readdirSync(tmp).length;
+  const res = await postScan('url=https://scan-me.example.org&authorized=yes');
+  assert.equal(res.status, 303);
+  const loc = res.headers.get('location');
+  assert.match(loc, /^\/security\/scan-me\.example\.org-\d{8}-\d{6}$/);
+  const rel = decodeURIComponent(loc.split('/').pop());
+  assert.ok(fs.existsSync(path.join(tmp, rel, 'report.md')));
+  assert.equal(fs.readdirSync(tmp).length, before + 1);
 });

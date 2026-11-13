@@ -123,6 +123,22 @@ require_docker() {
   docker info >/dev/null 2>&1 || die "Le daemon Docker ne repond pas. Demarrez Docker puis reessayez."
 }
 
+# Montage de sortie des conteneurs d'outils. Avec SCAN_DOCKER_VOLUME (ex : dashboard : ce script
+# tourne dans un conteneur et lance les outils comme conteneurs FRERES via le socket Docker), un
+# bind-mount serait interprete par le daemon hote, pas par ce conteneur : on monte donc le volume
+# nomme et on ecrit dans son sous-dossier REL. Sinon, bind-mount classique du dossier de sortie.
+# Definit MOUNT_ARGS (tableau) et TOUT (chemin de sortie vu par le conteneur d'outil).
+tool_out() {
+  local out="$1" mount="${2:-/out}"
+  if [ -n "${SCAN_DOCKER_VOLUME:-}" ]; then
+    MOUNT_ARGS=(-v "${SCAN_DOCKER_VOLUME}:${mount}")
+    TOUT="${mount}/${REL}"
+  else
+    MOUNT_ARGS=(-v "${out}:${mount}")
+    TOUT="${mount}"
+  fi
+}
+
 # ---------------------------------------------------------------------------
 # Modules de scan. Chacun ecrit dans $OUTDIR et ne doit JAMAIS faire echouer le
 # run global : les erreurs sont capturees et notees dans le rapport.
@@ -171,9 +187,10 @@ scan_testssl() {
   local name="scan_testssl_$$"
   RUN_CONTAINERS+=("$name")
   info "TLS/SSL (testssl.sh)... (peut prendre quelques minutes)"
+  tool_out "$out"
   if run_timeout "$TIMEOUT_TESTSSL" docker run --rm --name "$name" \
-        -v "${out}:/out" "$IMG_TESTSSL" \
-        --quiet --color 0 --logfile "/out/testssl.txt" "$url" \
+        "${MOUNT_ARGS[@]}" "$IMG_TESTSSL" \
+        --quiet --color 0 --logfile "${TOUT}/testssl.txt" "$url" \
         >"${out}/testssl-stdout.txt" 2>&1; then
     ok "TLS analyse (testssl.txt)"
   else
@@ -187,10 +204,11 @@ scan_nuclei() {
   local name="scan_nuclei_$$"
   RUN_CONTAINERS+=("$name")
   info "CVE / misconfig (nuclei)... (peut prendre quelques minutes)"
+  tool_out "$out"
   if run_timeout "$TIMEOUT_NUCLEI" docker run --rm --name "$name" \
-        -v "${out}:/out" "$IMG_NUCLEI" \
+        "${MOUNT_ARGS[@]}" "$IMG_NUCLEI" \
         -u "$url" -nc -silent -severity low,medium,high,critical \
-        -o "/out/nuclei.txt" \
+        -o "${TOUT}/nuclei.txt" \
         >"${out}/nuclei-stdout.txt" 2>&1; then
     ok "nuclei termine (nuclei.txt)"
   else
@@ -210,9 +228,13 @@ scan_zap() {
   fi
   info "ZAP ${mode}..."
   # ZAP ecrit ses rapports dans /zap/wrk ; code de sortie != 0 si findings (normal).
+  # tool_out monte /zap/wrk ; avec un volume nomme, les rapports vont dans le sous-dossier REL.
+  tool_out "$out" /zap/wrk
+  local pfx=""
+  [ -n "${SCAN_DOCKER_VOLUME:-}" ] && pfx="${REL}/"
   run_timeout "$TIMEOUT_ZAP" docker run --rm --name "$name" \
-      -v "${out}:/zap/wrk:rw" "$IMG_ZAP" \
-      "$script" -t "$url" -r zap-report.html -w zap-report.md -J zap-report.json \
+      "${MOUNT_ARGS[@]}" "$IMG_ZAP" \
+      "$script" -t "$url" -r "${pfx}zap-report.html" -w "${pfx}zap-report.md" -J "${pfx}zap-report.json" \
       >"${out}/zap-stdout.txt" 2>&1 \
     && ok "ZAP termine (zap-report.html)" \
     || warn "ZAP termine avec findings ou erreur (voir zap-stdout.txt / zap-report.html)"
@@ -283,10 +305,12 @@ scan_one() {
     http://*|https://*) ;;
     *) err "URL invalide (manque http:// ou https://) : ${url}"; return 1 ;;
   esac
-  local host ts out
+  local host out
   host="$(host_of "$url")"
-  ts="$(date '+%Y%m%d-%H%M%S')"
-  out="${REPORTS_DIR}/${host}-${ts}"
+  # REL (nom du dossier de scan) est global : tool_out l'utilise pour le sous-dossier du volume
+  # nomme. Un appelant (ex : dashboard) peut l'imposer via SCAN_REL pour connaitre le dossier d'avance.
+  REL="${SCAN_REL:-${host}-$(date '+%Y%m%d-%H%M%S')}"
+  out="${REPORTS_DIR}/${REL}"
 
   if [ "$DRY_RUN" -eq 1 ]; then
     info "DRY-RUN cible : ${url}"

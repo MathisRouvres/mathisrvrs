@@ -12,8 +12,16 @@ services:
       REPORTS_DIR: /reports
       STATS_URL: https://mathis-rvrs.fr/stats
       POKER_URL: https://poker.mathis-rvrs.fr
+      ORIGIN: https://dashboard.mathis-rvrs.fr
+      # Nom du volume vu par le daemon Docker (préfixe projet compose) : monté dans les conteneurs
+      # d'outils frères lancés par scan.sh.
+      SCAN_DOCKER_VOLUME: dashboard_dashboard-reports
     volumes:
-      - dashboard-reports:/reports:ro
+      # Les rapports : RW car les scans lancés depuis le web écrivent dedans.
+      - dashboard-reports:/reports
+      # Socket Docker : permet à scan.sh de lancer les outils (testssl/nuclei/zap). Privilège
+      # équivalent root sur l'hôte — service accessible uniquement derrière le login de l'espace privé.
+      - /var/run/docker.sock:/var/run/docker.sock
     networks:
       edge:
         aliases: [dashboard-web]

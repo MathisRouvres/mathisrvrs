@@ -8,11 +8,17 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { spawn } from 'node:child_process';
 
 const PORT = Number(process.env.PORT || 8300);
 const REPORTS_DIR = process.env.REPORTS_DIR || '/reports';
 const STATS_URL = process.env.STATS_URL || 'https://mathis-rvrs.fr/stats';
 const POKER_URL = process.env.POKER_URL || 'https://mathis-rvrs.fr/poker';
+// Lancement de scan depuis le web : scan.sh (dans l'image) orchestre les outils comme conteneurs
+// freres via le socket Docker ; ils ecrivent dans le volume nomme SCAN_DOCKER_VOLUME.
+const ORIGIN = process.env.ORIGIN || 'https://dashboard.mathis-rvrs.fr';
+const SCAN_SCRIPT = process.env.SCAN_SCRIPT || '/app/scan.sh';
+const SCAN_VOLUME = process.env.SCAN_DOCKER_VOLUME || '';
 // Dossier de scan valide : <host>-AAAAMMJJ-HHMMSS (host = lettres/chiffres/point/tiret).
 const SCAN_DIR = /^[a-z0-9.-]+-\d{8}-\d{6}$/i;
 
@@ -46,14 +52,21 @@ th{color:var(--muted);font-weight:600}
 .md code{font-family:ui-monospace,Menlo,Consolas,monospace}
 .md ul{margin:0 0 14px;padding-left:20px}
 .raw{margin-top:18px}.raw a{display:inline-block;margin:0 10px 8px 0}
-.empty{padding:24px;border:1px dashed var(--line);border-radius:12px;text-align:center}`;
+.empty{padding:24px;border:1px dashed var(--line);border-radius:12px;text-align:center}
+form.scan{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:4px 0 22px;padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--card)}
+form.scan input[type=url]{flex:1 1 260px;font:inherit;padding:10px 12px;border:1px solid var(--line);border-radius:9px;background:transparent;color:inherit}
+form.scan .chk{display:flex;gap:8px;align-items:center;font-size:.9rem;color:var(--muted);flex:1 1 100%}
+form.scan button{font:inherit;font-weight:600;padding:10px 16px;border:0;border-radius:9px;background:var(--accent);color:#fff;cursor:pointer}
+@media (prefers-color-scheme:dark){form.scan button{color:#111}}
+form.scan button:hover{filter:brightness(1.08)}
+input:focus-visible,button:focus-visible,a:focus-visible{outline:3px solid var(--accent);outline-offset:2px}`;
 const STYLE_HASH = crypto.createHash('sha256').update(STYLE).digest('base64');
 
 function page(res, status, title, body) {
   res.writeHead(status, {
     'Content-Type': 'text/html; charset=utf-8',
     'Cache-Control': 'no-store',
-    'Content-Security-Policy': `default-src 'none'; style-src 'sha256-${STYLE_HASH}'; frame-ancestors 'none'; base-uri 'none'`,
+    'Content-Security-Policy': `default-src 'none'; style-src 'sha256-${STYLE_HASH}'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'`,
     'X-Content-Type-Options': 'nosniff',
     'Referrer-Policy': 'same-origin',
   });
@@ -162,11 +175,86 @@ function securityListPage(res, req) {
 <td>${sev(s.nucleiCount)} nuclei</td>
 <td>${sev(s.missingHeaders)} en-têtes manquants</td>
 </tr>`).join('');
-  const body = scans.length
+  const table = scans.length
     ? `<table><thead><tr><th>Cible / date</th><th>Mode</th><th>Findings</th><th>En-têtes</th></tr></thead><tbody>${rows}</tbody></table>`
-    : `<div class="empty">Aucun scan. Lancer <code>scan.sh</code> en écrivant dans <code>${escapeHtml(REPORTS_DIR)}</code> (voir README).</div>`;
+    : `<div class="empty">Aucun scan pour l'instant. Lancer un scan ci-dessus.</div>`;
+  const form = `<form class="scan" method="post" action="/security/scan">
+<input type="url" name="url" placeholder="https://cible-autorisee.fr" required autocomplete="off" spellcheck="false">
+<button type="submit">Scanner</button>
+<label class="chk"><input type="checkbox" name="authorized" value="yes" required> J'ai l'autorisation écrite du propriétaire de cette cible (obligatoire, scan passif).</label>
+</form>`;
   page(res, 200, 'Security', `<header><h1>Security</h1>${whoHtml(req)}</header>
-<a class="back" href="/">← Dashboard</a>${body}`);
+<a class="back" href="/">← Dashboard</a>${form}${table}`);
+}
+
+// Même origine exigée pour le POST (en plus du login amont) : anti-CSRF.
+function sameOrigin(req) {
+  const origin = req.headers.origin;
+  if (origin && origin !== 'null') return origin === ORIGIN;
+  return req.headers['sec-fetch-site'] === 'same-origin';
+}
+
+function readForm(req) {
+  return new Promise((resolve, reject) => {
+    let size = 0;
+    const chunks = [];
+    req.on('data', (c) => {
+      size += c.length;
+      if (size > 4096) { reject(new Error('trop gros')); req.destroy(); } else chunks.push(c);
+    });
+    req.on('end', () => resolve(new URLSearchParams(Buffer.concat(chunks).toString('utf8'))));
+    req.on('error', reject);
+  });
+}
+
+// Lance un scan depuis le web. Garde-fous : même origine, case d'autorisation cochée, URL http(s).
+// scan.sh tourne en tâche de fond (quelques minutes) et écrit dans le volume ; on crée aussitôt un
+// report.md « en cours » et on redirige vers la page du scan.
+async function handleScan(req, res) {
+  if (!sameOrigin(req)) return page(res, 403, 'Refusé', '<h1>Requête refusée</h1>');
+  let form;
+  try { form = await readForm(req); } catch { return page(res, 413, 'Refusé', '<h1>Requête refusée</h1>'); }
+  const target = (form.get('url') || '').trim();
+  if (form.get('authorized') !== 'yes') {
+    return page(res, 400, 'Autorisation requise', '<h1>Autorisation requise</h1><p>Cocher la case d\'autorisation avant de lancer un scan.</p><a class="back" href="/security">← Security</a>');
+  }
+  let host;
+  try {
+    const u = new URL(target);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') throw new Error('schéma');
+    host = u.hostname;
+  } catch {
+    return page(res, 400, 'URL invalide', '<h1>URL invalide</h1><p>Entrer une URL http(s) valide.</p><a class="back" href="/security">← Security</a>');
+  }
+  const safeHost = host.replace(/[^a-z0-9.-]/gi, '') || 'cible';
+  const ts = new Date().toISOString().slice(0, 19).replace(/[-:]/g, '').replace('T', '-'); // AAAAMMJJ-HHMMSS
+  const rel = `${safeHost}-${ts}`;
+  const dir = path.join(REPORTS_DIR, rel);
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'report.md'),
+      `# Scan en cours - ${host}\n\n- Cible      : ${target}\n- Date       : ${new Date().toISOString().slice(0, 19).replace('T', ' ')}\n- Mode       : passif (non intrusif)\n\nScan en cours… rafraîchir la page dans quelques minutes.\n`);
+  } catch (err) {
+    log('scan: mkdir/stub', err);
+    return page(res, 500, 'Erreur', '<h1>Erreur</h1><a class="back" href="/security">← Security</a>');
+  }
+  const logFd = fs.openSync(path.join(dir, 'scan.log'), 'a');
+  const child = spawn('bash', [SCAN_SCRIPT, target, '--i-am-authorized'], {
+    cwd: path.dirname(SCAN_SCRIPT),
+    env: { ...process.env, SCAN_OUTPUT_DIR: REPORTS_DIR, SCAN_REL: rel, SCAN_DOCKER_VOLUME: SCAN_VOLUME },
+    stdio: ['ignore', logFd, logFd],
+    detached: true,
+  });
+  child.on('error', (err) => log('scan: spawn', err));
+  child.unref();
+  fs.closeSync(logFd);
+  log(`scan lancé cible=${target} rel=${rel} user=${String(req.headers['x-auth-user'] || '?')}`);
+  redirect(res, `/security/${encodeURIComponent(rel)}`, 303);
+}
+
+function redirect(res, location, status = 303) {
+  res.writeHead(status, { Location: location, 'Cache-Control': 'no-store' });
+  res.end();
 }
 
 function securityScanPage(res, req, name) {
@@ -211,7 +299,7 @@ function notFound(res) {
   page(res, 404, 'Introuvable', '<h1>Page introuvable</h1><a class="back" href="/">← Dashboard</a>');
 }
 
-const server = http.createServer((req, res) => {
+const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://localhost:${PORT}`);
     const p = url.pathname.replace(/\/+$/, '') || '/';
@@ -219,6 +307,7 @@ const server = http.createServer((req, res) => {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ ok: true, scans: listScans().length }));
     }
+    if (req.method === 'POST' && p === '/security/scan') return await handleScan(req, res);
     if (req.method !== 'GET' && req.method !== 'HEAD') return notFound(res);
     if (p === '/') return homePage(res, req);
     if (p === '/security') return securityListPage(res, req);
