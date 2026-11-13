@@ -43,8 +43,10 @@ buy-in et pseudo ; un clic sur un pseudo ouvre ses tournois. Code : `src/feature
 
 Source : pokstats.com, seulement avec une session connectée (le serveur n'y a pas accès, la
 recherche sans compte bloque après ~6 joueurs). Avec un compte gratuit, chaque fiche donne
-l'activité jour par jour (totaux exacts) mais seulement les 100 derniers tournois : le filtre de
-buy-in et la répartition par tranche peuvent donc être partiels pour les gros volumes (marqués *).
+l'activité jour par jour (totaux exacts) mais seulement les 100 derniers tournois. Chaque import
+est fusionné avec le snapshot précédent : le détail des tournois s'accumule d'une collecte à
+l'autre. Collecter tous les 2–3 jours le garde complet ; sinon le filtre de buy-in et la
+répartition par tranche sont partiels pour les joueurs concernés (marqués *).
 Le rake n'est publié que sur la carrière : rake de la période ≈ buy-ins × taux de rake carrière.
 
 - Serveur : `POKER_CLUB_KEY` (16 caractères min, `openssl rand -hex 24`) dans `/opt/site/.env`,

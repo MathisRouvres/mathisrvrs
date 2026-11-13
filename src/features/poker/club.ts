@@ -3,8 +3,9 @@
  *
  * Deux sources par joueur, toutes deux limitées aux jours ≥ `snapshot.since` :
  *  - `days` : activité complète jour par jour (tournois, entrées, buy-ins, profit) ;
- *  - `tournaments` : détail des 100 derniers tournois au plus (compte pokstats gratuit),
- *    `tournamentsComplete` dit s'ils couvrent toute la période.
+ *  - `tournaments` : détail des tournois, cumulé collecte après collecte côté serveur (pokstats
+ *    gratuit n'en donne que 100 à chaque fois), `tournamentsComplete` dit s'il couvre toute la
+ *    période.
  * Sans filtre de buy-in, les totaux viennent de `days` (exacts) ; avec un filtre de buy-in,
  * ils viennent de `tournaments` (possiblement partiels, signalé par `partial`).
  *

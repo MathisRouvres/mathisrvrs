@@ -306,7 +306,7 @@ function PlayerDetail({ player, summary, filters }) {
       <h3 className="pt-1 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">Tournois</h3>
       {!player.tournamentsComplete && (
         <p className="text-xs text-amber-700 dark:text-amber-400">
-          Détail limité aux 100 derniers tournois (compte pokstats gratuit) : il ne remonte pas jusqu’au début de la période.
+          Détail des tournois incomplet sur la période : pokstats (compte gratuit) ne donne que les 100 derniers à chaque collecte, et ce joueur en a joué davantage entre deux collectes.
         </p>
       )}
       {tournaments.length === 0 ? (
@@ -741,8 +741,8 @@ function Dashboard({ snapshot, onLock, onRefresh, loading }) {
 
         {buyInActive && (
           <p role="status" className={`${card} border-amber-500/40 text-sm text-[var(--text-secondary)]`}>
-            Filtre de buy-in actif : chiffres calculés sur le détail des tournois, limité aux 100 derniers par joueur.
-            {totals.partial && ' Les joueurs marqués * ont joué plus que ça sur la période : leurs totaux sont incomplets.'}
+            Filtre de buy-in actif : chiffres calculés sur le détail des tournois.
+            {totals.partial && ' Le détail des joueurs marqués * est incomplet sur la période : leurs totaux sont partiels.'}
           </p>
         )}
 
@@ -772,14 +772,14 @@ function Dashboard({ snapshot, onLock, onRefresh, loading }) {
         <div className="grid gap-5 lg:grid-cols-5">
           <Card
             title="Buy-ins par semaine"
-            hint={buyInActive ? 'Filtre de buy-in appliqué (détail des 100 derniers tournois)' : 'Toutes mises confondues, survol pour le détail'}
+            hint={buyInActive ? 'Filtre de buy-in appliqué (détail des tournois)' : 'Toutes mises confondues, survol pour le détail'}
             className="lg:col-span-3"
           >
             <WeeklyChart weeks={weeks} />
           </Card>
           <Card
             title="Tranches de buy-in"
-            hint={incomplete ? `Sur les 100 derniers tournois par joueur (${incomplete} joueur${incomplete > 1 ? 's' : ''} au-delà)` : 'Tous les tournois de la période'}
+            hint={incomplete ? `Détail incomplet pour ${incomplete} joueur${incomplete > 1 ? 's' : ''}` : 'Tous les tournois de la période'}
             className="lg:col-span-2"
           >
             <BuyInBars buckets={buckets} />

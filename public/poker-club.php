@@ -5,12 +5,14 @@
  * Les chiffres viennent de pokstats.com, lus depuis une session pokstats connectée (le serveur
  * n'a pas d'accès à pokstats) par scripts/poker-collect.js, qui envoie un snapshot ici.
  * Snapshots gardés dans le MySQL du VPS (DATABASE_URL, même base que /dispo), 20 derniers.
+ * Chaque import est fusionné avec le snapshot précédent (voir merge_snapshot) : le détail des
+ * tournois s'accumule d'une collecte à l'autre.
  *
  * Accès réservé : en-tête X-Club-Key égal à POKER_CLUB_KEY (variable d'environnement, 16
  * caractères min). Sans clé configurée, tout est refusé.
  *
  *   GET  ?action=snapshot            → { snapshot, importedAt } ou { snapshot: null }
- *   POST ?action=import  {snapshot}  → 201 { ok: true, players }
+ *   POST ?action=import  {snapshot}  → 201 { ok: true, players, complete }
  *        Accepté aussi depuis https://www.pokstats.com (CORS) : le script de collecte tourne
  *        dans un onglet pokstats.
  *
@@ -21,7 +23,13 @@ declare(strict_types=1);
 const MAX_BODY = 4_000_000;
 const MAX_PLAYERS = 200;
 const MAX_DAYS = 400;
-const MAX_TOURNAMENTS = 100;
+// Par joueur : un import (collecte gratuite = 100 ; rattrapage pokstats `load-more` = plus),
+// puis le détail fusionné stocké.
+const MAX_TOURNAMENTS = 2000;
+const MAX_STORED_TOURNAMENTS = 5000;
+// Un tournoi lancé avant une collecte mais fini après n'y figurait pas encore : la collecte
+// suivante doit remonter 24 h avant la précédente pour que le détail reste continu.
+const OVERLAP_MARGIN = 86_400;
 const KEEP_SNAPSHOTS = 20;
 const COLLECTOR_ORIGIN = 'https://www.pokstats.com';
 const DAY_RE = '/^\d{4}-\d{2}-\d{2}$/';
@@ -61,13 +69,21 @@ try {
         }
         if ($method === 'POST' && $action === 'import') {
             $snapshot = clean_snapshot(read_json_body());
+            $previous = $pdo->query('SELECT data FROM poker_snapshots ORDER BY id DESC LIMIT 1')->fetchColumn();
+            if (is_string($previous)) {
+                $snapshot = merge_snapshot(json_decode($previous, true) ?: [], $snapshot);
+            }
             $pdo->prepare('INSERT INTO poker_snapshots (data) VALUES (?)')
                 ->execute([json_encode($snapshot, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)]);
             $pdo->exec(sprintf(
                 'DELETE FROM poker_snapshots WHERE id NOT IN (SELECT id FROM (SELECT id FROM poker_snapshots ORDER BY id DESC LIMIT %d) AS kept)',
                 KEEP_SNAPSHOTS
             ));
-            respond(201, ['ok' => true, 'players' => count($snapshot['players'])]);
+            respond(201, [
+                'ok' => true,
+                'players' => count($snapshot['players']),
+                'complete' => count(array_filter($snapshot['players'], static fn ($p) => $p['found'] && $p['tournamentsComplete'])),
+            ]);
         }
         fail(404, 'invalid', 'Action inconnue.');
     });
@@ -241,6 +257,81 @@ function valid_iso(string $value): bool
     }
     [$h, $m, $s] = array_map('intval', explode(':', substr($value, 11, 8)));
     return $h < 24 && $m < 60 && $s < 60;
+}
+
+// ── Fusion avec le snapshot précédent ────────────────────────────────────────
+
+/**
+ * pokstats (compte gratuit) ne donne que les 100 derniers tournois de chaque joueur : chaque
+ * import ajoute les siens au détail déjà stocké au lieu de le remplacer. Collecter tous les 2–3
+ * jours garde ainsi tout le détail de la saison.
+ *
+ * La liste des joueurs reste celle de l'import (retirer un pseudo de la collecte le retire du
+ * dashboard). `career` et `days` viennent toujours de l'import : pokstats les donne en entier.
+ * Changer `since` repart de zéro.
+ */
+function merge_snapshot(array $previous, array $next): array
+{
+    if (($previous['since'] ?? null) !== $next['since'] || !is_array($previous['players'] ?? null)) {
+        return $next;
+    }
+    $before = [];
+    foreach ($previous['players'] as $player) {
+        if (is_array($player) && is_string($player['nickname'] ?? null)) {
+            $before[mb_strtolower($player['nickname'])] = $player;
+        }
+    }
+    $readAt = strtotime((string) ($previous['generatedAt'] ?? '')) ?: null;
+    $next['players'] = array_map(
+        static fn (array $player) => merge_player($before[mb_strtolower($player['nickname'])] ?? null, $player, $readAt),
+        $next['players']
+    );
+    return $next;
+}
+
+function merge_player(?array $old, array $new, ?int $oldReadAt): array
+{
+    if ($old === null || ($old['found'] ?? false) !== true) {
+        return $new;
+    }
+    // Joueur non lu cette fois (limite pokstats, session, pseudo introuvable un instant) : on
+    // garde ses chiffres précédents plutôt que de le vider.
+    if (!$new['found']) {
+        return $old;
+    }
+
+    $byKey = [];
+    foreach ([$old['tournaments'] ?? [], $new['tournaments']] as $list) {
+        foreach (is_array($list) ? $list : [] as $t) {
+            if (is_array($t) && count($t) === 7 && is_string($t[0]) && is_string($t[3])) {
+                $byKey[$t[0] . '|' . $t[1] . '|' . $t[3]] = $t; // même tournoi : la lecture récente gagne
+            }
+        }
+    }
+    $tournaments = array_values($byKey);
+    usort($tournaments, static fn ($a, $b) => strcmp($b[0], $a[0]));
+
+    $complete = $new['tournamentsComplete']
+        || (($old['tournamentsComplete'] ?? false) === true && reaches_back($new['tournaments'], $old, $oldReadAt));
+    if (count($tournaments) > MAX_STORED_TOURNAMENTS) {
+        $tournaments = array_slice($tournaments, 0, MAX_STORED_TOURNAMENTS);
+        $complete = false;
+    }
+    return array_merge($new, ['tournaments' => $tournaments, 'tournamentsComplete' => $complete]);
+}
+
+/**
+ * Le nouveau détail (incomplet seul) rejoint-il l'ancien, complet jusqu'à sa lecture ? Fin de
+ * l'ancien : la plus ancienne de la mise à jour pokstats du joueur et de la collecte.
+ */
+function reaches_back(array $tournaments, array $old, ?int $oldReadAt): bool
+{
+    $ends = array_filter([strtotime((string) ($old['updatedAt'] ?? '')), $oldReadAt]);
+    if (!$tournaments || !$ends) {
+        return false;
+    }
+    $oldest = min(array_map(static fn ($t) => strtotime($t[0]), $tournaments));
+    return $oldest <= min($ends) - OVERLAP_MARGIN;
 }
 
 // ── Base de données ──────────────────────────────────────────────────────────

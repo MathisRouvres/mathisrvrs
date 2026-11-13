@@ -10,6 +10,10 @@
  *        par joueur et envoie le nouveau snapshot à poker-club.php.
  *      Première fois : pokerCollect({ key, players: ['Pseudo1', 'Pseudo2', …] }).
  *
+ * Le serveur fusionne chaque import avec le précédent : le détail des tournois (100 derniers par
+ * collecte avec un compte gratuit) s'accumule. Collecter tous les 2–3 jours pour qu'il reste
+ * complet, même pour les gros volumes.
+ *
  * pokstats limite le débit (TOO_MANY_REQUESTS après ~6 fiches) : pause de 2,5 s entre joueurs
  * et attente croissante (60 s → 5 min) sur refus. Compter ~10 min pour 60 joueurs.
  * La liste des pseudos n'est pas dans ce dépôt (public) : elle vit dans les snapshots.
@@ -86,7 +90,8 @@
       tournaments: recent
         .map((t) => [iso(t.date), t.buyIn ?? 0, t.entries ?? 0, t.tournamentName ?? '', t.gain ?? 0, t.profit ?? 0, t.finalPosition ?? 0])
         .filter((t) => parisDay(t[0]) >= SINCE),
-      // Compte gratuit : 100 derniers tournois au plus. Complet s'ils remontent avant SINCE.
+      // Compte gratuit : 100 derniers tournois au plus. Complet s'ils remontent avant SINCE ; sinon
+      // le serveur le complète avec le détail des collectes précédentes.
       tournamentsComplete: recent.length < 100 || (oldest !== null && oldest < SINCE),
     }
   }
@@ -154,7 +159,7 @@
     })
     const answer = await response.json().catch(() => ({}))
     if (!response.ok) throw new Error(`Import refusé : ${answer.message ?? response.status}`)
-    log(`Snapshot importé : ${answer.players} joueurs.`)
+    log(`Snapshot importé : ${answer.players} joueurs, détail des tournois complet pour ${answer.complete}.`)
     return snapshot
   }
 })()
