@@ -32,7 +32,7 @@ function storeKey(key) {
     if (key) localStorage.setItem(KEY_STORAGE, key)
     else localStorage.removeItem(KEY_STORAGE)
   } catch {
-    // stockage indisponible : la clé sera redemandée
+    // stockage indisponible : le mot de passe sera redemandé
   }
 }
 
@@ -105,7 +105,7 @@ function UnlockForm({ onUnlock, error }) {
   return (
     <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center px-4 py-12">
       <h1 className="font-display text-2xl font-bold">Club poker</h1>
-      <p className="mt-2 text-sm text-[var(--text-secondary)]">Page privée. Entre la clé du club.</p>
+      <p className="mt-2 text-sm text-[var(--text-secondary)]">Page privée. Entre le mot de passe du club.</p>
       <form
         className={`${card} mt-6 space-y-4`}
         onSubmit={(e) => {
@@ -115,7 +115,7 @@ function UnlockForm({ onUnlock, error }) {
       >
         <div>
           <label htmlFor="poker-key" className="text-sm font-medium">
-            Clé d’accès
+            Mot de passe
           </label>
           <input
             id="poker-key"
@@ -813,7 +813,7 @@ function Dashboard({ snapshot, onLock, onRefresh, loading }) {
 
 /**
  * `/poker` : dashboard privé des joueurs du club. Le snapshot vient de poker-club.php, qui
- * vérifie la clé à chaque appel ; les calculs (période, buy-in, rake) se font ici.
+ * vérifie le mot de passe à chaque appel ; les calculs (période, buy-in, rake) se font ici.
  */
 export default function PokerApp() {
   usePrivatePage()
@@ -830,7 +830,7 @@ export default function PokerApp() {
       (error) => {
         if (controller.signal.aborted) return
         const failure = error instanceof PokerError ? error : new PokerError('network', String(error))
-        if (failure.kind === 'invalid-key') {
+        if (failure.kind === 'invalid-key' || failure.kind === 'too-many') {
           storeKey('')
           setKey('')
         }
@@ -865,13 +865,13 @@ export default function PokerApp() {
   )
   const lockButton = (
     <button type="button" onClick={lock} className={`rounded-xl border border-[var(--border-color)] px-4 py-2 text-sm ${focusRing}`}>
-      Changer de clé
+      Changer de mot de passe
     </button>
   )
 
   let content
   if (!key) {
-    content = <UnlockForm onUnlock={unlock} error={error?.kind === 'invalid-key' ? 'Clé incorrecte.' : null} />
+    content = <UnlockForm onUnlock={unlock} error={error?.kind === 'invalid-key' || error?.kind === 'too-many' ? error.message : null} />
   } else if (!data && loading) {
     content = (
       <p role="status" className="flex min-h-dvh items-center justify-center text-sm text-[var(--text-secondary)]">

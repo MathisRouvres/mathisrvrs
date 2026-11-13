@@ -1,4 +1,4 @@
-/** Lecture du dernier snapshot pokstats du club : public/poker-club.php (clé en en-tête). */
+/** Lecture du dernier snapshot pokstats du club : public/poker-club.php (mot de passe en en-tête). */
 
 import type { ClubSnapshot } from './club'
 
@@ -7,7 +7,7 @@ export interface SnapshotResponse {
   importedAt?: string
 }
 
-export type PokerErrorKind = 'invalid-key' | 'not-configured' | 'network'
+export type PokerErrorKind = 'invalid-key' | 'too-many' | 'not-configured' | 'network'
 
 export class PokerError extends Error {
   readonly kind: PokerErrorKind
@@ -31,7 +31,8 @@ export async function fetchSnapshot(key: string, signal?: AbortSignal): Promise<
 
   const body = (await response.json().catch(() => null)) as (SnapshotResponse & { error?: string; message?: string }) | null
   if (response.ok && body && 'snapshot' in body) return body
-  if (response.status === 403) throw new PokerError('invalid-key', 'Clé incorrecte.')
+  if (response.status === 403) throw new PokerError('invalid-key', 'Mot de passe incorrect.')
+  if (response.status === 429) throw new PokerError('too-many', body?.message ?? 'Trop d’essais. Réessaie dans 15 minutes.')
   if (body?.error === 'not-configured') throw new PokerError('not-configured', body.message ?? 'Pas encore configuré.')
   throw new PokerError('network', body?.message ?? `Le serveur a répondu ${response.status}.`)
 }

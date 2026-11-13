@@ -36,7 +36,7 @@ phpMyAdmin (les créneaux suivent).
 
 ## Club de poker (`/poker`)
 
-Page privée (clé, non indexée) : stats Winamax des joueurs du club depuis le 1er septembre —
+Page privée (mot de passe, non indexée) : stats Winamax des joueurs du club depuis le 1er septembre —
 entrées, buy-ins, ABI, rake estimé, profit, ROI, dernier jeu — filtrables par dates, tranche de
 buy-in et pseudo ; un clic sur un pseudo ouvre ses tournois. Code : `src/features/poker/`
 (calculs testés dans `club.ts`).
@@ -49,9 +49,10 @@ l'autre. Collecter tous les 2–3 jours le garde complet ; sinon le filtre de bu
 répartition par tranche sont partiels pour les joueurs concernés (marqués *).
 Le rake n'est publié que sur la carrière : rake de la période ≈ buy-ins × taux de rake carrière.
 
-- Serveur : `POKER_CLUB_KEY` (16 caractères min, `openssl rand -hex 24`) dans `/opt/site/.env`,
-  puis `docker compose up -d` dans `/opt/site`. Snapshots dans le MySQL du VPS
-  (`DATABASE_URL`, table `poker_snapshots` créée au premier appel, 20 derniers gardés).
+- Serveur : mot de passe `POKER_CLUB_KEY` (8 caractères min) dans `/opt/site/.env`, puis
+  `docker compose up -d` dans `/opt/site`. 10 échecs depuis une IP la bloquent 15 minutes.
+  Snapshots dans le MySQL du VPS (`DATABASE_URL`, tables `poker_snapshots` et
+  `poker_auth_failures` créées au premier appel, 20 snapshots gardés).
 - Actualiser : coller `scripts/poker-collect.js` dans la console d'un onglet pokstats connecté,
   faire une recherche de joueur, puis `await pokerCollect({ key: '…' })` (~10 min pour 60
   joueurs, pokstats limite le débit). La liste des pseudos vit dans les snapshots, pas dans ce

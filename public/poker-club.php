@@ -8,15 +8,16 @@
  * Chaque import est fusionné avec le snapshot précédent (voir merge_snapshot) : le détail des
  * tournois s'accumule d'une collecte à l'autre.
  *
- * Accès réservé : en-tête X-Club-Key égal à POKER_CLUB_KEY (variable d'environnement, 16
- * caractères min). Sans clé configurée, tout est refusé.
+ * Accès réservé : en-tête X-Club-Key égal au mot de passe POKER_CLUB_KEY (variable
+ * d'environnement, 8 caractères min). Sans mot de passe configuré, tout est refusé. Mot de passe
+ * simple, donc essais limités : 10 échecs par IP bloquent cette IP 15 minutes (429).
  *
  *   GET  ?action=snapshot            → { snapshot, importedAt } ou { snapshot: null }
  *   POST ?action=import  {snapshot}  → 201 { ok: true, players, complete }
  *        Accepté aussi depuis https://www.pokstats.com (CORS) : le script de collecte tourne
  *        dans un onglet pokstats.
  *
- * Erreurs : { error: forbidden|invalid|not-configured|unavailable, message }.
+ * Erreurs : { error: forbidden|too-many|invalid|not-configured|unavailable, message }.
  */
 declare(strict_types=1);
 
@@ -31,6 +32,9 @@ const MAX_STORED_TOURNAMENTS = 5000;
 // suivante doit remonter 24 h avant la précédente pour que le détail reste continu.
 const OVERLAP_MARGIN = 86_400;
 const KEEP_SNAPSHOTS = 20;
+const MIN_PASSWORD = 8;
+const MAX_FAILURES = 10;
+const FAILURE_WINDOW = 900; // s
 const COLLECTOR_ORIGIN = 'https://www.pokstats.com';
 const DAY_RE = '/^\d{4}-\d{2}-\d{2}$/';
 const ISO_RE = '/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/';
@@ -55,12 +59,16 @@ if (($_SERVER['HTTP_ORIGIN'] ?? '') === COLLECTOR_ORIGIN && $action === 'import'
     }
 }
 
-require_key();
+$expected = (string) (getenv('POKER_CLUB_KEY') ?: ($_SERVER['POKER_CLUB_KEY'] ?? ''));
+if (strlen($expected) < MIN_PASSWORD) {
+    fail(503, 'not-configured', 'Le dashboard poker n’est pas encore configuré sur le serveur.');
+}
 
 $pdo = null;
 try {
     $pdo = connect();
-    with_schema($pdo, static function () use ($pdo, $method, $action): void {
+    with_schema($pdo, static function () use ($pdo, $method, $action, $expected): void {
+        require_password($pdo, $expected);
         if ($method === 'GET' && $action === 'snapshot') {
             $row = $pdo->query('SELECT data, created_at FROM poker_snapshots ORDER BY id DESC LIMIT 1')->fetch();
             respond(200, $row
@@ -94,18 +102,30 @@ try {
 
 // ── Accès ────────────────────────────────────────────────────────────────────
 
-function require_key(): void
+/**
+ * Mot de passe simple : les échecs sont comptés par IP en base (pas de pause sur échec, qui
+ * bloquerait un worker FrankenPHP partagé avec contact.php et dispo-api.php). REMOTE_ADDR est
+ * l'IP réelle (Caddyfile : client_ip derrière le frontal).
+ */
+function require_password(PDO $pdo, string $expected): void
 {
-    $expected = (string) (getenv('POKER_CLUB_KEY') ?: ($_SERVER['POKER_CLUB_KEY'] ?? ''));
-    if (strlen($expected) < 16) {
-        fail(503, 'not-configured', 'Le dashboard poker n’est pas encore configuré sur le serveur.');
+    $ip = substr((string) ($_SERVER['REMOTE_ADDR'] ?? ''), 0, 45);
+    $recent = $pdo->prepare('SELECT failures FROM poker_auth_failures WHERE ip = ? AND last_at > NOW() - INTERVAL ? SECOND');
+    $recent->execute([$ip, FAILURE_WINDOW]);
+    if ((int) $recent->fetchColumn() >= MAX_FAILURES) {
+        fail(429, 'too-many', 'Trop d’essais. Réessaie dans 15 minutes.');
     }
     $given = (string) ($_SERVER['HTTP_X_CLUB_KEY'] ?? '');
-    // Clé longue (openssl rand -hex 24) : pas de pause sur échec, qui bloquerait un worker
-    // FrankenPHP partagé avec contact.php et dispo-api.php sans gêner une attaque.
-    if ($given === '' || !hash_equals($expected, $given)) {
-        fail(403, 'forbidden', 'Clé incorrecte.');
+    if ($given !== '' && hash_equals($expected, $given)) {
+        return;
     }
+    // Fenêtre glissante : le compteur repart de 1 quand le dernier échec date de plus de 15 min.
+    $pdo->prepare(
+        'INSERT INTO poker_auth_failures (ip, failures, last_at) VALUES (?, 1, NOW())
+         ON DUPLICATE KEY UPDATE failures = IF(last_at > NOW() - INTERVAL ? SECOND, failures + 1, 1), last_at = NOW()'
+    )->execute([$ip, FAILURE_WINDOW]);
+    $pdo->exec('DELETE FROM poker_auth_failures WHERE last_at < NOW() - INTERVAL 1 DAY');
+    fail(403, 'forbidden', 'Mot de passe incorrect.');
 }
 
 // ── Validation du snapshot ───────────────────────────────────────────────────
@@ -362,7 +382,7 @@ function connect(): PDO
     return $pdo;
 }
 
-/** Exécute `$fn` ; si la table manque (première utilisation), la crée puis recommence. */
+/** Exécute `$fn` ; si une table manque (première utilisation), crée les tables puis recommence. */
 function with_schema(PDO $pdo, callable $fn): void
 {
     try {
@@ -377,6 +397,13 @@ function with_schema(PDO $pdo, callable $fn): void
                 created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 data LONGTEXT NOT NULL
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci'
+        );
+        $pdo->exec(
+            'CREATE TABLE IF NOT EXISTS poker_auth_failures (
+                ip VARCHAR(45) NOT NULL PRIMARY KEY,
+                failures INT UNSIGNED NOT NULL,
+                last_at TIMESTAMP NOT NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=ascii'
         );
         $fn();
     }
