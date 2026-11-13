@@ -51,7 +51,8 @@ test('portail affiche les cartes et le compte', async () => {
   const html = await res.text();
   assert.match(html, /Dashboard/);
   assert.match(html, /mathis-rvrs\.fr\/stats/);
-  assert.match(html, /mathis-rvrs\.fr\/poker/);
+  assert.match(html, /prospect\.mathis-rvrs\.fr/);
+  assert.doesNotMatch(html, /Poker/);
   assert.match(html, /\/security/);
   assert.match(html, /Connecté : mathis/);
 });

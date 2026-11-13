@@ -13,7 +13,7 @@ import { spawn } from 'node:child_process';
 const PORT = Number(process.env.PORT || 8300);
 const REPORTS_DIR = process.env.REPORTS_DIR || '/reports';
 const STATS_URL = process.env.STATS_URL || 'https://mathis-rvrs.fr/stats';
-const POKER_URL = process.env.POKER_URL || 'https://mathis-rvrs.fr/poker';
+const PROSPECT_URL = process.env.PROSPECT_URL || 'https://prospect.mathis-rvrs.fr';
 // Lancement de scan depuis le web : scan.sh (dans l'image) orchestre les outils comme conteneurs
 // freres via le socket Docker ; ils ecrivent dans le volume nomme SCAN_DOCKER_VOLUME.
 const ORIGIN = process.env.ORIGIN || 'https://dashboard.mathis-rvrs.fr';
@@ -161,7 +161,7 @@ function homePage(res, req) {
 <p>Espace privé mathis-rvrs.fr.</p>
 <div class="cards">
 ${card(STATS_URL, 'Stats', "Statistiques d'usage du site")}
-${card(POKER_URL, 'Poker', 'Stats du club Winamax')}
+${card(PROSPECT_URL, 'Prospection', 'Dashboard de prospection B2B')}
 ${card('/security', 'Security', 'Rapports de scan de sécurité')}
 </div>`);
 }

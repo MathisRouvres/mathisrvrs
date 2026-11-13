@@ -11,7 +11,7 @@ services:
       PORT: "8300"
       REPORTS_DIR: /reports
       STATS_URL: https://mathis-rvrs.fr/stats
-      POKER_URL: https://poker.mathis-rvrs.fr
+      PROSPECT_URL: https://prospect.mathis-rvrs.fr
       ORIGIN: https://dashboard.mathis-rvrs.fr
       # Nom du volume vu par le daemon Docker (préfixe projet compose) : monté dans les conteneurs
       # d'outils frères lancés par scan.sh.
