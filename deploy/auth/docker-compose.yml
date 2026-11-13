@@ -8,7 +8,7 @@ services:
     environment:
       AUTH_DOMAIN: mathis-rvrs.fr
       SESSION_DAYS: "30"
-      AUTH_APPS: "Dashboard=https://dashboard.mathis-rvrs.fr,Travaux=https://travaux.mathis-rvrs.fr,Arbitre=https://arbitre.mathis-rvrs.fr,Job Radar=https://job.mathis-rvrs.fr,Budget=https://budget.mathis-rvrs.fr,phpMyAdmin=https://pma.mathis-rvrs.fr"
+      AUTH_APPS: "Dashboard=https://dashboard.mathis-rvrs.fr,Poker=https://poker.mathis-rvrs.fr,Travaux=https://travaux.mathis-rvrs.fr,Arbitre=https://arbitre.mathis-rvrs.fr,Job Radar=https://job.mathis-rvrs.fr,Budget=https://budget.mathis-rvrs.fr,phpMyAdmin=https://pma.mathis-rvrs.fr"
     volumes:
       # credentials.json (600) : empreinte du mot de passe, secret TOTP, secret des sessions.
       - ./config:/config

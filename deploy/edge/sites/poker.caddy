@@ -1,0 +1,6 @@
+# Dashboard poker privé : SPA servie par site-web, routée vers PokerApp selon le host (src/App.jsx).
+# Protégé par le service de connexion (snippet « private »).
+poker.mathis-rvrs.fr {
+	import private
+	reverse_proxy site-web:80
+}

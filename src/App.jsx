@@ -127,6 +127,16 @@ function SpinRouteGate({ children }) {
 export default function App() {
   const path = normalizePathname(window.location.pathname)
 
+  // Sous-domaine privé dédié (poker.mathis-rvrs.fr, derrière le login de l'espace privé) :
+  // sert le dashboard poker quel que soit le chemin. La route /poker reste disponible.
+  if (window.location.hostname.startsWith('poker.')) {
+    return (
+      <LazyRoute>
+        <PokerApp />
+      </LazyRoute>
+    )
+  }
+
   // Statistiques d'usage (privé, protégé par clé ; non indexé).
   if (path === '/stats') {
     return (

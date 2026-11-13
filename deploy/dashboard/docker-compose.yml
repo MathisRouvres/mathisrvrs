@@ -11,7 +11,7 @@ services:
       PORT: "8300"
       REPORTS_DIR: /reports
       STATS_URL: https://mathis-rvrs.fr/stats
-      POKER_URL: https://mathis-rvrs.fr/poker
+      POKER_URL: https://poker.mathis-rvrs.fr
     volumes:
       - dashboard-reports:/reports:ro
     networks:
