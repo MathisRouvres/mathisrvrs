@@ -26,6 +26,7 @@ const GamesHub = named(() => import('./features/games'), 'GamesHub')
 const PartyApp = named(() => import('./features/party'), 'PartyApp')
 const StatsApp = named(() => import('./features/stats'), 'StatsApp')
 const DispoApp = named(() => import('./features/dispo'), 'DispoApp')
+const PokerApp = named(() => import('./features/poker'), 'PokerApp')
 
 function normalizePathname(pathname) {
   if (!pathname || pathname === '/') return '/'
@@ -131,6 +132,15 @@ export default function App() {
     return (
       <LazyRoute>
         <StatsApp />
+      </LazyRoute>
+    )
+  }
+
+  // Stats Winamax du club de poker (privé, protégé par clé ; non indexé).
+  if (path === '/poker') {
+    return (
+      <LazyRoute>
+        <PokerApp />
       </LazyRoute>
     )
   }

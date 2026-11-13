@@ -34,6 +34,27 @@ Sans compte, toute personne qui a le lien peut créer un profil (60 max) et modi
 quel calendrier. Supprimer un profil : `DELETE FROM dispo_people WHERE name = '…'` dans
 phpMyAdmin (les créneaux suivent).
 
+## Club de poker (`/poker`)
+
+Page privée (clé, non indexée) : stats Winamax des joueurs du club depuis le 1er septembre —
+entrées, buy-ins, ABI, rake estimé, profit, ROI, dernier jeu — filtrables par dates, tranche de
+buy-in et pseudo ; un clic sur un pseudo ouvre ses tournois. Code : `src/features/poker/`
+(calculs testés dans `club.ts`).
+
+Source : pokstats.com, seulement avec une session connectée (le serveur n'y a pas accès, la
+recherche sans compte bloque après ~6 joueurs). Avec un compte gratuit, chaque fiche donne
+l'activité jour par jour (totaux exacts) mais seulement les 100 derniers tournois : le filtre de
+buy-in et la répartition par tranche peuvent donc être partiels pour les gros volumes (marqués *).
+Le rake n'est publié que sur la carrière : rake de la période ≈ buy-ins × taux de rake carrière.
+
+- Serveur : `POKER_CLUB_KEY` (16 caractères min, `openssl rand -hex 24`) dans `/opt/site/.env`,
+  puis `docker compose up -d` dans `/opt/site`. Snapshots dans le MySQL du VPS
+  (`DATABASE_URL`, table `poker_snapshots` créée au premier appel, 20 derniers gardés).
+- Actualiser : coller `scripts/poker-collect.js` dans la console d'un onglet pokstats connecté,
+  faire une recherche de joueur, puis `await pokerCollect({ key: '…' })` (~10 min pour 60
+  joueurs, pokstats limite le débit). La liste des pseudos vit dans les snapshots, pas dans ce
+  dépôt public ; ajouter ou retirer un joueur : `pokerCollect({ key, players: [...] })`.
+
 ## Formulaire de contact
 
 Le formulaire envoie les messages via **`public/contact.php`** (copié dans `dist/contact.php` au build).

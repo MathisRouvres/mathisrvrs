@@ -22,9 +22,10 @@
 		respond 404
 	}
 
-	# contact.php (formulaire), dispo-api.php (calendrier /dispo, MySQL du VPS) et
-	# dispo-courts.php (terrains de padel libres, lus chez les clubs).
-	@php path /contact.php /dispo-api.php /dispo-courts.php
+	# contact.php (formulaire), dispo-api.php (calendrier /dispo, MySQL du VPS),
+	# dispo-courts.php (terrains de padel libres, lus chez les clubs) et poker-club.php
+	# (stats du club de poker /poker, MySQL du VPS, clé POKER_CLUB_KEY).
+	@php path /contact.php /dispo-api.php /dispo-courts.php /poker-club.php
 	handle @php {
 		php {
 			# FrankenPHP met l'IP du frontal dans REMOTE_ADDR ; client_ip suit trusted_proxies.

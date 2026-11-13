@@ -48,6 +48,7 @@ jobs:
           test -f dist/index.html
           test -f dist/contact.php
           test -f dist/dispo-api.php
+          test -f dist/poker-club.php
           test -d dist/assets
           ls -la dist
 
