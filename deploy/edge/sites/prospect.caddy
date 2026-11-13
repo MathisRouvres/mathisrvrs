@@ -1,0 +1,38 @@
+# Prospection B2B (pile /opt/prospect). Le conteneur « web » est joignable sur edge (alias
+# prospect-web:5300). Certificats des hôtes *.sites et *.demo : à la demande (on_demand_tls du
+# Caddyfile, qui interroge /internal/tls-ask).
+
+# Tableau de bord : derrière la connexion TOTP. Le compte « mathis » (hôtes *) y a accès.
+prospect.mathis-rvrs.fr {
+	import private
+	reverse_proxy prospect-web:5300
+}
+
+# Pages envoyées aux prospects (maquettes, diagnostics, opposition) et retour Stripe : publiques.
+demo.mathis-rvrs.fr {
+	@public path /d/* /o/* /_f/* /confidentialite /paiement/* /stripe/webhook
+	handle @public {
+		request_header -X-Auth-User
+		reverse_proxy prospect-web:5300
+	}
+	handle {
+		respond "Introuvable" 404
+	}
+}
+
+# Studio des clients : sa propre connexion (comptes clients), pas celle du tableau de bord.
+studio.mathis-rvrs.fr {
+	request_header -X-Auth-User
+	reverse_proxy prospect-web:5300
+}
+
+# Sites clients (*.sites.mathis-rvrs.fr, domaines des clients) et maquettes (*.demo.mathis-rvrs.fr) :
+# certificats émis à la demande, seulement pour un site ou une maquette existants (tls-ask).
+# Bloc générique : les hôtes déclarés explicitement ailleurs restent prioritaires.
+https:// {
+	tls {
+		on_demand
+	}
+	request_header -X-Auth-User
+	reverse_proxy prospect-web:5300
+}

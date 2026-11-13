@@ -6,6 +6,11 @@
 	# Au reload, les connexions ouvertes sur l'ancienne config sont fermées après 30 s (sinon jamais :
 	# un onglet qui interroge le site en continu garderait l'ancien certificat indéfiniment).
 	grace_period 30s
+	# Certificats à la demande (sites clients et maquettes de Prospect, hôtes non déclarés).
+	# Caddy ne demande un certificat que si l'app répond 200 : un site/maquette qui existe vraiment.
+	on_demand_tls {
+		ask http://prospect-web:5300/internal/tls-ask
+	}
 }
 
 # --- Eskudo (pile /opt/club) ---
