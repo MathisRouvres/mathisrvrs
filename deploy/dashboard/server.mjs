@@ -181,7 +181,7 @@ function securityListPage(res, req) {
   const form = `<form class="scan" method="post" action="/security/scan">
 <input type="url" name="url" placeholder="https://cible-autorisee.fr" required autocomplete="off" spellcheck="false">
 <button type="submit">Scanner</button>
-<label class="chk"><input type="checkbox" name="authorized" value="yes" required> J'ai l'autorisation écrite du propriétaire de cette cible (obligatoire, scan passif).</label>
+<span class="chk">Scan passif. À n'utiliser que sur des sites que tu possèdes ou pour lesquels tu as l'autorisation du propriétaire.</span>
 </form>`;
   page(res, 200, 'Security', `<header><h1>Security</h1>${whoHtml(req)}</header>
 <a class="back" href="/">← Dashboard</a>${form}${table}`);
@@ -215,9 +215,6 @@ async function handleScan(req, res) {
   let form;
   try { form = await readForm(req); } catch { return page(res, 413, 'Refusé', '<h1>Requête refusée</h1>'); }
   const target = (form.get('url') || '').trim();
-  if (form.get('authorized') !== 'yes') {
-    return page(res, 400, 'Autorisation requise', '<h1>Autorisation requise</h1><p>Cocher la case d\'autorisation avant de lancer un scan.</p><a class="back" href="/security">← Security</a>');
-  }
   let host;
   try {
     const u = new URL(target);

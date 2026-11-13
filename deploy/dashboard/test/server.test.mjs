@@ -102,9 +102,10 @@ const postScan = (body, origin = `http://127.0.0.1:${PORT}`) =>
     body,
   });
 
-test('scan refusé si autorisation non cochée', async () => {
-  const res = await postScan('url=https://example.com');
-  assert.equal(res.status, 400);
+test('scan lancé sans champ autorisation (plus de coche obligatoire)', async () => {
+  const res = await postScan('url=https://no-auth-field.example.org');
+  assert.equal(res.status, 303);
+  assert.match(res.headers.get('location'), /^\/security\/no-auth-field\.example\.org-\d{8}-\d{6}$/);
 });
 
 test('scan refusé si origine étrangère (CSRF)', async () => {

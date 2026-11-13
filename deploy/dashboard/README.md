@@ -18,9 +18,9 @@ de passe ni session.
 
 ## Lancer un scan (depuis le web)
 
-Sur `/security` : entrer l'URL cible, **cocher la case d'autorisation** (obligatoire — tu déclares
-détenir l'autorisation écrite du propriétaire), cliquer **Scanner**. Le scan (passif) tourne en
-tâche de fond quelques minutes puis apparaît dans la liste.
+Sur `/security` : entrer l'URL cible, cliquer **Scanner**. Le scan (passif) tourne en tâche de fond
+quelques minutes puis apparaît dans la liste. N'utiliser que sur des sites possédés ou autorisés
+(rappel non bloquant affiché sous le champ).
 
 Mécanique : `scan.sh` (embarqué dans l'image) orchestre les outils comme conteneurs **frères** via
 le socket Docker ; ils écrivent dans le volume nommé `dashboard-reports` (sous-dossier par scan).
