@@ -1,0 +1,32 @@
+# Dashboard privé, lancé depuis /opt/dashboard. Protégé par le Caddy frontal (snippet « private »).
+# Les rapports de scan sont lus en lecture seule depuis le volume dashboard-reports ; les scans
+# écrivent dedans via scan.sh (SCAN_OUTPUT_DIR), voir README.
+name: dashboard
+
+services:
+  web:
+    build: .
+    image: mathisrvrs-dashboard:local
+    environment:
+      PORT: "8300"
+      REPORTS_DIR: /reports
+      STATS_URL: https://mathis-rvrs.fr/stats
+      POKER_URL: https://mathis-rvrs.fr/poker
+    volumes:
+      - dashboard-reports:/reports:ro
+    networks:
+      edge:
+        aliases: [dashboard-web]
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+networks:
+  edge:
+    external: true
+
+volumes:
+  dashboard-reports:

@@ -22,7 +22,9 @@ set -euo pipefail
 # Constantes
 # ---------------------------------------------------------------------------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPORTS_DIR="${SCRIPT_DIR}/reports"
+# Par defaut les rapports vont dans security/reports/. Sur le VPS, pointer SCAN_OUTPUT_DIR vers le
+# volume lu par le dashboard (ex: SCAN_OUTPUT_DIR=/opt/dashboard/reports) pour les y publier.
+REPORTS_DIR="${SCAN_OUTPUT_DIR:-${SCRIPT_DIR}/reports}"
 
 IMG_TESTSSL="drwetter/testssl.sh:latest"
 IMG_NUCLEI="projectdiscovery/nuclei:latest"

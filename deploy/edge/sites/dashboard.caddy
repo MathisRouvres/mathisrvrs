@@ -1,0 +1,5 @@
+# Dashboard privé (pile /opt/dashboard). Protégé par le service de connexion (snippet « private »).
+dashboard.mathis-rvrs.fr {
+	import private
+	reverse_proxy dashboard-web:8300
+}
