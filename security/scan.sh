@@ -320,6 +320,9 @@ scan_one() {
   fi
 
   mkdir -p "$out"
+  # En mode volume (conteneurs freres), les outils tournent en uid non-root : le dossier de sortie
+  # doit leur etre accessible en ecriture.
+  [ -n "${SCAN_DOCKER_VOLUME:-}" ] && chmod 777 "$out" 2>/dev/null || true
   info "===== Scan de ${url} ====="
   info "Sortie : ${out}"
   scan_headers "$url" "$out"

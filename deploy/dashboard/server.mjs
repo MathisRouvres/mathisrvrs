@@ -232,6 +232,9 @@ async function handleScan(req, res) {
   const dir = path.join(REPORTS_DIR, rel);
   try {
     fs.mkdirSync(dir, { recursive: true });
+    // Les conteneurs d'outils (testssl, ZAP) tournent en uid non-root et écrivent dans ce
+    // sous-dossier du volume partagé : il doit leur être accessible en écriture.
+    fs.chmodSync(dir, 0o777);
     fs.writeFileSync(path.join(dir, 'report.md'),
       `# Scan en cours - ${host}\n\n- Cible      : ${target}\n- Date       : ${new Date().toISOString().slice(0, 19).replace('T', ' ')}\n- Mode       : passif (non intrusif)\n\nScan en cours… rafraîchir la page dans quelques minutes.\n`);
   } catch (err) {
