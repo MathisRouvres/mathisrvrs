@@ -15,6 +15,9 @@ services:
       SMTP_FROM: ${SMTP_FROM:-contact@mathis-rvrs.fr}
       # Base « dispo » du calendrier /dispo : écrit par /opt/db/create-app-db.sh dispo /opt/site/.env
       DATABASE_URL: ${DATABASE_URL:-}
+      # Compte Gestion Sports dédié (dispo-courts.php : terrains libres d'Impact Stadium).
+      GS_IMPACT_EMAIL: ${GS_IMPACT_EMAIL:-}
+      GS_IMPACT_PASSWORD: ${GS_IMPACT_PASSWORD:-}
     volumes:
       - ./www:/srv/www:ro
     networks:
