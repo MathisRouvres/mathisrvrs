@@ -25,6 +25,7 @@ before(async () => {
   process.env.ORIGIN = `http://127.0.0.1:${PORT}`;
   process.env.SCAN_SCRIPT = '/usr/bin/true'; // n'exécute pas un vrai scan en test
   process.env.SCAN_DOCKER_VOLUME = '';
+  process.env.DOCKER_SOCKET = path.join(tmp, 'absent.sock'); // pas de Docker en test
   mod = await import('../server.mjs');
   // laisse le serveur se lier
   await new Promise((r) => setTimeout(r, 150));
@@ -77,6 +78,23 @@ test('fichier brut servi', async () => {
   const res = await get(`/security/${SCAN}/raw/report.md`);
   assert.equal(res.status, 200);
   assert.match(res.headers.get('content-type'), /text\/plain/);
+});
+
+test('page serveur : métriques hôte, rechargement, Docker absent géré', async () => {
+  const res = await get('/server');
+  assert.equal(res.status, 200);
+  const html = await res.text();
+  assert.match(html, /<h1>Serveur<\/h1>/);
+  assert.match(html, /http-equiv="refresh" content="30"/);
+  assert.match(html, /Mémoire/);
+  assert.match(html, /Disque/);
+  assert.match(html, /<meter /);
+  assert.match(html, /Docker inaccessible/);
+});
+
+test('portail affiche la carte Serveur', async () => {
+  const html = await (await get('/')).text();
+  assert.match(html, /href="\/server"/);
 });
 
 test('scan inexistant → 404', async () => {

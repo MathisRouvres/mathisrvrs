@@ -5,7 +5,7 @@
 FROM node:22-alpine
 RUN apk add --no-cache bash curl docker-cli
 WORKDIR /app
-COPY server.mjs scan.sh ./
+COPY server.mjs system.mjs scan.sh ./
 RUN chmod +x scan.sh
 ENV NODE_ENV=production
 EXPOSE 8300

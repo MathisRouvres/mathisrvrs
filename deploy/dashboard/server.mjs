@@ -3,12 +3,14 @@
 // connecté arrive dans X-Auth-User. Ce service ne gère ni mot de passe ni session.
 //
 // Portail : Stats et Poker (liens vers le site public) + Security (UI des rapports de scan.sh,
-// lus dans REPORTS_DIR, un sous-dossier <host>-<timestamp> par scan).
+// lus dans REPORTS_DIR, un sous-dossier <host>-<timestamp> par scan) + Serveur (usage du VPS,
+// voir system.mjs).
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
+import { hostSnapshot, dockerSnapshot, cpuNow, cpuHistory } from './system.mjs';
 
 const PORT = Number(process.env.PORT || 8300);
 const REPORTS_DIR = process.env.REPORTS_DIR || '/reports';
@@ -59,10 +61,22 @@ form.scan .chk{display:flex;gap:8px;align-items:center;font-size:.9rem;color:var
 form.scan button{font:inherit;font-weight:600;padding:10px 16px;border:0;border-radius:9px;background:var(--accent);color:#fff;cursor:pointer}
 @media (prefers-color-scheme:dark){form.scan button{color:#111}}
 form.scan button:hover{filter:brightness(1.08)}
-input:focus-visible,button:focus-visible,a:focus-visible{outline:3px solid var(--accent);outline-offset:2px}`;
+input:focus-visible,button:focus-visible,a:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+.tile{padding:14px 16px;border:1px solid var(--line);border-radius:14px;background:var(--card)}
+.tile h3{margin:0;font-size:.85rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.tile .big{font-size:1.3rem;font-weight:700;font-variant-numeric:tabular-nums;margin:4px 0}
+.tile .sub{color:var(--muted);font-size:.85rem;font-variant-numeric:tabular-nums}
+meter{display:block;width:100%;height:10px;margin:6px 0}
+.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.spark{display:block;width:100%;height:70px;border:1px solid var(--line);border-radius:10px;background:var(--card)}
+.spark polyline{fill:none;stroke:var(--accent);stroke-width:1.5;vector-effect:non-scaling-stroke}
+.spark line{stroke:var(--line);stroke-dasharray:3 3;vector-effect:non-scaling-stroke}
+.scroll{overflow-x:auto}`;
 const STYLE_HASH = crypto.createHash('sha256').update(STYLE).digest('base64');
 
-function page(res, status, title, body) {
+// refresh : rechargement automatique (secondes) via <meta>, la CSP interdit tout script.
+function page(res, status, title, body, { refresh } = {}) {
   res.writeHead(status, {
     'Content-Type': 'text/html; charset=utf-8',
     'Cache-Control': 'no-store',
@@ -70,7 +84,7 @@ function page(res, status, title, body) {
     'X-Content-Type-Options': 'nosniff',
     'Referrer-Policy': 'same-origin',
   });
-  res.end(`<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${escapeHtml(title)}</title><style>${STYLE}</style></head><body><main>${body}</main></body></html>`);
+  res.end(`<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">${refresh ? `<meta http-equiv="refresh" content="${Number(refresh)}">` : ''}<title>${escapeHtml(title)}</title><style>${STYLE}</style></head><body><main>${body}</main></body></html>`);
 }
 
 // Compte connecté transmis par le frontal (jamais forgeable : le frontal retire tout X-Auth-User
@@ -163,7 +177,118 @@ function homePage(res, req) {
 ${card(STATS_URL, 'Stats', "Statistiques d'usage du site")}
 ${card(PROSPECT_URL, 'Prospection', 'Dashboard de prospection B2B')}
 ${card('/security', 'Security', 'Rapports de scan de sécurité')}
+${card('/server', 'Serveur', 'CPU, mémoire, disque et conteneurs du VPS')}
 </div>`);
+}
+
+// --- Page Serveur (usage du VPS) ---
+const SERVER_REFRESH_S = 30;
+
+function fmtBytes(n) {
+  if (n == null || !Number.isFinite(n)) return '—';
+  const units = ['o', 'Ko', 'Mo', 'Go', 'To'];
+  let i = 0;
+  while (Math.abs(n) >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+  return `${n.toFixed(i === 0 || n >= 100 ? 0 : 1).replace('.', ',')} ${units[i]}`;
+}
+const fmtPct = (n) => (n == null || !Number.isFinite(n) ? '—' : `${n.toFixed(n < 10 ? 1 : 0).replace('.', ',')} %`);
+function fmtDuration(s) {
+  const d = Math.floor(s / 86400);
+  const h = Math.floor((s % 86400) / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  return d ? `${d} j ${h} h` : h ? `${h} h ${m} min` : `${m} min`;
+}
+// Jauge native (couleur selon seuils low/high), accessible sans CSS ni script.
+const meter = (pct, label) => pct == null ? '' :
+  `<meter min="0" max="100" low="70" high="90" optimum="0" value="${pct.toFixed(1)}" aria-label="${escapeHtml(label)}">${fmtPct(pct)}</meter>`;
+
+// Courbe 0–100 % sur la dernière heure (SVG inline, pas de script).
+function sparkline(points, label) {
+  const pts = points.filter((p) => p.v != null);
+  if (pts.length < 2) return `<div class="empty">Historique en cours de collecte (un point toutes les 5 s).</div>`;
+  const t0 = pts[0].t;
+  const span = Math.max(1, pts[pts.length - 1].t - t0);
+  const coords = pts.map((p) => `${(((p.t - t0) / span) * 600).toFixed(1)},${(60 - (p.v / 100) * 60).toFixed(1)}`).join(' ');
+  const max = Math.max(...pts.map((p) => p.v));
+  const avg = pts.reduce((n, p) => n + p.v, 0) / pts.length;
+  return `<svg class="spark" viewBox="0 0 600 60" preserveAspectRatio="none" role="img" aria-label="${escapeHtml(`${label} : moyenne ${fmtPct(avg)}, max ${fmtPct(max)}`)}"><line x1="0" y1="30" x2="600" y2="30"/><polyline points="${coords}"/></svg>
+<p class="sub">${escapeHtml(label)} — moyenne ${fmtPct(avg)}, pic ${fmtPct(max)}, depuis ${fmtDuration((Date.now() - t0) / 1000)}.</p>`;
+}
+
+async function serverPage(res, req) {
+  const host = hostSnapshot();
+  const cpu = cpuNow();
+  const docker = await dockerSnapshot();
+  const hist = cpuHistory();
+  const memPct = host.mem.total ? (host.mem.used / host.mem.total) * 100 : null;
+  const swapPct = host.mem.swapTotal ? (host.mem.swapUsed / host.mem.swapTotal) * 100 : null;
+  const d = host.disk;
+  const diskPct = d ? (d.used / (d.used + d.avail)) * 100 : null;
+  const inodePct = d?.inodes ? (d.inodesUsed / d.inodes) * 100 : null;
+  const loadPct = (host.load[0] / host.cores) * 100;
+  const h = docker.host;
+
+  const tile = (title, big, pct, sub) =>
+    `<section class="tile"><h3>${escapeHtml(title)}</h3><div class="big">${escapeHtml(big)}</div>${meter(pct, title)}<div class="sub">${sub}</div></section>`;
+  const tiles = `<div class="tiles">
+${tile('Processeur', cpu ? fmtPct(cpu.busy) : 'mesure…', cpu?.busy ?? null,
+    `${host.cores} cœur${host.cores > 1 ? 's' : ''}${cpu ? ` · iowait ${fmtPct(cpu.iowait)} · steal ${fmtPct(cpu.steal)}` : ''}`)}
+${tile('Charge', host.load.map((l) => l.toFixed(2).replace('.', ',')).join(' · '), Math.min(100, loadPct),
+    `1 / 5 / 15 min · ${fmtPct(loadPct)} des cœurs`)}
+${tile('Mémoire', `${fmtBytes(host.mem.used)} / ${fmtBytes(host.mem.total)}`, memPct,
+    `${fmtPct(memPct)} · cache ${fmtBytes(host.mem.cache)} · dispo ${fmtBytes(host.mem.available)}`)}
+${tile('Swap', host.mem.swapTotal ? `${fmtBytes(host.mem.swapUsed)} / ${fmtBytes(host.mem.swapTotal)}` : 'aucun', swapPct,
+    swapPct == null ? 'pas de swap configuré' : fmtPct(swapPct))}
+${d ? tile('Disque', `${fmtBytes(d.used)} / ${fmtBytes(d.total)}`, diskPct,
+    `${fmtPct(diskPct)} · libre ${fmtBytes(d.avail)} · inodes ${fmtPct(inodePct)}`) : tile('Disque', 'indisponible', null, '')}
+${tile('Système', fmtDuration(host.uptime), null,
+    `en ligne · ${host.procs ?? '—'} processus · noyau ${escapeHtml(h?.kernel || host.kernel)}`)}
+</div>`;
+
+  const history = `<h2>Dernière heure</h2>
+${sparkline(hist.map((p) => ({ t: p.t, v: p.cpu })), 'Processeur')}
+${sparkline(hist.map((p) => ({ t: p.t, v: p.mem })), 'Mémoire')}`;
+
+  const stateTag = (c) => {
+    const cls = c.state === 'running' ? (/unhealthy/.test(c.status) ? 'err' : /starting/.test(c.status) ? 'warn' : 'ok')
+      // exited (0) = tâche ponctuelle terminée normalement (migration, install…).
+      : c.state === 'exited' && /\(0\)/.test(c.status) ? ''
+      : c.state === 'exited' || c.state === 'dead' ? 'err' : 'warn';
+    return `<span class="tag ${cls}">${escapeHtml(c.state)}</span>`;
+  };
+  const containers = docker.containers
+    ? `<div class="scroll"><table><thead><tr><th>Conteneur</th><th>État</th><th class="num">CPU</th><th class="num">Mémoire</th><th class="num">Réseau ↓ / ↑</th></tr></thead><tbody>${
+      docker.containers.map((c) => `<tr>
+<td>${escapeHtml(c.name)}<br><span class="who">${escapeHtml(c.image)}</span></td>
+<td>${stateTag(c)}<br><span class="who">${escapeHtml(c.status)}</span></td>
+<td class="num">${c.usage ? fmtPct(c.usage.cpu) : '—'}</td>
+<td class="num">${c.usage ? fmtBytes(c.usage.mem) : '—'}</td>
+<td class="num">${c.usage ? `${fmtBytes(c.usage.rx)} / ${fmtBytes(c.usage.tx)}` : '—'}</td>
+</tr>`).join('')}</tbody></table></div>
+<p class="sub">CPU en % d'un cœur (100 % = un cœur plein). Réseau cumulé depuis le démarrage du conteneur.</p>`
+    : `<div class="empty">Docker inaccessible : ${escapeHtml(docker.error)}</div>`;
+
+  const df = docker.df;
+  const dfRow = (label, x, reclaim) => `<tr><td>${label}</td><td class="num">${x.count}</td><td class="num">${fmtBytes(x.size)}</td><td class="num">${reclaim == null ? '—' : fmtBytes(reclaim)}</td></tr>`;
+  const dockerDisk = df
+    ? `<div class="scroll"><table><thead><tr><th>Docker</th><th class="num">Nombre</th><th class="num">Taille</th><th class="num">Récupérable</th></tr></thead><tbody>
+${dfRow('Images', df.images, df.images.reclaimable)}
+${dfRow('Conteneurs (couche RW)', df.containers, null)}
+${dfRow('Volumes', df.volumes, null)}
+${dfRow('Cache de build', df.buildCache, df.buildCache.reclaimable)}
+</tbody></table></div><p class="sub">Calculé toutes les 10 min. « Récupérable » : images sans conteneur et cache de build inutilisé (<code>docker system prune</code>).</p>`
+    : '<div class="empty">Usage disque Docker indisponible.</div>';
+
+  const intro = [
+    h?.name, h?.os, h ? `Docker ${h.docker}` : '', host.cpuModel,
+    h ? `${h.running} conteneur(s) actif(s), ${h.stopped} arrêté(s), ${h.images} image(s)` : '',
+  ].filter(Boolean).map(escapeHtml).join(' · ');
+  const now = new Date().toLocaleTimeString('fr-FR', { timeZone: 'Europe/Paris' });
+
+  page(res, 200, 'Serveur', `<header><h1>Serveur</h1>${whoHtml(req)}</header>
+<a class="back" href="/">← Dashboard</a>
+<p>${intro}<br>Relevé à ${escapeHtml(now)}, actualisé toutes les ${SERVER_REFRESH_S} s.</p>
+${tiles}${history}<h2>Conteneurs</h2>${containers}<h2>Disque Docker</h2>${dockerDisk}`, { refresh: SERVER_REFRESH_S });
 }
 
 function securityListPage(res, req) {
@@ -311,6 +436,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method !== 'GET' && req.method !== 'HEAD') return notFound(res);
     if (p === '/') return homePage(res, req);
     if (p === '/security') return securityListPage(res, req);
+    if (p === '/server') return await serverPage(res, req);
     const raw = /^\/security\/([^/]+)\/raw\/([^/]+)$/.exec(p);
     if (raw) {
       const name = decodeURIComponent(raw[1]);

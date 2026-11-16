@@ -14,6 +14,7 @@ de passe ni session.
 | `POST /security/scan` | Lance un scan (champ URL + case d'autorisation). Même origine exigée. |
 | `/security/<scan>` | Rapport `report.md` rendu + liens vers fichiers bruts. |
 | `/security/<scan>/raw/<fichier>` | Fichier brut (rapport ZAP HTML, nuclei, testssl…). |
+| `/server` | Usage du VPS : CPU, charge, mémoire, swap, disque, historique 1 h, conteneurs, disque Docker. |
 | `/health` | État JSON. |
 
 ## Lancer un scan (depuis le web)
@@ -28,6 +29,17 @@ le socket Docker ; ils écrivent dans le volume nommé `dashboard-reports` (sous
 
 > Sécurité : le conteneur monte `/var/run/docker.sock` (privilège équivalent root sur l'hôte) et
 > tourne en root. Il n'est accessible que derrière le login de l'espace privé (`deploy/auth`).
+
+## Serveur (`/server`)
+
+Usage du VPS, page rechargée toutes les 30 s (`system.mjs`). Aucun montage en plus : les valeurs
+viennent de ce que le conteneur voit déjà.
+
+- CPU (dont iowait et steal), charge, mémoire, swap, uptime, processus : `/proc` de l'hôte (non
+  isolé par Docker). Historique CPU/RAM de la dernière heure gardé en mémoire (perdu au redémarrage).
+- Disque : `statfs('/')` du conteneur = système de fichiers qui porte Docker (disque principal).
+- Conteneurs (état, CPU, RAM, réseau), infos hôte, disque Docker (images, volumes, cache de build,
+  recalculé toutes les 10 min) : API Docker en lecture seule via le socket.
 
 ## Variables
 
@@ -50,7 +62,7 @@ node --test deploy/dashboard/test/*.test.mjs
 
 ```bash
 # Depuis ce dépôt
-scp deploy/dashboard/{Dockerfile,docker-compose.yml,server.mjs} deploy@185.226.172.52:/opt/dashboard/
+scp deploy/dashboard/{Dockerfile,docker-compose.yml,server.mjs,system.mjs} deploy@185.226.172.52:/opt/dashboard/
 scp security/scan.sh deploy@185.226.172.52:/opt/dashboard/scan.sh
 # Sur le serveur
 cd /opt/dashboard && docker compose up -d --build --wait
