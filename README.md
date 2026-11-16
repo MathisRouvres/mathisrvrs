@@ -14,6 +14,24 @@ npm run preview  # prévisualiser le build
 npm run lint
 ```
 
+## Docker (local)
+
+Sans Node sur la machine, via `Dockerfile` + `compose.yaml` (projet compose `mathisrvrs`, isolé
+des autres piles, ports liés à `127.0.0.1`). La production utilise `deploy/site`, pas ces fichiers.
+
+```bash
+docker compose up                                      # dev Vite + HMR → http://localhost:5173
+docker compose --profile preview up --build preview    # build prod (FrankenPHP) → http://localhost:8090
+docker compose down                                    # arrêt (ajouter -v pour vider node_modules)
+```
+
+- `.env.local` est créé depuis `.env.example` au premier lancement s'il n'existe pas.
+- `node_modules` vit dans un volume Docker (binaires Linux) ; `npm install` est relancé seul
+  quand `package-lock.json` change.
+- Preview : même `Caddyfile` que la prod, mais sans relais SMTP — `contact.php` valide le
+  formulaire et répond une erreur à l'envoi, aucun mail réel ne part.
+- Ports modifiables : `DEV_PORT=5174 docker compose up`, `PREVIEW_PORT=…`.
+
 ## Déploiement
 
 Chaque push sur `main` (`.github/workflows/deploy.yml`) : lint, typecheck, tests, build, puis

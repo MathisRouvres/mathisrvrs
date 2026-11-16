@@ -1,0 +1,19 @@
+.git
+.github
+.cursor
+node_modules
+dist
+dist-ssr
+test-results
+playwright-report
+blob-report
+.playwright
+*.log
+.DS_Store
+
+# Secrets / configuration locale : jamais dans l'image
+.env
+.env.local
+.env.*.local
+*.local
+deploy/**/.env

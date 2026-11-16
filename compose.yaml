@@ -1,0 +1,46 @@
+# Lancement LOCAL du projet, isolé des autres piles Docker (aucun réseau externe).
+#
+#   docker compose up                         # dev Vite + HMR → http://localhost:5173
+#   docker compose --profile preview up --build preview   # build prod → http://localhost:8090
+#
+# Production : deploy/site (ne pas utiliser ce fichier sur le VPS).
+name: mathisrvrs
+
+services:
+  dev:
+    build:
+      context: .
+      target: dev
+    image: mathisrvrs:dev
+    ports:
+      - "127.0.0.1:${DEV_PORT:-5173}:5173"
+    volumes:
+      - .:/app
+      # node_modules Linux, séparé de celui de l'hôte (macOS).
+      - node_modules:/app/node_modules
+    # .env.local créé depuis .env.example au premier lancement (ignoré par git) ;
+    # npm install relancé seulement si package-lock.json a changé depuis le dernier install.
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        [ -f .env.local ] || { cp .env.example .env.local; echo ".env.local créé depuis .env.example"; }
+        sha256sum -c --status node_modules/.lock-sha 2>/dev/null || {
+          echo "package-lock.json modifié : npm install"
+          npm install --no-audit --no-fund
+          sha256sum package-lock.json > node_modules/.lock-sha
+        }
+        exec npm run dev -- --host 0.0.0.0 --port 5173 --strictPort
+
+  preview:
+    profiles: [preview]
+    build:
+      context: .
+      target: preview
+    image: mathisrvrs:preview
+    ports:
+      - "127.0.0.1:${PREVIEW_PORT:-8090}:80"
+
+volumes:
+  node_modules:
