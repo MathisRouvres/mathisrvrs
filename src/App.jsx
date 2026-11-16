@@ -27,6 +27,7 @@ const PartyApp = named(() => import('./features/party'), 'PartyApp')
 const StatsApp = named(() => import('./features/stats'), 'StatsApp')
 const DispoApp = named(() => import('./features/dispo'), 'DispoApp')
 const PokerApp = named(() => import('./features/poker'), 'PokerApp')
+const MaisonApp = named(() => import('./features/maison'), 'MaisonApp')
 
 function normalizePathname(pathname) {
   if (!pathname || pathname === '/') return '/'
@@ -133,6 +134,16 @@ export default function App() {
     return (
       <LazyRoute>
         <PokerApp />
+      </LazyRoute>
+    )
+  }
+
+  // Calendrier des tâches maison (maison.mathis-rvrs.fr, derrière le login de l'espace privé).
+  // Pas de route sur mathis-rvrs.fr : son API (maison-api.php) ne répond que sur ce sous-domaine.
+  if (window.location.hostname.startsWith('maison.')) {
+    return (
+      <LazyRoute>
+        <MaisonApp />
       </LazyRoute>
     )
   }

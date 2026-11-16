@@ -1,5 +1,7 @@
 # mathis-rvrs.fr (pile /opt/site).
 mathis-rvrs.fr {
+	# Site public : jamais de compte de l'espace privé (maison-api.php le refuse déjà hors maison.*).
+	request_header -X-Auth-User
 	reverse_proxy site-web:80
 }
 

@@ -2,7 +2,7 @@
 
 Plusieurs comptes : identifiant + mot de passe + code TOTP, chacun limité à une liste d'hôtes
 (`*` = tous). Un compte limité à des hôtes listés peut se passer du TOTP (mot de passe seul) ; un
-compte avec `*` le garde toujours (refusé par `setup.mjs` et ignoré par le service). Le Caddy frontal protège `pma.`, `travaux.`, `arbitre.`, `job.` et `budget.mathis-rvrs.fr`
+compte avec `*` le garde toujours (refusé par `setup.mjs` et ignoré par le service). Le Caddy frontal protège `pma.`, `travaux.`, `arbitre.`, `job.`, `budget.` et `maison.mathis-rvrs.fr`
 par `forward_auth` (snippet `private`) : chaque requête passe par `GET /verify`, qui lit l'hôte
 demandé (`X-Forwarded-Host`) et répond :
 
@@ -14,7 +14,7 @@ demandé (`X-Forwarded-Host`) et répond :
 | Compte | Accès | TOTP |
 |---|---|---|
 | `mathis` | `*` (tous les sites) | obligatoire |
-| `couple` | `budget.mathis-rvrs.fr` (login partagé Mathis + Isis) | non (mot de passe seul) |
+| `couple` | `budget.mathis-rvrs.fr`, `maison.mathis-rvrs.fr` (login partagé Mathis + Isis) | non (mot de passe seul) |
 
 - Session de 30 jours, cookie `__Secure-mr_session` (domaine `mathis-rvrs.fr`, HttpOnly, Secure,
   SameSite=Lax), signé HMAC-SHA256, porte le compte (`u`) et son époque (`e`).

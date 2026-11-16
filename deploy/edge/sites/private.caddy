@@ -28,3 +28,10 @@ budget.mathis-rvrs.fr {
 	import private
 	reverse_proxy budget-web:5200
 }
+
+# Calendrier des tâches maison : SPA servie par site-web, routée vers MaisonApp selon le host
+# (src/App.jsx) ; son API (maison-api.php) exige l'en-tête X-Auth-User posé ici.
+maison.mathis-rvrs.fr {
+	import private
+	reverse_proxy site-web:80
+}

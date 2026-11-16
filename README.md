@@ -52,6 +52,30 @@ Sans compte, toute personne qui a le lien peut créer un profil (60 max) et modi
 quel calendrier. Supprimer un profil : `DELETE FROM dispo_people WHERE name = '…'` dans
 phpMyAdmin (les créneaux suivent).
 
+## Tâches maison (`maison.mathis-rvrs.fr`)
+
+Espace privé (connexion de `deploy/auth`, comptes `mathis` et `couple`, non indexé) : calendrier
+des tâches du foyer, vue semaine ou mois. Personnes avec photo (recadrée dans le navigateur) et
+couleur ; tâches ponctuelles ou répétées (tous les N jours / semaines avec jours choisis / mois /
+ans, date de fin facultative), à une ou plusieurs personnes, avec tour de rôle possible ; idées de
+tâches prêtes à ajouter ; cases « fait » (qui l'a fait), « sauter cette date », tâches oubliées des
+14 derniers jours dans « En retard », charge de la semaine par personne. Code : `src/features/maison/`
+(récurrences testées dans `recurrence.ts`).
+
+Données dans le MySQL du VPS (tables `maison_*` de la base de `DATABASE_URL`), via
+`public/maison-api.php` ; tables créées au premier appel. L'API ne répond que sur `maison.*` avec
+l'en-tête `X-Auth-User` posé par le Caddy frontal (`deploy/edge/sites/private.caddy`) : sur
+`mathis-rvrs.fr/maison-api.php` elle répond 403. Mise en service :
+
+1. DNS : enregistrement `maison` → IP du VPS (comme `budget`).
+2. Frontal : copier `deploy/edge/sites/private.caddy` et `mathis-rvrs.caddy` dans `/opt/edge/sites/`, puis
+   `docker compose -f /opt/edge/docker-compose.yml exec caddy caddy reload --config /etc/caddy/Caddyfile`.
+3. Site : `deploy/site/Caddyfile` dans `/opt/site`, puis `docker compose up -d --build` (le build de
+   `main` déploie `dist/` avec `maison-api.php`).
+4. Auth : `docker-compose.yml` dans `/opt/auth` (lien « Maison » de la page d'accueil), puis
+   `docker compose up -d` et `docker compose run --rm web node setup.mjs hosts couple
+   budget.mathis-rvrs.fr,maison.mathis-rvrs.fr`.
+
 ## Club de poker (`/poker`)
 
 Page privée (mot de passe, non indexée) : stats Winamax des joueurs du club depuis le 1er septembre —
