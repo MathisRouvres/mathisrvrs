@@ -130,23 +130,30 @@ export const cpuHistory = () => history.slice();
 
 // --- Docker (lecture seule, via le socket) ---
 
-function dockerGet(p, timeoutMs = 4_000) {
+// Requête brute à l'API Docker. Résout { status, body: Buffer } ; rejette sur erreur réseau ou délai.
+export function dockerRequest(method, p, { body, timeoutMs = 4_000 } = {}) {
   return new Promise((resolve, reject) => {
+    const payload = body === undefined ? null : Buffer.from(JSON.stringify(body));
+    const headers = { Host: 'docker', ...(payload ? { 'Content-Type': 'application/json', 'Content-Length': payload.length } : {}) };
     const req = http.request(
-      { socketPath: DOCKER_SOCKET, path: p, method: 'GET', headers: { Host: 'docker' }, timeout: timeoutMs },
+      { socketPath: DOCKER_SOCKET, path: p, method, headers, timeout: timeoutMs },
       (res) => {
         const chunks = [];
         res.on('data', (c) => chunks.push(c));
-        res.on('end', () => {
-          if (res.statusCode !== 200) return reject(new Error(`docker ${p} → ${res.statusCode}`));
-          try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf8'))); } catch (e) { reject(e); }
-        });
+        res.on('end', () => resolve({ status: res.statusCode, body: Buffer.concat(chunks) }));
       },
     );
     req.on('timeout', () => req.destroy(new Error(`docker ${p} → délai dépassé`)));
     req.on('error', reject);
-    req.end();
+    req.end(payload);
   });
+}
+
+// GET JSON (2xx exigé).
+export async function dockerGet(p, timeoutMs = 4_000) {
+  const { status, body } = await dockerRequest('GET', p, { timeoutMs });
+  if (status < 200 || status >= 300) throw new Error(`docker ${p} → ${status}`);
+  return JSON.parse(body.toString('utf8'));
 }
 
 let dfCache = null; // { at, data } une fois résolu, { at, promise } pendant le calcul
@@ -187,6 +194,7 @@ export async function dockerSnapshot() {
         : Promise.reject(new Error('arrêté'))));
     containers = list.value
       .map((c, i) => ({
+        id: c.Id,
         name: (c.Names?.[0] || c.Id.slice(0, 12)).replace(/^\//, ''),
         image: c.Image,
         state: c.State,

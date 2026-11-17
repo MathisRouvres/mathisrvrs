@@ -10,7 +10,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
-import { hostSnapshot, dockerSnapshot, cpuNow, cpuHistory } from './system.mjs';
+import { hostSnapshot, dockerSnapshot, dockerGet, cpuNow, cpuHistory } from './system.mjs';
+import {
+  UFW_LIMIT_HITS, validIp, isSelf, sshLimitList, sshLimitRemove, findContainer, containerLogs, containerAction, dockerPrune,
+} from './console.mjs';
 
 const PORT = Number(process.env.PORT || 8300);
 const REPORTS_DIR = process.env.REPORTS_DIR || '/reports';
@@ -72,7 +75,19 @@ meter{display:block;width:100%;height:10px;margin:6px 0}
 .spark{display:block;width:100%;height:70px;border:1px solid var(--line);border-radius:10px;background:var(--card)}
 .spark polyline{fill:none;stroke:var(--accent);stroke-width:1.5;vector-effect:non-scaling-stroke}
 .spark line{stroke:var(--line);stroke-dasharray:3 3;vector-effect:non-scaling-stroke}
-.scroll{overflow-x:auto}`;
+.scroll{overflow-x:auto}
+form.inline{display:inline}
+.btn{font:inherit;font-size:.85rem;font-weight:600;padding:5px 11px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--fg);cursor:pointer;text-decoration:none;display:inline-block}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+@media (prefers-color-scheme:dark){.btn.primary{color:#111}}
+.btn.danger{color:var(--err);border-color:var(--err)}
+.actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.flash{padding:10px 14px;border:1px solid var(--line);border-radius:10px;margin:0 0 16px;font-weight:600}
+.flash.ok{color:var(--ok);border-color:var(--ok)}.flash.err{color:var(--err);border-color:var(--err)}
+form.row{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+form.row input{font:inherit;flex:0 1 240px;padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:transparent;color:inherit}
+pre.logs{max-height:70vh;overflow:auto;margin:0;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;font:12px/1.45 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all}`;
 const STYLE_HASH = crypto.createHash('sha256').update(STYLE).digest('base64');
 
 // refresh : rechargement automatique (secondes) via <meta>, la CSP interdit tout script.
@@ -178,6 +193,7 @@ ${card(STATS_URL, 'Stats', "Statistiques d'usage du site")}
 ${card(PROSPECT_URL, 'Prospection', 'Dashboard de prospection B2B')}
 ${card('/security', 'Security', 'Rapports de scan de sécurité')}
 ${card('/server', 'Serveur', 'CPU, mémoire, disque et conteneurs du VPS')}
+${card('/console', 'Console', 'Débloquer SSH, logs et redémarrage des conteneurs, nettoyage')}
 </div>`);
 }
 
@@ -215,6 +231,15 @@ function sparkline(points, label) {
 <p class="sub">${escapeHtml(label)} — moyenne ${fmtPct(avg)}, pic ${fmtPct(max)}, depuis ${fmtDuration((Date.now() - t0) / 1000)}.</p>`;
 }
 
+// État d'un conteneur (c.state / c.status de l'API Docker).
+function stateTag(c) {
+  const cls = c.state === 'running' ? (/unhealthy/.test(c.status) ? 'err' : /starting/.test(c.status) ? 'warn' : 'ok')
+    // exited (0) = tâche ponctuelle terminée normalement (migration, install…).
+    : c.state === 'exited' && /\(0\)/.test(c.status) ? ''
+    : c.state === 'exited' || c.state === 'dead' ? 'err' : 'warn';
+  return `<span class="tag ${cls}">${escapeHtml(c.state)}</span>`;
+}
+
 async function serverPage(res, req) {
   const host = hostSnapshot();
   const cpu = cpuNow();
@@ -249,13 +274,6 @@ ${tile('Système', fmtDuration(host.uptime), null,
 ${sparkline(hist.map((p) => ({ t: p.t, v: p.cpu })), 'Processeur')}
 ${sparkline(hist.map((p) => ({ t: p.t, v: p.mem })), 'Mémoire')}`;
 
-  const stateTag = (c) => {
-    const cls = c.state === 'running' ? (/unhealthy/.test(c.status) ? 'err' : /starting/.test(c.status) ? 'warn' : 'ok')
-      // exited (0) = tâche ponctuelle terminée normalement (migration, install…).
-      : c.state === 'exited' && /\(0\)/.test(c.status) ? ''
-      : c.state === 'exited' || c.state === 'dead' ? 'err' : 'warn';
-    return `<span class="tag ${cls}">${escapeHtml(c.state)}</span>`;
-  };
   const containers = docker.containers
     ? `<div class="scroll"><table><thead><tr><th>Conteneur</th><th>État</th><th class="num">CPU</th><th class="num">Mémoire</th><th class="num">Réseau ↓ / ↑</th></tr></thead><tbody>${
       docker.containers.map((c) => `<tr>
@@ -289,6 +307,137 @@ ${dfRow('Cache de build', df.buildCache, df.buildCache.reclaimable)}
 <a class="back" href="/">← Dashboard</a>
 <p>${intro}<br>Relevé à ${escapeHtml(now)}, actualisé toutes les ${SERVER_REFRESH_S} s.</p>
 ${tiles}${history}<h2>Conteneurs</h2>${containers}<h2>Disque Docker</h2>${dockerDisk}`, { refresh: SERVER_REFRESH_S });
+}
+
+// --- Console : actions prédéfinies sur le VPS (voir console.mjs), pas de shell ---
+const CONSOLE_MSG = {
+  unban: (v) => `IP ${v} débloquée.`,
+  restart: (v) => `${v} redémarré.`,
+  start: (v) => `${v} démarré.`,
+  prune: (v) => `Nettoyage terminé : ${v} libérés.`,
+};
+
+// IP du visiteur : le Caddy frontal remplace X-Forwarded-For par l'IP réelle du client.
+const clientIp = (req) => validIp(String(req.headers['x-forwarded-for'] || '').split(',')[0].trim());
+
+const postButton = (action, fields, label, cls = '') =>
+  `<form class="inline" method="post" action="${action}">${Object.entries(fields)
+    .map(([k, v]) => `<input type="hidden" name="${k}" value="${escapeHtml(v)}">`).join('')}<button class="btn ${cls}" type="submit">${escapeHtml(label)}</button></form>`;
+
+async function consolePage(res, req, url) {
+  const ok = url.searchParams.get('ok');
+  const err = url.searchParams.get('err');
+  const v = url.searchParams.get('v') || '';
+  const flash = err ? `<div class="flash err" role="alert">Échec : ${escapeHtml(err)}</div>`
+    : CONSOLE_MSG[ok] ? `<div class="flash ok" role="status">${escapeHtml(CONSOLE_MSG[ok](v))}</div>` : '';
+  const [ssh, list] = await Promise.allSettled([sshLimitList(), dockerGet('/containers/json?all=1')]);
+
+  const me = clientIp(req);
+  let sshHtml;
+  if (ssh.status === 'fulfilled') {
+    const mine = ssh.value.find((e) => e.ip === me);
+    const risky = (n) => n >= UFW_LIMIT_HITS ? ' <span class="tag err">bloquée si récent</span>' : '';
+    const meLine = me
+      ? `<p>Ton IP : <code>${escapeHtml(me)}</code> — ${mine ? `${mine.hits} connexion(s) enregistrée(s)${risky(mine.hits)}` : 'absente de la liste, pas bloquée'}.</p>
+<div class="actions">${postButton('/console/unban', { ip: me }, 'Débloquer mon IP', 'primary')}</div>`
+      : '<p>IP du visiteur inconnue (accès hors frontal).</p>';
+    const rows = ssh.value.slice(0, 25).map((e) => `<tr><td><code>${escapeHtml(e.ip)}</code>${e.ip === me ? ' <span class="tag">toi</span>' : ''}</td>
+<td class="num">${e.hits}${risky(e.hits)}</td><td>${postButton('/console/unban', { ip: e.ip }, 'Retirer')}</td></tr>`).join('');
+    sshHtml = `${meLine}
+<form class="row" method="post" action="/console/unban"><label class="who" for="ip">Autre IP</label><input id="ip" name="ip" required inputmode="decimal" autocomplete="off" spellcheck="false" placeholder="203.0.113.7"><button class="btn" type="submit">Débloquer</button></form>
+${rows ? `<div class="scroll"><table><thead><tr><th>IP (plus récentes d'abord, 25 max)</th><th class="num">Connexions</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : '<div class="empty">Liste vide.</div>'}
+<p class="sub">${ssh.value.length} IP suivie(s). La plupart sont des robots qui scannent le port 22.</p>`;
+  } else {
+    sshHtml = `<div class="empty">Liste du pare-feu indisponible : ${escapeHtml(ssh.reason?.message || ssh.reason)}</div>`;
+  }
+
+  let ctHtml;
+  if (list.status === 'fulfilled') {
+    const rows = list.value
+      .map((c) => ({ id: c.Id, name: (c.Names?.[0] || c.Id.slice(0, 12)).replace(/^\//, ''), image: c.Image, state: c.State, status: c.Status }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((c) => {
+        const act = isSelf(c.id) ? '<span class="who">ce dashboard</span>'
+          : c.state === 'running' ? postButton('/console/restart', { name: c.name }, 'Redémarrer')
+          : postButton('/console/start', { name: c.name }, 'Démarrer');
+        return `<tr><td>${escapeHtml(c.name)}<br><span class="who">${escapeHtml(c.image)}</span></td>
+<td>${stateTag(c)}<br><span class="who">${escapeHtml(c.status)}</span></td>
+<td><div class="actions"><a class="btn" href="/console/logs/${encodeURIComponent(c.name)}">Logs</a>${act}</div></td></tr>`;
+      }).join('');
+    ctHtml = `<div class="scroll"><table><thead><tr><th>Conteneur</th><th>État</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  } else {
+    ctHtml = `<div class="empty">Docker inaccessible : ${escapeHtml(list.reason?.message || list.reason)}</div>`;
+  }
+
+  page(res, 200, 'Console', `<header><h1>Console</h1>${whoHtml(req)}</header>
+<a class="back" href="/">← Dashboard</a>
+<p>Actions prédéfinies sur le VPS, sans shell. Chaque action est journalisée avec le compte connecté.</p>
+${flash}
+<h2>Pare-feu SSH</h2>
+<p>UFW bloque une IP qui ouvre ${UFW_LIMIT_HITS} connexions SSH ou plus en 30 s, et chaque nouvel essai prolonge le blocage. Retirer une IP de la liste la débloque aussitôt.</p>
+${sshHtml}
+<h2>Conteneurs</h2>${ctHtml}
+<h2>Nettoyage Docker</h2>
+<p>Supprime les images sans tag (anciennes versions remplacées par un rebuild) et le cache de build inutilisé.</p>
+<div class="actions"><a class="btn" href="/console/prune">Nettoyer…</a> <a href="/server">Voir l'usage disque</a></div>`);
+}
+
+function prunePage(res, req) {
+  page(res, 200, 'Nettoyage Docker', `<header><h1>Nettoyage Docker</h1>${whoHtml(req)}</header>
+<a class="back" href="/console">← Console</a>
+<p>Supprime définitivement les images sans tag et le cache de build inutilisé. Les images utilisées par un conteneur et les volumes (données) ne sont pas touchés. Le prochain build d'une pile sera plus long (cache vidé).</p>
+<div class="actions">${postButton('/console/prune', {}, 'Confirmer le nettoyage', 'danger')} <a class="btn" href="/console">Annuler</a></div>`);
+}
+
+async function logsPage(res, req, name) {
+  let c;
+  try { c = await findContainer(name); } catch (e) {
+    return page(res, 502, 'Logs', `<h1>Docker inaccessible</h1><p>${escapeHtml(e.message)}</p><a class="back" href="/console">← Console</a>`);
+  }
+  if (!c) return page(res, 404, 'Logs', '<h1>Conteneur introuvable</h1><a class="back" href="/console">← Console</a>');
+  let text;
+  try { text = await containerLogs(c.id); } catch (e) { text = `Logs indisponibles : ${e.message}`; }
+  page(res, 200, `Logs ${c.name}`, `<header><h1>Logs : ${escapeHtml(c.name)}</h1>${whoHtml(req)}</header>
+<a class="back" href="/console">← Console</a>
+<p>300 dernières lignes, les plus récentes en bas. <a href="/console/logs/${encodeURIComponent(c.name)}">Actualiser</a></p>
+<pre class="logs">${escapeHtml(text.trim() || '(aucune ligne)')}</pre>`);
+}
+
+// POST /console/* : même origine exigée (anti-CSRF, en plus du login amont), puis redirection vers
+// /console avec un message (PRG).
+async function handleConsolePost(req, res, p) {
+  if (!sameOrigin(req)) return page(res, 403, 'Refusé', '<h1>Requête refusée</h1>');
+  let form;
+  try { form = await readForm(req); } catch { return page(res, 413, 'Refusé', '<h1>Requête refusée</h1>'); }
+  const user = String(req.headers['x-auth-user'] || '?');
+  const back = (q) => redirect(res, `/console?${new URLSearchParams(q)}`, 303);
+  try {
+    if (p === '/console/unban') {
+      const ip = validIp((form.get('ip') || '').trim());
+      if (!ip) throw new Error('IP invalide');
+      await sshLimitRemove(ip);
+      log(`console: déblocage SSH ip=${ip} user=${user}`);
+      return back({ ok: 'unban', v: ip });
+    }
+    if (p === '/console/restart' || p === '/console/start') {
+      const action = p.slice('/console/'.length);
+      const c = await findContainer(form.get('name') || '');
+      if (!c) throw new Error('conteneur introuvable');
+      if (c.self) throw new Error('le dashboard ne se redémarre pas depuis lui-même');
+      await containerAction(c.id, action);
+      log(`console: ${action} conteneur=${c.name} user=${user}`);
+      return back({ ok: action, v: c.name });
+    }
+    if (p === '/console/prune') {
+      const r = await dockerPrune();
+      log(`console: nettoyage images=${r.images} octets=${r.bytes} user=${user}`);
+      return back({ ok: 'prune', v: `${fmtBytes(r.bytes)} (${r.images} image(s))` });
+    }
+  } catch (e) {
+    log(`console: échec ${p} user=${user}`, e.message);
+    return back({ err: e.message });
+  }
+  notFound(res);
 }
 
 function securityListPage(res, req) {
@@ -433,10 +582,15 @@ const server = http.createServer(async (req, res) => {
       return res.end(JSON.stringify({ ok: true, scans: listScans().length }));
     }
     if (req.method === 'POST' && p === '/security/scan') return await handleScan(req, res);
+    if (req.method === 'POST' && p.startsWith('/console/')) return await handleConsolePost(req, res, p);
     if (req.method !== 'GET' && req.method !== 'HEAD') return notFound(res);
     if (p === '/') return homePage(res, req);
     if (p === '/security') return securityListPage(res, req);
     if (p === '/server') return await serverPage(res, req);
+    if (p === '/console') return await consolePage(res, req, url);
+    if (p === '/console/prune') return prunePage(res, req);
+    const logs = /^\/console\/logs\/([^/]+)$/.exec(p);
+    if (logs) return await logsPage(res, req, decodeURIComponent(logs[1]));
     const raw = /^\/security\/([^/]+)\/raw\/([^/]+)$/.exec(p);
     if (raw) {
       const name = decodeURIComponent(raw[1]);

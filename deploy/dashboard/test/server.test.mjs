@@ -97,6 +97,57 @@ test('portail affiche la carte Serveur', async () => {
   assert.match(html, /href="\/server"/);
 });
 
+test('console : page rendue, Docker absent géré', async () => {
+  const res = await get('/console', { 'X-Forwarded-For': '203.0.113.7' });
+  assert.equal(res.status, 200);
+  const html = await res.text();
+  assert.match(html, /<h1>Console<\/h1>/);
+  assert.match(html, /Liste du pare-feu indisponible/);
+  assert.match(html, /Docker inaccessible/);
+  assert.doesNotMatch(html, /http-equiv="refresh"/);
+});
+
+test('console : message après action, échappé', async () => {
+  const html = await (await get('/console?err=%3Cscript%3Ex')).text();
+  assert.match(html, /Échec : &lt;script&gt;x/);
+  assert.doesNotMatch(html, /<script>x/);
+});
+
+const postConsole = (p, body, origin = `http://127.0.0.1:${PORT}`) =>
+  fetch(`http://127.0.0.1:${PORT}${p}`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...(origin ? { Origin: origin } : {}) },
+    body,
+  });
+
+test('console : POST refusé si origine étrangère (CSRF)', async () => {
+  for (const p of ['/console/unban', '/console/restart', '/console/start', '/console/prune']) {
+    const res = await postConsole(p, 'ip=203.0.113.7&name=x', 'https://evil.test');
+    assert.equal(res.status, 403, p);
+  }
+});
+
+test('console : IP invalide refusée sans action', async () => {
+  const res = await postConsole('/console/unban', 'ip=1.2.3.4%3B%20rm%20-rf%20%2F');
+  assert.equal(res.status, 303);
+  assert.match(res.headers.get('location'), /^\/console\?err=IP\+invalide$/);
+});
+
+test('console : action inconnue → 404, confirmation de nettoyage rendue', async () => {
+  assert.equal((await postConsole('/console/shell', 'cmd=id')).status, 404);
+  const html = await (await get('/console/prune')).text();
+  assert.match(html, /action="\/console\/prune"/);
+});
+
+test('console : logs avec Docker absent → 502', async () => {
+  assert.equal((await get('/console/logs/site-web-1')).status, 502);
+});
+
+test('portail affiche la carte Console', async () => {
+  assert.match(await (await get('/')).text(), /href="\/console"/);
+});
+
 test('scan inexistant → 404', async () => {
   const res = await get('/security/pas-un-scan');
   assert.equal(res.status, 404);
