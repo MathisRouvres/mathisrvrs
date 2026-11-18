@@ -12,8 +12,12 @@ import {
   occurrenceDates,
   todayKey,
 } from './recurrence'
+import { formatTime } from './schedule'
 import { focusRing, primaryButton, secondaryButton } from '../dispo/ui'
 import { FormError, Modal, PersonAvatar, dangerButton, input, label } from './ui'
+
+/** Plus grand intervalle : 99 périodes, ou 365 jours « après la dernière fois ». */
+const maxEvery = (repeat) => (repeat === 'after' ? 365 : 99)
 
 const REPEAT_OPTIONS = [
   { value: 'none', label: 'Une fois' },
@@ -23,12 +27,15 @@ const REPEAT_OPTIONS = [
   { value: 'yearly', label: 'Ans' },
 ]
 const EVERY_UNIT = { daily: ['jour', 'jours'], weekly: ['semaine', 'semaines'], monthly: ['mois', 'mois'], yearly: ['an', 'ans'] }
+/** Le bouton « Jours » couvre les deux façons de compter : calendrier (daily) ou après la dernière fois (after). */
+const radioOf = (repeat) => (repeat === 'after' ? 'daily' : repeat)
 
-function emptyForm(start, assignee) {
+function emptyForm(start, assignee, time) {
   return {
     title: '',
     category: 'menage',
     start,
+    time: time ?? '',
     repeat: 'none',
     every: 1,
     weekdays: [],
@@ -41,30 +48,48 @@ function emptyForm(start, assignee) {
 }
 
 function formOf(task) {
-  return { ...task, until: task.until ?? '', duration: task.duration ?? '' }
+  return { ...task, time: task.time ?? '', until: task.until ?? '', duration: task.duration ?? '' }
 }
 
 /**
- * Création ou modification d'une tâche. `occurrenceDate` (tâche répétée ouverte depuis le
- * calendrier) permet de sauter seulement cette date-là. Les modifications valent pour toute la série.
+ * Création ou modification d'une tâche. `occurrence` (tâche ouverte depuis le calendrier) permet de
+ * sauter ou de déplacer seulement cette date-là (jour et heure). Les modifications valent pour toute
+ * la série. `busyWith` : prénoms des personnes chargées qui travaillent à ce moment-là.
  */
-export default function TaskDialog({ task, defaultStart, defaultAssignee, occurrenceDate, people, onClose, onSaved, onDeleted, onSkip }) {
+export default function TaskDialog({
+  task,
+  defaultStart,
+  defaultTime,
+  defaultAssignee,
+  occurrence,
+  today,
+  people,
+  busyWith = [],
+  onClose,
+  onSaved,
+  onDeleted,
+  onSkip,
+  onMove,
+}) {
   const id = useId()
-  const [form, setForm] = useState(() => (task ? formOf(task) : emptyForm(defaultStart, defaultAssignee)))
+  const [form, setForm] = useState(() => (task ? formOf(task) : emptyForm(defaultStart, defaultAssignee, defaultTime)))
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [ideaCategory, setIdeaCategory] = useState('all')
+  const [moveTo, setMoveTo] = useState(() => (occurrence ? addDays(occurrence.date < today ? today : occurrence.date, 1) : ''))
+  const [moveTime, setMoveTime] = useState(() => occurrence?.time ?? '')
   const set = (patch) => setForm((f) => ({ ...f, ...patch }))
 
   const peopleById = useMemo(() => new Map(people.map((p) => [p.id, p])), [people])
   const recurring = form.repeat !== 'none'
-  const every = Math.min(99, Math.max(1, Number(form.every) || 1))
+  const every = Math.min(maxEvery(form.repeat), Math.max(1, Number(form.every) || 1))
   const ruleForPreview = { ...form, every, until: form.until || null }
 
   // Prochaine personne du tour de rôle (à partir d'aujourd'hui).
   const nextTurn = useMemo(() => {
-    if (!form.rotate || !recurring || form.assignees.length < 2) return null
+    // « Après la dernière fois » : dépend des coches, pas d'aperçu.
+    if (!form.rotate || !recurring || form.repeat === 'after' || form.assignees.length < 2) return null
     const today = todayKey()
     const draft = { ...form, every, until: form.until || null, duration: null, id: '' }
     const next = occurrenceDates(draft, today, addDays(today, 400))[0]
@@ -116,6 +141,7 @@ export default function TaskDialog({ task, defaultStart, defaultAssignee, occurr
         notes: form.notes.trim(),
         category: form.category,
         start: form.start,
+        time: form.time || null,
         repeat: form.repeat,
         every: recurring ? every : 1,
         weekdays: form.repeat === 'weekly' ? form.weekdays : [],
@@ -228,7 +254,7 @@ export default function TaskDialog({ task, defaultStart, defaultAssignee, occurr
           </div>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-[1fr_9rem_1fr]">
           <div>
             <label htmlFor={`${id}-start`} className={label}>
               {recurring ? 'À partir du' : 'Date'}
@@ -241,6 +267,31 @@ export default function TaskDialog({ task, defaultStart, defaultAssignee, occurr
               required
               className={`${input} mt-1.5`}
             />
+          </div>
+          <div>
+            <label htmlFor={`${id}-time`} className={label}>
+              Heure <span className="font-normal text-[var(--text-muted)]">(facultatif)</span>
+            </label>
+            <div className="mt-1.5 flex items-center gap-1">
+              <input
+                id={`${id}-time`}
+                type="time"
+                step={300}
+                value={form.time}
+                onChange={(event) => set({ time: event.target.value })}
+                className={`${input} min-w-0`}
+              />
+              {form.time && (
+                <button
+                  type="button"
+                  onClick={() => set({ time: '' })}
+                  aria-label="Retirer l’heure"
+                  className={`inline-flex h-10 w-8 shrink-0 items-center justify-center rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] ${focusRing}`}
+                >
+                  ×
+                </button>
+              )}
+            </div>
           </div>
           <div>
             <label htmlFor={`${id}-duration`} className={label}>
@@ -269,7 +320,7 @@ export default function TaskDialog({ task, defaultStart, defaultAssignee, occurr
                   type="number"
                   inputMode="numeric"
                   min={1}
-                  max={99}
+                  max={maxEvery(form.repeat)}
                   value={form.every}
                   onChange={(event) => set({ every: event.target.value })}
                   aria-label="Intervalle"
@@ -282,15 +333,18 @@ export default function TaskDialog({ task, defaultStart, defaultAssignee, occurr
                 const unit = EVERY_UNIT[option.value]
                 const raw = unit ? unit[every > 1 ? 1 : 0] : option.label
                 const text = raw[0].toUpperCase() + raw.slice(1)
+                const checked = radioOf(form.repeat) === option.value
                 return (
                   <button
                     key={option.value}
                     type="button"
                     role="radio"
-                    aria-checked={form.repeat === option.value}
-                    onClick={() => set({ repeat: option.value })}
+                    aria-checked={checked}
+                    onClick={() => {
+                      if (!checked) set({ repeat: option.value, every: Math.min(Number(form.every) || 1, maxEvery(option.value)) })
+                    }}
                     className={`min-h-9 rounded-lg px-3 text-sm font-medium transition ${focusRing} ${
-                      form.repeat === option.value
+                      checked
                         ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)] shadow'
                         : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                     }`}
@@ -301,6 +355,25 @@ export default function TaskDialog({ task, defaultStart, defaultAssignee, occurr
               })}
             </div>
           </div>
+
+          {(form.repeat === 'daily' || form.repeat === 'after') && (
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={form.repeat === 'after'}
+                onChange={(event) =>
+                  set({ repeat: event.target.checked ? 'after' : 'daily', every: event.target.checked ? every : Math.min(every, 99) })
+                }
+                className={`mt-0.5 h-4 w-4 accent-[var(--accent)] ${focusRing}`}
+              />
+              <span>
+                Compter à partir du jour où c’est fait
+                <span className="block text-[var(--text-muted)]">
+                  Ex. draps : 14 jours après le dernier changement, même s’il a pris du retard.
+                </span>
+              </span>
+            </label>
+          )}
 
           {form.repeat === 'weekly' && (
             <div className="flex flex-wrap gap-1.5" role="group" aria-label="Jours de la semaine">
@@ -418,6 +491,63 @@ export default function TaskDialog({ task, defaultStart, defaultAssignee, occurr
           />
         </div>
 
+        {busyWith.length > 0 && (
+          <p className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
+            ⚠️ Prévue pendant le travail de {busyWith.join(' et ')} : déplace-la ou confie-la à quelqu’un d’autre.
+          </p>
+        )}
+
+        {task && occurrence && !occurrence.mark && (
+          <fieldset className="rounded-xl border border-[var(--border-color)] bg-[var(--bg-primary)] p-3">
+            <legend className={`${label} px-1`}>Déplacer {task.repeat === 'none' ? 'la tâche' : 'cette date seulement'}</legend>
+            {task.repeat !== 'none' && (occurrence.date !== occurrence.origin || occurrence.time !== task.time) && (
+              <p className="mb-2 text-sm text-[var(--text-secondary)]">
+                Déjà déplacée : prévue le {formatDay(occurrence.origin, { weekday: 'long', day: 'numeric', month: 'long' })}
+                {task.time ? ` à ${formatTime(task.time)}` : ''}.{' '}
+                <button
+                  type="button"
+                  onClick={() => onMove(occurrence, occurrence.origin, task.time)}
+                  disabled={busy}
+                  className={`rounded underline ${focusRing}`}
+                >
+                  La remettre comme prévu
+                </button>
+              </p>
+            )}
+            <div className="flex flex-wrap items-center gap-2">
+              <label htmlFor={`${id}-move`} className="sr-only">
+                Nouvelle date
+              </label>
+              <input
+                id={`${id}-move`}
+                type="date"
+                value={moveTo}
+                onChange={(event) => setMoveTo(event.target.value)}
+                className={`${input} w-auto py-2`}
+              />
+              <label htmlFor={`${id}-move-time`} className="sr-only">
+                Nouvelle heure
+              </label>
+              <input
+                id={`${id}-move-time`}
+                type="time"
+                step={300}
+                value={moveTime}
+                onChange={(event) => setMoveTime(event.target.value)}
+                className={`${input} w-auto py-2`}
+              />
+              <button
+                type="button"
+                onClick={() => onMove(occurrence, moveTo, moveTime || null)}
+                disabled={busy || !moveTo || (moveTo === occurrence.date && (moveTime || null) === occurrence.time)}
+                className={secondaryButton}
+              >
+                Déplacer
+              </button>
+            </div>
+          </fieldset>
+        )}
+
         <FormError id={`${id}-error`}>{error}</FormError>
 
         <div className="flex flex-wrap gap-3">
@@ -427,9 +557,9 @@ export default function TaskDialog({ task, defaultStart, defaultAssignee, occurr
           <button type="button" onClick={onClose} disabled={busy} className={secondaryButton}>
             Annuler
           </button>
-          {task && occurrenceDate && task.repeat !== 'none' && (
-            <button type="button" onClick={() => onSkip(task, occurrenceDate)} disabled={busy} className={secondaryButton}>
-              Sauter le {formatDay(occurrenceDate, { day: 'numeric', month: 'short' })}
+          {task && occurrence && !occurrence.mark && task.repeat !== 'none' && (
+            <button type="button" onClick={() => onSkip(occurrence)} disabled={busy} className={secondaryButton}>
+              Sauter le {formatDay(occurrence.date, { day: 'numeric', month: 'short' })}
             </button>
           )}
           {task &&

@@ -55,12 +55,24 @@ phpMyAdmin (les créneaux suivent).
 ## Tâches maison (`maison.mathis-rvrs.fr`)
 
 Espace privé (connexion de `deploy/auth`, comptes `mathis` et `couple`, non indexé) : calendrier
-des tâches du foyer, vue semaine ou mois. Personnes avec photo (recadrée dans le navigateur) et
-couleur ; tâches ponctuelles ou répétées (tous les N jours / semaines avec jours choisis / mois /
-ans, date de fin facultative), à une ou plusieurs personnes, avec tour de rôle possible ; idées de
-tâches prêtes à ajouter ; cases « fait » (qui l'a fait), « sauter cette date », tâches oubliées des
-14 derniers jours dans « En retard », charge de la semaine par personne. Code : `src/features/maison/`
-(récurrences testées dans `recurrence.ts`).
+des tâches du foyer, vue jour (par défaut sur téléphone : grosses cases, « Demain » pour reporter
+d'un geste), semaine ou mois. Personnes avec photo (recadrée dans le navigateur) et couleur ;
+chaque compte peut se lier à sa personne (« C'est moi ») : le calendrier s'ouvre sur ses tâches et
+ses coches sont à son nom. Tâches ponctuelles ou répétées (tous les N jours / semaines avec jours
+choisis / mois / ans, ou N jours après la dernière fois où c'est fait ; date de fin facultative), à
+une ou plusieurs personnes, avec tour de rôle possible ; idées de tâches prêtes à ajouter ; cases
+« fait » (qui l'a fait), « sauter » ou « reporter » une seule date, tâches oubliées des 14 derniers
+jours dans « En retard » (sans limite pour « après la dernière fois »), charge de la semaine par
+personne. Code : `src/features/maison/` (récurrences et reports testés dans `recurrence.ts`).
+
+Heures : une tâche peut avoir une heure habituelle ; les vues jour et semaine sont des frises
+horaires (`TimeGrid.jsx`) où l'on glisse-dépose une tâche par sa poignée ⠿ (souris ou doigt ;
+flèches du clavier : ±15 min, ±1 jour) vers une autre heure, un autre jour ou « Sans heure ». Pour
+une tâche répétée, seule cette date bouge. Horaires de travail (« 💼 Horaires ») : saisie semaine
+par semaine (répétable sur plusieurs semaines) ou import d'un planning collé en texte ; ils
+s'affichent en fond de la frise et une tâche prévue pendant le travail d'une personne chargée est
+signalée ⚠️. Photo de planning : l'envoyer dans Claude Code (« lis le planning d'Isis », skill
+`.claude/skills/planning-maison`) qui rend le texte à coller ; aucune clé API côté serveur.
 
 Données dans le MySQL du VPS (tables `maison_*` de la base de `DATABASE_URL`), via
 `public/maison-api.php` ; tables créées au premier appel. L'API ne répond que sur `maison.*` avec

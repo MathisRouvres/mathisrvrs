@@ -3,7 +3,8 @@
  * site. L'API ne répond que sur maison.mathis-rvrs.fr, derrière la connexion de l'espace privé.
  * En dev, `VITE_MAISON_ENDPOINT` peut viser un autre serveur.
  */
-import type { Mark, Task } from './recurrence'
+import type { Chain, Mark, Move, Task } from './recurrence'
+import type { Shift } from './schedule'
 
 export interface Person {
   id: string
@@ -11,12 +12,20 @@ export interface Person {
   /** Couleur « #rrggbb ». */
   color: string
   avatar: string | null
+  /** Compte de connexion lié à cette personne (« C'est moi »), ou null. */
+  account?: string | null
 }
 
 export interface MaisonState {
+  /** Compte connecté et la personne qui lui est liée. */
+  me: { account: string; personId: string | null }
   people: Person[]
   tasks: Task[]
   marks: Mark[]
+  moves: Move[]
+  chains: Chain[]
+  /** Horaires de travail de la période (et de la veille : horaires de nuit). */
+  shifts: Shift[]
 }
 
 /** Champs envoyés pour créer (sans id) ou modifier (avec id) une tâche. */
@@ -58,10 +67,18 @@ async function call<T>(action: string, init: { query?: Record<string, string>; b
   throw new MaisonError(kind, data?.message || `Le serveur a répondu ${response.status}.`)
 }
 
-/** Personnes, tâches et marques (fait / sauté) des dates `from` à `to` incluses. */
+/** Personnes, tâches, marques (fait / sauté) et reports des dates `from` à `to` incluses. */
 export async function loadState(from: string, to: string, signal?: AbortSignal): Promise<MaisonState> {
   const data = await call<Partial<MaisonState>>('state', { query: { from, to }, signal })
-  return { people: data.people ?? [], tasks: data.tasks ?? [], marks: data.marks ?? [] }
+  return {
+    me: data.me ?? { account: '', personId: null },
+    people: data.people ?? [],
+    tasks: data.tasks ?? [],
+    marks: data.marks ?? [],
+    moves: data.moves ?? [],
+    chains: data.chains ?? [],
+    shifts: data.shifts ?? [],
+  }
 }
 
 export async function savePerson(person: Omit<Person, 'id'> & { id?: string }): Promise<Person> {
@@ -72,6 +89,11 @@ export async function deletePerson(id: string): Promise<void> {
   await call('person-delete', { body: { id } })
 }
 
+/** Lie le compte connecté à cette personne (null : le délie). */
+export async function setMe(personId: string | null): Promise<void> {
+  await call('me', { body: { personId } })
+}
+
 export async function saveTask(task: TaskInput): Promise<Task> {
   return (await call<{ task: Task }>('task', { body: task })).task
 }
@@ -80,7 +102,31 @@ export async function deleteTask(id: string): Promise<void> {
   await call('task-delete', { body: { id } })
 }
 
-/** Marque une occurrence faite ou sautée ; `status: null` la remet à faire. */
-export async function setMark(taskId: string, date: string, status: Mark['status'] | null, personId: string | null): Promise<void> {
-  await call('mark', { body: { taskId, date, status, personId } })
+/** Marque une occurrence (date prévue `date`) faite ou sautée le jour `doneOn` ; `status: null` la remet à faire. */
+export async function setMark(
+  taskId: string,
+  date: string,
+  status: Mark['status'] | null,
+  personId: string | null,
+  doneOn: string,
+): Promise<void> {
+  await call('mark', { body: { taskId, date, status, personId, doneOn } })
+}
+
+/**
+ * Déplace la date prévue `date` au jour `to`, à l'heure `at` (« HH:MM » ; null : heure de la tâche).
+ * `to: null` lui rend sa date et son heure prévues.
+ */
+export async function setMove(taskId: string, date: string, to: string | null, at: string | null = null): Promise<void> {
+  await call('move', { body: { taskId, date, to, at } })
+}
+
+/** Remplace les horaires de travail de `personId` du jour `from` au jour `to` inclus. */
+export async function saveShifts(
+  personId: string,
+  from: string,
+  to: string,
+  shifts: Array<{ day: string; start: string; end: string }>,
+): Promise<void> {
+  await call('shifts', { body: { personId, from, to, shifts } })
 }

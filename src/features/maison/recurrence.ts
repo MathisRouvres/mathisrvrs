@@ -4,10 +4,12 @@
  * Une date est une clé locale « AAAA-MM-JJ » (jour du calendrier, pas un instant) ; les calculs
  * passent par un numéro de jour (jours depuis le 1970-01-01, en UTC) pour ignorer les heures d'été.
  * Les occurrences d'une tâche répétée sont déroulées ici, dans le navigateur : la base ne stocke que
- * la règle et, par date, ce qui a été fait ou sauté (`Mark`).
+ * la règle et, par date prévue, ce qui a été fait ou sauté (`Mark`) et les reports (`Move`).
+ * Une tâche `after` revient `every` jours après la dernière fois : sa prochaine date dépend de sa
+ * dernière marque (`Chain`), pas du calendrier.
  */
 
-export type Repeat = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly'
+export type Repeat = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'after'
 
 export interface Task {
   id: string
@@ -16,8 +18,10 @@ export interface Task {
   category: string
   /** Première date (AAAA-MM-JJ). */
   start: string
+  /** Heure prévue « HH:MM », ou null (dans la journée, sans heure). */
+  time: string | null
   repeat: Repeat
-  /** Tous les N jours / semaines / mois / ans (1 = chaque). */
+  /** Tous les N jours / semaines / mois / ans (1 = chaque) ; `after` : N jours après la dernière fois. */
   every: number
   /** Jours ISO (1 = lundi … 7 = dimanche) pour une tâche hebdomadaire ; vide = jour de `start`. */
   weekdays: number[]
@@ -37,12 +41,35 @@ export interface Mark {
   status: 'done' | 'skipped'
   /** Qui l'a faite (status done), ou null. */
   personId: string | null
+  /** Jour où elle a été cochée (AAAA-MM-JJ). */
+  doneOn?: string | null
+}
+
+/** Date prévue `date` d'une tâche déplacée au jour `to`, à l'heure `at` (null : heure de la tâche). */
+export interface Move {
+  taskId: string
+  date: string
+  to: string
+  at?: string | null
+}
+
+/** Tâche `after` : sa dernière marque (date prévue, jour coché) et le nombre de ses marques. */
+export interface Chain {
+  taskId: string
+  date: string
+  doneOn: string | null
+  count: number
 }
 
 export interface Occurrence {
   task: Task
+  /** Date affichée : la date prévue, ou celle du report. */
   date: string
-  /** Rang de l'occurrence depuis `start` (0 = la première) : sert au tour de rôle. */
+  /** Date prévue : clé des marques et des reports de cette occurrence. */
+  origin: string
+  /** Heure affichée « HH:MM » (celle du déplacement, sinon celle de la tâche), ou null. */
+  time: string | null
+  /** Rang de l'occurrence depuis `start` (0 = la première ; -1 = inconnu) : sert au tour de rôle. */
   index: number
   /** Personnes chargées de cette occurrence-ci. */
   assignees: string[]
@@ -150,14 +177,15 @@ function matchesDay(task: Task, day: number, weekdays: number[]): boolean {
 
 /**
  * Dates d'occurrence de `task` entre `from` et `to` inclus, chacune avec son rang depuis `start`.
- * Une tâche sans répétition a une seule occurrence, à `start`.
+ * Une tâche sans répétition a une seule occurrence, à `start` ; une tâche `after` aussi (les
+ * suivantes dépendent de ses marques : voir `nextAfter`).
  */
 export function occurrenceDates(task: Task, from: string, to: string): Array<{ date: string; index: number }> {
   const first = dayNumber(task.start)
   const last = Math.min(dayNumber(to), task.until ? dayNumber(task.until) : Infinity)
   const lo = Math.max(dayNumber(from), first)
   if (lo > last) return []
-  if (task.repeat === 'none') return lo === first ? [{ date: task.start, index: 0 }] : []
+  if (task.repeat === 'none' || task.repeat === 'after') return lo === first ? [{ date: task.start, index: 0 }] : []
 
   const result: Array<{ date: string; index: number }> = []
   if (task.repeat === 'monthly' || task.repeat === 'yearly') {
@@ -189,22 +217,74 @@ export function assigneesAt(task: Task, index: number): string[] {
   return task.assignees
 }
 
-/** Toutes les occurrences de la période, triées par date puis titre, avec leur marque éventuelle. */
-export function expand(tasks: Task[], marks: Mark[], from: string, to: string): Occurrence[] {
-  const byKey = new Map(marks.map((mark) => [`${mark.taskId}|${mark.date}`, mark]))
+/**
+ * Prochaine date d'une tâche `after` : `every` jours après le jour où sa dernière marque a été
+ * cochée, jamais avant le lendemain de sa date prévue ni avant `start`. Sans marque : `start`.
+ */
+export function nextAfter(task: Task, chain: Chain | undefined): { date: string; index: number } | null {
+  let date = task.start
+  let index = 0
+  if (chain) {
+    const candidates = [addDays(chain.doneOn ?? chain.date, task.every), addDays(chain.date, 1), task.start]
+    date = candidates.reduce((max, key) => (key > max ? key : max))
+    index = chain.count
+  }
+  if (task.until && date > task.until) return null
+  return { date, index }
+}
+
+/**
+ * Toutes les occurrences affichées entre `from` et `to` (après reports), triées par date puis titre,
+ * avec leur marque éventuelle. `moves` et `chains` viennent de l'API (`state`).
+ */
+export function expand(
+  tasks: Task[],
+  marks: Mark[],
+  from: string,
+  to: string,
+  extras: { moves?: Move[]; chains?: Chain[] } = {},
+): Occurrence[] {
+  const moves = extras.moves ?? []
+  const markOf = new Map(marks.map((mark) => [`${mark.taskId}|${mark.date}`, mark]))
+  const moveOf = new Map(moves.map((move) => [`${move.taskId}|${move.date}`, move]))
+  const chainOf = new Map((extras.chains ?? []).map((chain) => [chain.taskId, chain]))
   const result: Occurrence[] = []
+
   for (const task of tasks) {
-    for (const { date, index } of occurrenceDates(task, from, to)) {
-      result.push({
-        task,
-        date,
-        index,
-        assignees: assigneesAt(task, index),
-        mark: byKey.get(`${task.id}|${date}`) ?? null,
-      })
+    // Dates prévues candidates → rang (-1 : déjà cochée, rang inconnu).
+    const planned = new Map<string, number>()
+    if (task.repeat === 'after') {
+      for (const mark of marks) if (mark.taskId === task.id) planned.set(mark.date, -1)
+      const next = nextAfter(task, chainOf.get(task.id))
+      if (next) planned.set(next.date, next.index)
+    } else {
+      for (const { date, index } of occurrenceDates(task, from, to)) planned.set(date, index)
+      // Dates prévues hors période mais reportées dedans.
+      for (const move of moves) {
+        if (move.taskId !== task.id || planned.has(move.date) || move.to < from || move.to > to) continue
+        const found = occurrenceDates(task, move.date, move.date)[0]
+        if (found) planned.set(found.date, found.index)
+      }
+    }
+
+    for (const [origin, index] of planned) {
+      const move = moveOf.get(`${task.id}|${origin}`)
+      const date = move?.to ?? origin
+      const time = move?.at ?? task.time
+      if (date < from || date > to) continue
+      const mark = markOf.get(`${task.id}|${origin}`) ?? null
+      const assignees =
+        index >= 0 ? assigneesAt(task, index) : task.rotate && mark?.personId ? [mark.personId] : task.assignees
+      result.push({ task, date, origin, time, index, assignees, mark })
     }
   }
-  return result.sort((a, b) => a.date.localeCompare(b.date) || a.task.title.localeCompare(b.task.title, 'fr'))
+  // Par jour, puis sans heure d'abord, puis par heure, puis par titre.
+  return result.sort(
+    (a, b) =>
+      a.date.localeCompare(b.date) ||
+      (a.time ?? '').localeCompare(b.time ?? '') ||
+      a.task.title.localeCompare(b.task.title, 'fr'),
+  )
 }
 
 /** Phrase courte décrivant la répétition (« Chaque semaine, le lundi et jeudi »). */
@@ -228,6 +308,9 @@ export function describeRepeat(task: Pick<Task, 'repeat' | 'every' | 'weekdays' 
       break
     case 'yearly':
       text = `${n === 1 ? 'Chaque année' : `Tous les ${n} ans`}, le ${formatDay(task.start, { day: 'numeric', month: 'long' })}`
+      break
+    case 'after':
+      text = n === 1 ? 'Le lendemain de la dernière fois' : `${n} jours après la dernière fois`
       break
   }
   return task.until ? `${text}, jusqu’au ${formatDay(task.until, { day: 'numeric', month: 'short', year: 'numeric' })}` : text

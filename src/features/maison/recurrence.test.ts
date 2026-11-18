@@ -7,6 +7,7 @@ import {
   isDateKey,
   isoWeekday,
   monthGrid,
+  nextAfter,
   occurrenceDates,
   startOfWeek,
   type Task,
@@ -19,6 +20,7 @@ function task(overrides: Partial<Task> = {}): Task {
     notes: '',
     category: 'menage',
     start: '2026-11-16', // lundi
+    time: null,
     repeat: 'none',
     every: 1,
     weekdays: [],
@@ -147,5 +149,84 @@ describe('describeRepeat', () => {
     expect(describeRepeat(task({ repeat: 'weekly', until: '2026-12-31' }))).toMatch(
       /^Chaque semaine, le lundi, jusqu’au 31 déc/,
     )
+  })
+})
+
+describe('reports', () => {
+  const weekly = task({ repeat: 'weekly', weekdays: [1] })
+
+  it('heure : celle du déplacement, sinon celle de la tâche ; sans heure en premier dans la journée', () => {
+    const timed = task({ id: 't2', title: 'Aspirateur', time: '18:00', repeat: 'weekly', weekdays: [1] })
+    const moves = [{ taskId: 't2', date: '2026-11-16', to: '2026-11-16', at: '09:30' }]
+    expect(expand([timed, weekly], [], '2026-11-16', '2026-11-23', { moves }).map((o) => [o.date, o.time, o.task.id])).toEqual([
+      ['2026-11-16', null, 't1'],
+      ['2026-11-16', '09:30', 't2'],
+      ['2026-11-23', null, 't1'],
+      ['2026-11-23', '18:00', 't2'],
+    ])
+  })
+
+  it('déplace une occurrence dans la période, ses marques restent sur la date prévue', () => {
+    const marks = [{ taskId: 't1', date: '2026-11-16', status: 'done' as const, personId: null }]
+    const moves = [{ taskId: 't1', date: '2026-11-16', to: '2026-11-18' }]
+    const occ = expand([weekly], marks, '2026-11-16', '2026-11-22', { moves })
+    expect(occ).toHaveLength(1)
+    expect(occ[0]).toMatchObject({ date: '2026-11-18', origin: '2026-11-16', index: 0 })
+    expect(occ[0].mark?.status).toBe('done')
+  })
+
+  it('fait entrer une date reportée depuis une autre semaine, et sortir celle reportée ailleurs', () => {
+    const moves = [
+      { taskId: 't1', date: '2026-11-16', to: '2026-11-24' },
+      { taskId: 't1', date: '2026-11-30', to: '2026-12-01' },
+    ]
+    const week = expand([weekly], [], '2026-11-23', '2026-11-29', { moves })
+    expect(week.map((o) => [o.origin, o.date])).toEqual([
+      ['2026-11-23', '2026-11-23'],
+      ['2026-11-16', '2026-11-24'],
+    ])
+    expect(week[1].index).toBe(0)
+    expect(expand([weekly], [], '2026-11-16', '2026-11-22', { moves })).toEqual([])
+  })
+
+  it('ignore un report dont la date prévue ne correspond à aucune occurrence', () => {
+    const moves = [{ taskId: 't1', date: '2026-11-17', to: '2026-11-25' }]
+    expect(expand([weekly], [], '2026-11-23', '2026-11-29', { moves }).map((o) => o.date)).toEqual(['2026-11-23'])
+  })
+})
+
+describe('après la dernière fois', () => {
+  const after = task({ repeat: 'after', every: 14, assignees: ['a', 'b'], rotate: true })
+
+  it('commence à start, puis every jours après le jour coché', () => {
+    expect(nextAfter(after, undefined)).toEqual({ date: '2026-11-16', index: 0 })
+    // Faite avec 3 jours de retard : la suivante part du jour où elle a été faite.
+    const chain = { taskId: 't1', date: '2026-11-16', doneOn: '2026-11-19', count: 1 }
+    expect(nextAfter(after, chain)).toEqual({ date: '2026-12-03', index: 1 })
+  })
+
+  it('jamais avant le lendemain de la date prévue ni avant start, et s’arrête à until', () => {
+    const early = { taskId: 't1', date: '2026-12-31', doneOn: '2026-11-01', count: 3 }
+    expect(nextAfter(after, early)?.date).toBe('2027-01-01')
+    const restarted = task({ repeat: 'after', every: 2, start: '2027-03-01' })
+    expect(nextAfter(restarted, { taskId: 't1', date: '2026-11-16', doneOn: '2026-11-16', count: 1 })?.date).toBe('2027-03-01')
+    expect(nextAfter({ ...after, until: '2026-11-30' }, { taskId: 't1', date: '2026-11-16', doneOn: '2026-11-19', count: 1 })).toBeNull()
+  })
+
+  it('montre l’historique coché et la prochaine date, avec le tour de rôle', () => {
+    const marks = [{ taskId: 't1', date: '2026-11-16', status: 'done' as const, personId: 'a', doneOn: '2026-11-19' }]
+    const chains = [{ taskId: 't1', date: '2026-11-16', doneOn: '2026-11-19', count: 1 }]
+    const occ = expand([after], marks, '2026-11-16', '2026-12-06', { chains })
+    expect(occ.map((o) => [o.date, o.assignees, o.mark?.status ?? null])).toEqual([
+      ['2026-11-16', ['a'], 'done'],
+      ['2026-12-03', ['b'], null],
+    ])
+    expect(describeRepeat(after)).toBe('14 jours après la dernière fois')
+  })
+
+  it('une prochaine date en retard reste visible tant qu’elle n’est pas cochée', () => {
+    const chains = [{ taskId: 't1', date: '2026-08-01', doneOn: '2026-08-01', count: 4 }]
+    const late = expand([{ ...after, start: '2026-06-01' }], [], '2000-01-01', '2026-11-01', { chains })
+    expect(late.map((o) => [o.date, o.index])).toEqual([['2026-08-15', 4]])
   })
 })

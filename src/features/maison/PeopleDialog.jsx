@@ -5,8 +5,11 @@ import { PERSON_COLORS } from './catalog'
 import { focusRing, primaryButton, secondaryButton } from '../dispo/ui'
 import { FormError, Modal, PersonAvatar, dangerButton, input, label } from './ui'
 
-/** Gestion des personnes du foyer : liste, ajout, modification (prénom, couleur, photo), suppression. */
-export default function PeopleDialog({ people, onClose, onSaved, onDeleted }) {
+/**
+ * Gestion des personnes du foyer : liste, ajout, modification (prénom, couleur, photo, « C'est moi »),
+ * suppression. `account` est le compte connecté, `meId` la personne qui lui est liée.
+ */
+export default function PeopleDialog({ people, account, meId, onClaim, onClose, onSaved, onDeleted }) {
   // null = liste ; 'new' = ajout ; sinon la personne modifiée.
   const [editing, setEditing] = useState(people.length === 0 ? 'new' : null)
   const [busy, setBusy] = useState(false)
@@ -22,6 +25,10 @@ export default function PeopleDialog({ people, onClose, onSaved, onDeleted }) {
         <PersonForm
           person={editing === 'new' ? { name: '', color: freeColor, avatar: null } : editing}
           canDelete={editing !== 'new'}
+          account={account}
+          isMe={editing !== 'new' && editing.id === meId}
+          takenBy={editing !== 'new' && editing.account && editing.account !== account ? editing.account : null}
+          onClaim={onClaim}
           busy={busy}
           setBusy={setBusy}
           onCancel={() => (people.length === 0 ? onClose() : setEditing(null))}
@@ -45,7 +52,14 @@ export default function PeopleDialog({ people, onClose, onSaved, onDeleted }) {
                   className={`flex w-full items-center gap-3 rounded-xl border border-[var(--border-color)] px-3 py-2.5 text-left transition hover:border-[var(--accent)] ${focusRing}`}
                 >
                   <PersonAvatar person={person} size={40} />
-                  <span className="min-w-0 flex-1 truncate font-semibold">{person.name}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-semibold">{person.name}</span>
+                    {person.id === meId ? (
+                      <span className="block text-xs text-[var(--accent)]">C’est toi (compte « {account} »)</span>
+                    ) : (
+                      person.account && <span className="block text-xs text-[var(--text-muted)]">Compte « {person.account} »</span>
+                    )}
+                  </span>
                   <span className="text-sm text-[var(--text-muted)]">Modifier</span>
                 </button>
               </li>
@@ -60,9 +74,10 @@ export default function PeopleDialog({ people, onClose, onSaved, onDeleted }) {
   )
 }
 
-function PersonForm({ person, canDelete, busy, setBusy, onCancel, onSaved, onDeleted }) {
+function PersonForm({ person, canDelete, account, isMe, takenBy, onClaim, busy, setBusy, onCancel, onSaved, onDeleted }) {
   const id = useId()
   const [name, setName] = useState(person.name)
+  const [me, setMeChecked] = useState(isMe)
   const [color, setColor] = useState(person.color)
   const [avatar, setAvatar] = useState(person.avatar)
   const [error, setError] = useState('')
@@ -84,7 +99,9 @@ function PersonForm({ person, canDelete, busy, setBusy, onCancel, onSaved, onDel
     setBusy(true)
     setError('')
     try {
-      onSaved(await savePerson({ ...(person.id ? { id: person.id } : {}), name: trimmed, color, avatar }))
+      const saved = await savePerson({ ...(person.id ? { id: person.id } : {}), name: trimmed, color, avatar })
+      onSaved(saved)
+      if (me !== isMe) await onClaim(me ? saved.id : null)
     } catch (err) {
       setError(err instanceof MaisonError ? err.message : 'Enregistrement impossible, réessaie.')
     } finally {
@@ -176,6 +193,25 @@ function PersonForm({ person, canDelete, busy, setBusy, onCancel, onSaved, onDel
           </label>
         </div>
       </fieldset>
+
+      {account && (
+        <label className="flex items-start gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={me}
+            onChange={(event) => setMeChecked(event.target.checked)}
+            className={`mt-0.5 h-4 w-4 accent-[var(--accent)] ${focusRing}`}
+          />
+          <span>
+            C’est moi <span className="text-[var(--text-muted)]">(compte « {account} »)</span>
+            <span className="block text-[var(--text-muted)]">
+              {takenBy
+                ? `Actuellement lié au compte « ${takenBy} » : cocher le reprend.`
+                : 'Le calendrier s’ouvre sur tes tâches et tes coches sont à ton nom.'}
+            </span>
+          </span>
+        </label>
+      )}
 
       <FormError id={`${id}-error`}>{error}</FormError>
 
